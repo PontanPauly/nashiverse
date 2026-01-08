@@ -117,7 +117,7 @@ export default function Home() {
               </Button>
             </Link>
             <Link to={createPageUrl("Family")}>
-              <Button variant="outline" className="border-purple-500/50 text-purple-200 hover:bg-purple-900/30 hover:border-purple-400/70">
+              <Button variant="outline" className="border-slate-600 text-slate-100 hover:bg-slate-800 hover:border-slate-500">
                 <Users className="w-4 h-4 mr-2" />
                 View Constellations
               </Button>
