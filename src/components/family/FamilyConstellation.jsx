@@ -128,8 +128,14 @@ export default function FamilyConstellation({ people, households, relationships 
   const [activeStarId, setActiveStarId] = useState(null);
   const [hoveredStarId, setHoveredStarId] = useState(null);
 
+  console.log('FamilyConstellation render', { peopleCount: people?.length, people });
+
   // Create stars with natural scattered positioning
   const stars = useMemo(() => {
+    if (!people || people.length === 0) {
+      console.log('No people data');
+      return [];
+    }
     // Separate deceased (ancestors) from living
     const deceased = people.filter(p => p.is_deceased);
     const living = people.filter(p => !p.is_deceased);
@@ -180,6 +186,7 @@ export default function FamilyConstellation({ people, households, relationships 
       });
     });
 
+    console.log('Created stars:', starsArray.length, starsArray);
     return starsArray;
   }, [people]);
 
@@ -213,6 +220,17 @@ export default function FamilyConstellation({ people, households, relationships 
   }, [activeStarId, hoveredStarId, people, relationships]);
 
   const activeStar = stars.find(s => s.person.id === activeStarId);
+
+  if (!people || people.length === 0) {
+    return (
+      <div className="nashiverse flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-slate-400 text-lg mb-2">No family members yet</p>
+          <p className="text-slate-500 text-sm">Add people to see your constellation</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="nashiverse">
