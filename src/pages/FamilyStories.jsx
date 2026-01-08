@@ -111,7 +111,7 @@ export default function FamilyStories() {
                   </div>
                 </div>
 
-                <div className="prose prose-slate prose-invert max-w-none">
+                <div className="prose prose-slate prose-invert max-w-none [&>p]:text-slate-300 [&>p]:leading-relaxed">
                   <ReactMarkdown>{story.content}</ReactMarkdown>
                 </div>
 
