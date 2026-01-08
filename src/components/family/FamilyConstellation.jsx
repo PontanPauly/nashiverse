@@ -185,25 +185,108 @@ export default function FamilyConstellation({ people, households, relationships 
   }
 
   return (
-    <div className="space-y-4">
-      {/* Controls */}
-      <div className="flex items-center justify-between gap-4 px-2">
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-widest text-amber-400/80">
-            Your Family Universe
-          </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Hover over stars to see family members • Click to view details
-          </p>
+    <div className="absolute inset-0 overflow-hidden">
+      {/* Deep Space Background */}
+      <div className="absolute inset-0">
+        {/* Base gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#000000] via-[#020206] to-[#030308]" />
+
+        {/* Distant stars field - multiple layers */}
+        <div className="absolute inset-0 opacity-60">
+          <div 
+            className="absolute inset-0" 
+            style={{
+              backgroundImage: `
+                radial-gradient(1px 1px at 20% 10%, white, transparent),
+                radial-gradient(1px 1px at 80% 20%, white, transparent),
+                radial-gradient(0.5px 0.5px at 40% 30%, white, transparent),
+                radial-gradient(1px 1px at 60% 40%, white, transparent),
+                radial-gradient(0.5px 0.5px at 15% 50%, white, transparent),
+                radial-gradient(1px 1px at 85% 60%, white, transparent),
+                radial-gradient(0.5px 0.5px at 45% 70%, white, transparent),
+                radial-gradient(1px 1px at 25% 80%, white, transparent),
+                radial-gradient(0.5px 0.5px at 75% 90%, white, transparent),
+                radial-gradient(1px 1px at 10% 95%, white, transparent),
+                radial-gradient(0.5px 0.5px at 50% 15%, white, transparent),
+                radial-gradient(1px 1px at 90% 35%, white, transparent),
+                radial-gradient(0.5px 0.5px at 35% 55%, white, transparent),
+                radial-gradient(1px 1px at 65% 75%, white, transparent),
+                radial-gradient(0.5px 0.5px at 55% 85%, white, transparent)
+              `,
+              backgroundSize: '200% 200%, 220% 220%, 180% 180%, 250% 250%, 190% 190%, 210% 210%, 170% 170%, 240% 240%, 200% 200%, 230% 230%, 185% 185%, 195% 195%, 215% 215%, 205% 205%, 225% 225%',
+              backgroundPosition: 'center',
+            }}
+          />
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">Focus:</span>
+
+        {/* Nebula clouds - more dramatic */}
+        <div className="absolute inset-0 opacity-25">
+          {/* Purple nebula */}
+          <div 
+            className="absolute w-[800px] h-[800px] rounded-full"
+            style={{
+              top: '10%',
+              left: '15%',
+              background: 'radial-gradient(ellipse at center, rgba(139, 92, 246, 0.4) 0%, rgba(139, 92, 246, 0.2) 30%, transparent 70%)',
+              filter: 'blur(100px)',
+            }}
+          />
+          {/* Blue nebula */}
+          <div 
+            className="absolute w-[700px] h-[700px] rounded-full"
+            style={{
+              bottom: '15%',
+              right: '20%',
+              background: 'radial-gradient(ellipse at center, rgba(59, 130, 246, 0.35) 0%, rgba(59, 130, 246, 0.15) 35%, transparent 70%)',
+              filter: 'blur(120px)',
+            }}
+          />
+          {/* Gold nebula */}
+          <div 
+            className="absolute w-[600px] h-[600px] rounded-full"
+            style={{
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              background: 'radial-gradient(ellipse at center, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0.1) 40%, transparent 70%)',
+              filter: 'blur(90px)',
+            }}
+          />
+          {/* Pink nebula */}
+          <div 
+            className="absolute w-[500px] h-[500px] rounded-full"
+            style={{
+              top: '30%',
+              right: '10%',
+              background: 'radial-gradient(ellipse at center, rgba(236, 72, 153, 0.25) 0%, rgba(236, 72, 153, 0.12) 35%, transparent 65%)',
+              filter: 'blur(85px)',
+            }}
+          />
+        </div>
+
+        {/* Cosmic dust overlay */}
+        <div 
+          className="absolute inset-0 opacity-20"
+          style={{
+            backgroundImage: `
+              radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.1) 0%, transparent 50%),
+              radial-gradient(ellipse at 70% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+              radial-gradient(ellipse at 50% 50%, rgba(251, 191, 36, 0.06) 0%, transparent 50%)
+            `,
+          }}
+        />
+      </div>
+
+      {/* Floating Controls */}
+      <div className="absolute top-20 right-4 z-50 glass-card rounded-xl px-4 py-3 border border-slate-700/50 backdrop-blur-xl">
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-slate-400 font-medium">Focus:</span>
           <select
-            className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-slate-200 shadow-sm focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+            className="rounded-lg border border-slate-700 bg-slate-800/90 px-3 py-1.5 text-xs text-slate-200 shadow-sm focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50 backdrop-blur-md"
             value={selectedConstellationId}
             onChange={(e) => setSelectedConstellationId(e.target.value)}
           >
-            <option value="all">Whole Nashiverse</option>
+            <option value="all">Whole Universe</option>
             {ancestors.length > 0 && <option value="ancestors">Ancestors</option>}
             {householdOptions.map(h => (
               <option key={h.id} value={h.id}>
@@ -214,18 +297,11 @@ export default function FamilyConstellation({ people, households, relationships 
         </div>
       </div>
 
-      {/* Starfield */}
-      <div className="relative w-full h-[600px] rounded-2xl overflow-hidden border border-slate-800/50">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#050716] via-[#050816] to-[#03040d]" />
-        
-        {/* Background fog */}
-        <div className="pointer-events-none absolute inset-0 opacity-40">
-          <div className="absolute -inset-1 bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.16),_transparent_60%)]" />
-          <div className="absolute -inset-1 bg-[radial-gradient(circle_at_bottom,_rgba(248,250,252,0.06),_transparent_55%)]" />
-        </div>
+      {/* Universe canvas */}
+      <div className="absolute inset-0">
 
         {/* Constellation lines */}
-        <svg className="pointer-events-none absolute inset-0 h-full w-full">
+        <svg className="pointer-events-none absolute inset-0 h-full w-full z-10">
           {constellationLines.map((line, index) => (
             <line
               key={line.id}
@@ -245,7 +321,8 @@ export default function FamilyConstellation({ people, households, relationships 
           ))}
         </svg>
 
-        {/* Stars */}
+        {/* Family stars */}
+        <div className="absolute inset-0 z-20">
         {people.map(person => {
           const { x, y } = getStarPosition(person);
           const { size, blur, baseColor, glowColor } = getStarVisuals(person);
@@ -352,13 +429,13 @@ export default function FamilyConstellation({ people, households, relationships 
                 </div>
               )}
             </div>
-          );
-        })}
-      </div>
+            );
+            })}
+            </div>
 
-      {/* Context Panel */}
+      {/* Context Panel - floating */}
       {selectedPerson && (
-        <div className="glass-card rounded-2xl p-6 border border-amber-500/20 animate-in slide-in-from-bottom duration-300">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[500px] max-w-[calc(100vw-2rem)] glass-card rounded-2xl p-6 border border-amber-500/30 backdrop-blur-xl z-50 animate-in slide-in-from-bottom duration-300">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex items-start gap-4">
               <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden border-2 border-amber-500/30">
@@ -470,16 +547,16 @@ export default function FamilyConstellation({ people, households, relationships 
               </div>
             )}
           </div>
-        </div>
-      )}
+          </div>
+          )}
 
-      <style>{`
-        @keyframes drawLine {
+          <style>{`
+          @keyframes drawLine {
           to {
             stroke-dashoffset: 0;
           }
-        }
-      `}</style>
-    </div>
-  );
-}
+          }
+          `}</style>
+          </div>
+          );
+          }

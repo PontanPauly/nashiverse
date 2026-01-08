@@ -128,50 +128,100 @@ export default function Family() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
-            <Users className="w-6 h-6 text-amber-400" />
-            Family
-          </h1>
-          <p className="text-slate-500 mt-1">{people.length} members across {households.length} households</p>
-        </div>
-        
-        <div className="flex gap-2">
-          <Button 
-            onClick={() => setViewMode(viewMode === 'list' ? 'constellation' : 'list')}
-            className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
-          >
-            <Network className="w-4 h-4 mr-2" />
-            {viewMode === 'list' ? 'Constellation View' : 'List View'}
-          </Button>
-          <Button 
-            onClick={() => setShowHouseholdForm(true)}
-            className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
-          >
-            <HomeIcon className="w-4 h-4 mr-2" />
-            Add Household
-          </Button>
-          <Button 
-            onClick={() => setShowPersonForm(true)}
-            className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Person
-          </Button>
-        </div>
-      </div>
-
-      {/* Constellation View */}
+    <>
+      {/* Constellation View - Full Background */}
       {viewMode === 'constellation' ? (
-        <FamilyConstellation 
-          people={people}
-          households={households}
-          relationships={relationships}
-        />
+        <div className="fixed inset-0 z-0">
+          <FamilyConstellation 
+            people={people}
+            households={households}
+            relationships={relationships}
+          />
+          {/* Floating Controls */}
+          <div className="fixed top-4 left-4 right-4 z-50 flex items-center justify-between gap-4">
+            <div className="glass-card rounded-xl px-4 py-3 border border-slate-700/50">
+              <h1 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <Users className="w-5 h-5 text-amber-400" />
+                Family Universe
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">{people.length} members across {households.length} households</p>
+            </div>
+
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => setViewMode('list')}
+                className="bg-slate-700/90 hover:bg-slate-600 text-white border border-slate-500 backdrop-blur-md"
+              >
+                <Network className="w-4 h-4 mr-2" />
+                List View
+              </Button>
+              <Button 
+                onClick={() => setShowHouseholdForm(true)}
+                className="bg-slate-700/90 hover:bg-slate-600 text-white border border-slate-500 backdrop-blur-md"
+              >
+                <HomeIcon className="w-4 h-4 mr-2" />
+                Add Household
+              </Button>
+              <Button 
+                onClick={() => setShowPersonForm(true)}
+                className="bg-amber-500/90 hover:bg-amber-600 text-slate-900 font-semibold backdrop-blur-md"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Person
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : (
+        <div className="max-w-6xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+                <Users className="w-6 h-6 text-amber-400" />
+                Family
+              </h1>
+              <p className="text-slate-500 mt-1">{people.length} members across {households.length} households</p>
+            </div>
+
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => setViewMode('constellation')}
+                className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
+              >
+                <Network className="w-4 h-4 mr-2" />
+                Constellation View
+              </Button>
+              <Button 
+                onClick={() => setShowHouseholdForm(true)}
+                className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
+              >
+                <HomeIcon className="w-4 h-4 mr-2" />
+                Add Household
+              </Button>
+              <Button 
+                onClick={() => setShowPersonForm(true)}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Person
+              </Button>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+            <Input
+              placeholder="Search family members..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 bg-slate-800 border-slate-500 text-white placeholder:text-slate-300 focus:border-amber-400"
+            />
+          </div>
+
+          {/* Households */}
+          <div className="space-y-6">
         <>
           {/* Search */}
           <div className="relative">
@@ -345,10 +395,12 @@ export default function Family() {
           </div>
         )}
           </div>
-        </>
-      )}
+        </div>
+        </div>
+        )}
 
-      {/* Empty State */}
+        {/* Empty State - Only show in list view */}
+        {viewMode === 'list' && (
       {people.length === 0 && households.length === 0 && (
         <div className="glass-card rounded-2xl p-12 text-center">
           <Users className="w-16 h-16 text-slate-700 mx-auto mb-4" />
@@ -372,10 +424,14 @@ export default function Family() {
               Add Person
             </Button>
           </div>
-        </div>
-      )}
+          </div>
+          )}
+          </>
+          );
 
-      {/* Person Form Dialog - Only admins can edit */}
+          return (
+          <div className="max-w-6xl mx-auto space-y-6">
+          {/* Person Form Dialog - Only admins can edit */}
       <Dialog open={showPersonForm || !!editingPerson} onOpenChange={(open) => {
         if (!open) {
           setShowPersonForm(false);
