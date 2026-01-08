@@ -53,19 +53,21 @@ export default function Layout({ children, currentPageName }) {
       <style>{`
         :root {
           --color-cosmos-dark: #0f172a;
-          --color-cosmos-darker: #020617;
+          --color-cosmos-deeper: #0a0e1a;
+          --color-nebula-purple: #1e1b4b;
           --color-starlight: #f8fafc;
           --color-gold-soft: #fbbf24;
           --color-gold-warm: #f59e0b;
-          --color-twilight-blue: #3b82f6;
-          --color-twilight-purple: #8b5cf6;
+          --color-constellation-blue: #60a5fa;
+          --color-cosmic-purple: #a78bfa;
         }
-        
+
         body {
-          background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e1b4b 100%);
+          background: radial-gradient(ellipse at top, #1e1b4b 0%, #0a0e1a 50%, #000000 100%);
           min-height: 100vh;
+          overflow-x: hidden;
         }
-        
+
         .star-field {
           position: fixed;
           top: 0;
@@ -75,25 +77,86 @@ export default function Layout({ children, currentPageName }) {
           pointer-events: none;
           z-index: 0;
           background-image: 
-            radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,0.15), transparent),
-            radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,0.1), transparent),
-            radial-gradient(1px 1px at 90px 40px, rgba(255,255,255,0.15), transparent),
-            radial-gradient(2px 2px at 160px 120px, rgba(255,255,255,0.12), transparent),
-            radial-gradient(1px 1px at 230px 80px, rgba(255,255,255,0.1), transparent),
-            radial-gradient(2px 2px at 300px 160px, rgba(255,255,255,0.08), transparent);
-          background-size: 350px 200px;
+            radial-gradient(1.5px 1.5px at 20% 30%, white, transparent),
+            radial-gradient(1.5px 1.5px at 60% 70%, white, transparent),
+            radial-gradient(1px 1px at 50% 50%, white, transparent),
+            radial-gradient(1px 1px at 80% 10%, white, transparent),
+            radial-gradient(1.5px 1.5px at 90% 60%, white, transparent),
+            radial-gradient(1px 1px at 33% 90%, white, transparent),
+            radial-gradient(1px 1px at 15% 60%, white, transparent);
+          background-size: 200% 200%;
+          animation: starTwinkle 8s ease-in-out infinite;
+          opacity: 0.6;
         }
-        
+
+        @keyframes starTwinkle {
+          0%, 100% { opacity: 0.5; }
+          50% { opacity: 0.8; }
+        }
+
+        .star-field::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-image: 
+            radial-gradient(2px 2px at 40% 20%, rgba(255,255,255,0.8), transparent),
+            radial-gradient(1.5px 1.5px at 70% 80%, rgba(255,255,255,0.6), transparent),
+            radial-gradient(1px 1px at 25% 45%, rgba(255,255,255,0.4), transparent);
+          background-size: 100% 100%;
+          animation: starPulse 4s ease-in-out infinite alternate;
+        }
+
+        @keyframes starPulse {
+          0% { opacity: 0.3; }
+          100% { opacity: 0.7; }
+        }
+
+        .nebula-glow {
+          position: fixed;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          pointer-events: none;
+          z-index: 1;
+          background: 
+            radial-gradient(ellipse at 20% 20%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+            radial-gradient(ellipse at 80% 70%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+            radial-gradient(ellipse at 50% 90%, rgba(251, 191, 36, 0.08) 0%, transparent 40%);
+          animation: nebulaShift 30s ease-in-out infinite;
+        }
+
+        @keyframes nebulaShift {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(-5%, -5%) scale(1.1); }
+        }
+
         .glass-card {
-          background: rgba(15, 23, 42, 0.6);
-          backdrop-filter: blur(12px);
-          border: 1px solid rgba(148, 163, 184, 0.1);
+          background: rgba(15, 23, 42, 0.7);
+          backdrop-filter: blur(16px);
+          border: 1px solid rgba(148, 163, 184, 0.15);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
-        
+
+        .constellation-line {
+          stroke: rgba(251, 191, 36, 0.3);
+          stroke-width: 1;
+          fill: none;
+        }
+
         .glow-gold {
-          box-shadow: 0 0 20px rgba(251, 191, 36, 0.15);
+          box-shadow: 0 0 30px rgba(251, 191, 36, 0.3), 0 0 60px rgba(251, 191, 36, 0.15);
+        }
+
+        .glow-cosmic {
+          box-shadow: 0 0 20px rgba(167, 139, 250, 0.4);
         }
       `}</style>
+
+      <div className="nebula-glow" />
       
       <div className="star-field" />
       
@@ -101,10 +164,11 @@ export default function Layout({ children, currentPageName }) {
       <header className="lg:hidden fixed top-0 left-0 right-0 z-50 glass-card border-b border-slate-800/50">
         <div className="flex items-center justify-between px-4 py-3">
           <Link to={createPageUrl("Home")} className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-              <Star className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-lg font-semibold text-slate-100">Nashiverse</span>
+          <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 via-amber-500 to-purple-600 flex items-center justify-center glow-gold">
+            <Star className="w-4 h-4 text-white fill-white" />
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-300 to-transparent opacity-50 animate-pulse" />
+          </div>
+          <span className="text-lg font-semibold bg-gradient-to-r from-amber-200 via-amber-100 to-purple-200 bg-clip-text text-transparent">Nashiverse</span>
           </Link>
           <Button
             variant="ghost"
@@ -135,12 +199,13 @@ export default function Layout({ children, currentPageName }) {
           {/* Logo */}
           <div className="p-6 border-b border-slate-800/50">
             <Link to={createPageUrl("Home")} className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center glow-gold">
-                <Star className="w-5 h-5 text-white" />
+              <div className="relative w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 via-amber-500 to-purple-600 flex items-center justify-center glow-gold">
+                <Star className="w-5 h-5 text-white fill-white" />
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-300 to-transparent opacity-50 animate-pulse" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-slate-100">Nashiverse</h1>
-                <p className="text-xs text-slate-500">Family Universe</p>
+                <h1 className="text-xl font-semibold bg-gradient-to-r from-amber-200 via-amber-100 to-purple-200 bg-clip-text text-transparent">Nashiverse</h1>
+                <p className="text-xs text-purple-300/60">Your Family Universe</p>
               </div>
             </Link>
           </div>
