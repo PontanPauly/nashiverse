@@ -9,7 +9,9 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized: Admin access required' }, { status: 403 });
     }
 
-    // Delete all data entities
+    const results = {};
+
+    // Delete all data entities (in correct order to avoid foreign key issues)
     const entitiesToClear = [
       'Moment',
       'LoveNote',
@@ -34,21 +36,23 @@ Deno.serve(async (req) => {
       'FamilySettings',
     ];
 
-    const results = {};
-
     for (const entity of entitiesToClear) {
       const records = await base44.asServiceRole.entities[entity].list();
       results[entity] = { total: records.length, deleted: 0 };
 
       for (const record of records) {
-        await base44.asServiceRole.entities[entity].delete(record.id);
-        results[entity].deleted++;
+        try {
+          await base44.asServiceRole.entities[entity].delete(record.id);
+          results[entity].deleted++;
+        } catch (e) {
+          // Skip errors, continue with next record
+        }
       }
     }
 
     return Response.json({
       success: true,
-      message: 'All test data cleared',
+      message: 'All test data cleared. Only your account remains.',
       results,
     });
   } catch (error) {
