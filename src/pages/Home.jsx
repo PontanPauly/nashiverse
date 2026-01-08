@@ -89,72 +89,84 @@ export default function Home() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {/* Welcome Section */}
-      <section className="relative overflow-hidden rounded-3xl glass-card p-8 lg:p-12">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-amber-500/10 to-orange-500/5 rounded-full blur-3xl" />
-        <div className="relative">
-          <div className="flex items-center gap-2 text-amber-400 mb-3">
-            <Star className="w-4 h-4" />
-            <span className="text-sm font-medium">Welcome back</span>
+      {/* Universe Welcome */}
+      <section className="relative overflow-hidden rounded-3xl glass-card p-8 lg:p-12 border-2 border-amber-500/20">
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-transparent to-amber-900/20" />
+        <div className="absolute top-4 right-4 w-32 h-32 bg-amber-400/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-4 left-4 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl" />
+        
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 mb-4">
+            <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+            <span className="text-sm font-medium text-amber-300">Welcome to the Universe</span>
           </div>
-          <h1 className="text-3xl lg:text-4xl font-bold text-slate-100 mb-2">
+          
+          <h1 className="text-4xl lg:text-5xl font-bold mb-3 bg-gradient-to-r from-amber-200 via-slate-100 to-purple-200 bg-clip-text text-transparent">
             {personProfile?.nickname || personProfile?.name || user.full_name || "Family Member"}
           </h1>
-          <p className="text-slate-400 text-lg">
+          
+          <p className="text-xl text-purple-300/80">
             {settings?.family_name ? `${settings.family_name}'s Universe` : "Your Family Universe"}
           </p>
           
           {settings?.tagline && (
-            <p className="mt-4 text-slate-500 italic">"{settings.tagline}"</p>
+            <p className="mt-4 text-purple-300/60 italic text-lg">"{settings.tagline}"</p>
           )}
 
           <div className="mt-8 flex flex-wrap gap-4">
             <Link to={createPageUrl("Trips")}>
-              <Button className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-medium">
+              <Button className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-900 font-medium shadow-lg shadow-amber-500/20">
                 <Plus className="w-4 h-4 mr-2" />
-                Plan a Trip
+                Plan a Journey
               </Button>
             </Link>
             <Link to={createPageUrl("Family")}>
-              <Button variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800">
+              <Button variant="outline" className="border-purple-500/50 text-purple-200 hover:bg-purple-900/30 hover:border-purple-400/70">
                 <Users className="w-4 h-4 mr-2" />
-                View Family
+                Explore Constellation
               </Button>
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Stats Row */}
+      {/* Universe Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Family Members", value: people.length, icon: Users, color: "from-blue-500 to-cyan-500" },
-          { label: "Trips", value: trips.length, icon: MapPin, color: "from-amber-500 to-orange-500" },
-          { label: "Moments", value: moments.length, icon: Star, color: "from-purple-500 to-pink-500" },
-          { label: "Love Notes", value: loveNotes.length, icon: Heart, color: "from-rose-500 to-red-500" },
+          { label: "Stars in Constellation", value: people.length, icon: Users, color: "from-amber-500 to-orange-500", border: "border-amber-500/20 hover:border-amber-500/40" },
+          { label: "Cosmic Journeys", value: trips.length, icon: MapPin, color: "from-blue-500 to-cyan-500", border: "border-blue-500/20 hover:border-blue-500/40" },
+          { label: "Captured Memories", value: moments.length, icon: Star, color: "from-purple-500 to-pink-500", border: "border-purple-500/20 hover:border-purple-500/40" },
+          { label: "Notes of Gratitude", value: loveNotes.length, icon: Heart, color: "from-pink-500 to-rose-500", border: "border-pink-500/20 hover:border-pink-500/40" },
         ].map((stat, i) => (
-          <div key={i} className="glass-card rounded-2xl p-5">
-            <div className={cn(
-              "w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center mb-3",
-              stat.color
-            )}>
-              <stat.icon className="w-5 h-5 text-white" />
+          <div key={i} className={cn("relative glass-card rounded-2xl p-5 border transition-all group", stat.border)}>
+            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative">
+              <div className={cn(
+                "w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center mb-3",
+                stat.color
+              )}>
+                <stat.icon className="w-6 h-6 text-white" />
+              </div>
+              <p className="text-3xl font-bold text-slate-100">{stat.value}</p>
+              <p className="text-sm text-slate-400">{stat.label}</p>
             </div>
-            <p className="text-2xl font-bold text-slate-100">{stat.value}</p>
-            <p className="text-sm text-slate-500">{stat.label}</p>
           </div>
         ))}
       </div>
 
       {/* Main Grid */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Upcoming Trips */}
+        {/* Upcoming Journeys */}
         <section className="glass-card rounded-2xl p-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-amber-400" />
-              Upcoming Trips
-            </h2>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center">
+                <MapPin className="w-5 h-5 text-amber-400" />
+              </div>
+              <h2 className="text-lg font-semibold bg-gradient-to-r from-amber-200 to-slate-100 bg-clip-text text-transparent">
+                Upcoming Journeys
+              </h2>
+            </div>
             <Link to={createPageUrl("Trips")} className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center">
               View all
               <ChevronRight className="w-4 h-4" />
@@ -196,13 +208,17 @@ export default function Home() {
           )}
         </section>
 
-        {/* Recent Love Notes */}
+        {/* Recent Gratitude */}
         <section className="glass-card rounded-2xl p-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-              <Heart className="w-5 h-5 text-rose-400" />
-              Recent Love Notes
-            </h2>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-pink-500/10 flex items-center justify-center glow-cosmic">
+                <Heart className="w-5 h-5 text-pink-400" />
+              </div>
+              <h2 className="text-lg font-semibold bg-gradient-to-r from-pink-200 to-slate-100 bg-clip-text text-transparent">
+                Recent Gratitude
+              </h2>
+            </div>
             <Link to={createPageUrl("LoveNotes")} className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center">
               View all
               <ChevronRight className="w-4 h-4" />
@@ -237,14 +253,18 @@ export default function Home() {
         </section>
       </div>
 
-      {/* Recent Moments */}
+      {/* Recent Memories */}
       {moments.length > 0 && (
         <section className="glass-card rounded-2xl p-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-              <Star className="w-5 h-5 text-purple-400" />
-              Recent Moments
-            </h2>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center">
+                <Star className="w-5 h-5 text-purple-400" />
+              </div>
+              <h2 className="text-lg font-semibold bg-gradient-to-r from-purple-200 to-slate-100 bg-clip-text text-transparent">
+                Recent Memories
+              </h2>
+            </div>
             <Link to={createPageUrl("Moments")} className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center">
               View all
               <ChevronRight className="w-4 h-4" />
