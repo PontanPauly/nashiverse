@@ -9,6 +9,13 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Delete all other users
+    const users = await base44.asServiceRole.entities.User.list();
+    const usersToDelete = users.filter(u => u.id !== user.id);
+    for (const userToDelete of usersToDelete) {
+      await base44.asServiceRole.entities.User.delete(userToDelete.id);
+    }
+
     // Get current user's person record
     const people = await base44.asServiceRole.entities.Person.list();
     const myPerson = people.find(p => p.linked_user_email === user.email);
