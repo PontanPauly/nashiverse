@@ -165,14 +165,14 @@ export default function Family() {
     <>
       {/* Constellation View - Full Background */}
       {viewMode === 'constellation' ? (
-        <div className="fixed inset-0 z-0">
+        <div className="fixed inset-0 lg:left-64 z-0">
           <FamilyConstellation 
             people={people}
             households={households}
             relationships={relationships}
           />
           {/* Floating Controls */}
-          <div className="fixed top-4 left-4 right-4 z-50 flex items-center justify-between gap-4">
+          <div className="fixed top-4 left-4 lg:left-68 right-4 z-50 flex items-center justify-between gap-4">
             <div className="glass-card rounded-xl px-4 py-3 border border-slate-700/50">
               <h1 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                 <Users className="w-5 h-5 text-amber-400" />
