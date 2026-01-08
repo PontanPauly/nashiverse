@@ -7,6 +7,10 @@ export default function FamilyConstellation({ people, households, relationships 
   const [selectedPersonId, setSelectedPersonId] = useState(null);
   const [hoveredPersonId, setHoveredPersonId] = useState(null);
   const [selectedConstellationId, setSelectedConstellationId] = useState('all');
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   // Hash function for deterministic randomness
   const hash = (input) => {
@@ -298,10 +302,35 @@ export default function FamilyConstellation({ people, households, relationships 
       </div>
 
       {/* Universe canvas */}
-      <div className="absolute inset-0">
+      <div 
+        className="absolute inset-0 cursor-grab active:cursor-grabbing"
+        onWheel={(e) => {
+          e.preventDefault();
+          const delta = e.deltaY * -0.001;
+          const newZoom = Math.min(Math.max(0.5, zoom + delta), 3);
+          setZoom(newZoom);
+        }}
+        onMouseDown={(e) => {
+          setIsDragging(true);
+          setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+        }}
+        onMouseMove={(e) => {
+          if (isDragging) {
+            setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+          }
+        }}
+        onMouseUp={() => setIsDragging(false)}
+        onMouseLeave={() => setIsDragging(false)}
+      >
 
         {/* Constellation lines */}
-        <svg className="pointer-events-none absolute inset-0 h-full w-full z-10">
+        <svg 
+          className="pointer-events-none absolute inset-0 h-full w-full z-10"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: 'center center',
+          }}
+        >
           {constellationLines.map((line, index) => (
             <line
               key={line.id}
@@ -322,7 +351,13 @@ export default function FamilyConstellation({ people, households, relationships 
         </svg>
 
         {/* Family stars */}
-        <div className="absolute inset-0 z-20">
+        <div 
+          className="absolute inset-0 z-20"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: 'center center',
+          }}
+        >
         {people.map(person => {
           const { x, y } = getStarPosition(person);
           const { size, blur, baseColor, glowColor } = getStarVisuals(person);
