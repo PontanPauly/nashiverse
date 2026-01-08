@@ -134,10 +134,15 @@ export default function FamilyConstellation({ people, households, relationships 
   const constellationLines = useMemo(() => {
     const lines = [];
 
-    // For "all" view, draw relationship-based lines across entire universe
+    // For "all" view, draw parent-child lineage lines only
     if (!selectedConstellationId || selectedConstellationId === 'all') {
       if (relationships && relationships.length > 0) {
-        relationships.forEach((rel) => {
+        // Only show parent-child relationships to create ancestry tree
+        const parentChildRels = relationships.filter(
+          rel => rel.relationship_type === 'parent' || rel.relationship_type === 'child'
+        );
+        
+        parentChildRels.forEach((rel) => {
           const person1 = people.find(p => p.id === rel.person_id);
           const person2 = people.find(p => p.id === rel.related_person_id);
           
