@@ -258,7 +258,7 @@ export default function Layout({ children, currentPageName }) {
                   className="flex-1"
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <Button variant="ghost" size="sm" className="w-full text-slate-400 hover:text-slate-200">
+                  <Button variant="ghost" size="sm" className="w-full text-slate-100 hover:text-slate-100 hover:bg-slate-700">
                     <Settings className="w-4 h-4 mr-2" />
                     Settings
                   </Button>
@@ -266,7 +266,7 @@ export default function Layout({ children, currentPageName }) {
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  className="text-slate-400 hover:text-red-400"
+                  className="text-slate-100 hover:text-red-400 hover:bg-slate-700"
                   onClick={() => base44.auth.logout()}
                 >
                   <LogOut className="w-4 h-4" />

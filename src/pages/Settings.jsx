@@ -150,7 +150,7 @@ export default function Settings() {
                   size="icon"
                   onClick={copyInviteCode}
                   disabled={!settings?.invite_code}
-                  className="border-slate-700"
+                  className="border-slate-600 text-slate-100 hover:bg-slate-800 hover:border-slate-500"
                 >
                   <Copy className="w-4 h-4" />
                 </Button>
@@ -158,7 +158,7 @@ export default function Settings() {
                   variant="outline" 
                   size="icon"
                   onClick={generateInviteCode}
-                  className="border-slate-700"
+                  className="border-slate-600 text-slate-100 hover:bg-slate-800 hover:border-slate-500"
                 >
                   <RefreshCw className="w-4 h-4" />
                 </Button>
@@ -198,7 +198,7 @@ export default function Settings() {
                       <Button 
                         size="sm"
                         variant="outline"
-                        className="border-red-500/50 text-red-400 hover:bg-red-500/10"
+                        className="border-red-600 text-red-400 hover:bg-red-500/10 hover:border-red-500"
                         onClick={() => handleRejectRequest(request)}
                       >
                         <X className="w-4 h-4" />
