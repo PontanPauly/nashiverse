@@ -13,7 +13,8 @@ import {
   X,
   LogOut,
   Star,
-  Image
+  Image,
+  Flame
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -40,7 +41,7 @@ export default function Layout({ children, currentPageName }) {
     { name: "Home", href: createPageUrl("Home"), icon: Home },
     { name: "Family", href: createPageUrl("Family"), icon: Users },
     { name: "Trips", href: createPageUrl("Trips"), icon: MapPin },
-    { name: "Traditions", href: createPageUrl("Rituals"), icon: Home },
+    { name: "Traditions", href: createPageUrl("Rituals"), icon: Flame },
     { name: "Moments", href: createPageUrl("Moments"), icon: Image },
     { name: "Love Notes", href: createPageUrl("LoveNotes"), icon: Heart },
   ];
