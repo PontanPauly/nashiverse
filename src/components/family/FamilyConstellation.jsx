@@ -1,261 +1,144 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { X, Users, Heart, Baby, Sparkles } from 'lucide-react';
+import { X, Filter, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
-// Force-directed graph simulation
-class ForceSimulation {
-  constructor(nodes, edges, width, height) {
-    this.nodes = nodes.map(n => ({
-      ...n,
-      x: n.x || width / 2 + (Math.random() - 0.5) * 200,
-      y: n.y || height / 2 + (Math.random() - 0.5) * 200,
-      vx: 0,
-      vy: 0,
-    }));
-    this.edges = edges;
-    this.width = width;
-    this.height = height;
-  }
-
-  tick(alpha = 0.3) {
-    // Repulsion between all nodes
-    for (let i = 0; i < this.nodes.length; i++) {
-      for (let j = i + 1; j < this.nodes.length; j++) {
-        const a = this.nodes[i];
-        const b = this.nodes[j];
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const force = 3000 / (dist * dist);
-        
-        a.vx -= (dx / dist) * force * alpha;
-        a.vy -= (dy / dist) * force * alpha;
-        b.vx += (dx / dist) * force * alpha;
-        b.vy += (dy / dist) * force * alpha;
-      }
-    }
-
-    // Attraction along edges
-    this.edges.forEach(edge => {
-      const source = this.nodes.find(n => n.id === edge.source);
-      const target = this.nodes.find(n => n.id === edge.target);
-      if (!source || !target) return;
-
-      const dx = target.x - source.x;
-      const dy = target.y - source.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      
-      const optimalDist = edge.type === 'partner' ? 80 : edge.type === 'parent' ? 120 : 100;
-      const force = (dist - optimalDist) * 0.1 * (edge.strength || 1);
-      
-      source.vx += (dx / dist) * force * alpha;
-      source.vy += (dy / dist) * force * alpha;
-      target.vx -= (dx / dist) * force * alpha;
-      target.vy -= (dy / dist) * force * alpha;
-    });
-
-    // Center gravity
-    const centerX = this.width / 2;
-    const centerY = this.height / 2;
-    this.nodes.forEach(node => {
-      const dx = centerX - node.x;
-      const dy = centerY - node.y;
-      node.vx += dx * 0.01 * alpha;
-      node.vy += dy * 0.01 * alpha;
-    });
-
-    // Apply velocities with damping
-    this.nodes.forEach(node => {
-      node.x += node.vx;
-      node.y += node.vy;
-      node.vx *= 0.85;
-      node.vy *= 0.85;
-
-      // Boundary constraints
-      const padding = 50;
-      node.x = Math.max(padding, Math.min(this.width - padding, node.x));
-      node.y = Math.max(padding, Math.min(this.height - padding, node.y));
-    });
-
-    return this.nodes;
-  }
-}
-
 export default function FamilyConstellation({ people, households, relationships }) {
-  const containerRef = useRef(null);
-  const [dimensions, setDimensions] = useState({ width: 1000, height: 600 });
   const [selectedPersonId, setSelectedPersonId] = useState(null);
   const [hoveredPersonId, setHoveredPersonId] = useState(null);
-  const [filterMode, setFilterMode] = useState('all');
+  const [viewMode, setViewMode] = useState('all'); // all, household, lineage
   const [selectedHouseholdId, setSelectedHouseholdId] = useState(null);
-  const [draggedNodeId, setDraggedNodeId] = useState(null);
-  const [nodePositions, setNodePositions] = useState({});
-  const simulationRef = useRef(null);
-  const animationRef = useRef(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const containerRef = useRef(null);
 
-  // Measure container
-  useEffect(() => {
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setDimensions({ width: rect.width, height: rect.height });
-      }
-    };
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
-  }, []);
+  // Organize people by generation and household
+  const organized = useMemo(() => {
+    if (!people || !relationships) return { generations: [], households: new Map() };
 
-  // Build graph edges from relationships
-  const edges = useMemo(() => {
-    if (!relationships || !people) return [];
-    
-    const edgeList = [];
-    const processed = new Set();
-
+    // Find root ancestors (people with no parents in the system)
+    const hasParent = new Set();
     relationships.forEach(rel => {
-      const key = [rel.person_id, rel.related_person_id].sort().join('-');
-      if (processed.has(key)) return;
-      processed.add(key);
-
-      let strength = 1;
-      if (rel.relationship_type === 'partner' || rel.relationship_type === 'spouse') {
-        strength = 2;
-      } else if (rel.relationship_type === 'parent' || rel.relationship_type === 'child') {
-        strength = 1.5;
+      if (rel.relationship_type === 'parent') {
+        hasParent.add(rel.related_person_id);
       }
-
-      edgeList.push({
-        source: rel.person_id,
-        target: rel.related_person_id,
-        type: rel.relationship_type,
-        strength,
-      });
     });
 
-    return edgeList;
-  }, [relationships, people]);
-
-  // Filter people based on mode
-  const filteredPeople = useMemo(() => {
-    if (!people) return [];
+    const roots = people.filter(p => !hasParent.has(p.id) && (p.role_type === 'adult' || p.role_type === 'ancestor'));
     
-    if (filterMode === 'ancestors') {
-      return people.filter(p => p.is_deceased || p.role_type === 'ancestor');
+    // Build generations using BFS
+    const generations = [];
+    const visited = new Set();
+    let currentGen = roots;
+    
+    while (currentGen.length > 0) {
+      generations.push(currentGen);
+      currentGen.forEach(p => visited.add(p.id));
+      
+      const nextGen = [];
+      currentGen.forEach(parent => {
+        const children = relationships
+          .filter(r => r.relationship_type === 'parent' && r.person_id === parent.id)
+          .map(r => people.find(p => p.id === r.related_person_id))
+          .filter(p => p && !visited.has(p.id));
+        nextGen.push(...children);
+      });
+      
+      currentGen = [...new Set(nextGen.map(p => p.id))].map(id => people.find(p => p.id === id)).filter(Boolean);
     }
-    if (filterMode === 'living') {
-      return people.filter(p => !p.is_deceased && p.role_type !== 'ancestor');
-    }
-    if (filterMode === 'household' && selectedHouseholdId) {
+
+    // Add any remaining people
+    const remaining = people.filter(p => !visited.has(p.id));
+    if (remaining.length > 0) generations.push(remaining);
+
+    // Group by household
+    const householdGroups = new Map();
+    people.forEach(p => {
+      const hid = p.household_id || 'none';
+      if (!householdGroups.has(hid)) householdGroups.set(hid, []);
+      householdGroups.get(hid).push(p);
+    });
+
+    return { generations, households: householdGroups };
+  }, [people, relationships]);
+
+  // Get filtered people
+  const visiblePeople = useMemo(() => {
+    if (viewMode === 'household' && selectedHouseholdId) {
       return people.filter(p => p.household_id === selectedHouseholdId);
     }
-    if (filterMode === 'connections' && selectedPersonId) {
-      // Show selected person and all directly connected people
+    if (viewMode === 'lineage' && selectedPersonId) {
+      // Show person and their direct connections
       const connected = new Set([selectedPersonId]);
-      edges.forEach(edge => {
-        if (edge.source === selectedPersonId) connected.add(edge.target);
-        if (edge.target === selectedPersonId) connected.add(edge.source);
+      relationships.forEach(r => {
+        if (r.person_id === selectedPersonId) connected.add(r.related_person_id);
+        if (r.related_person_id === selectedPersonId) connected.add(r.person_id);
       });
       return people.filter(p => connected.has(p.id));
     }
     return people;
-  }, [people, filterMode, selectedHouseholdId, selectedPersonId, edges]);
+  }, [people, viewMode, selectedHouseholdId, selectedPersonId, relationships]);
 
-  // Initialize and run simulation
-  useEffect(() => {
-    if (!filteredPeople.length || !dimensions.width) return;
-
-    const nodes = filteredPeople.map(p => ({
-      id: p.id,
-      data: p,
-      x: nodePositions[p.id]?.x,
-      y: nodePositions[p.id]?.y,
-    }));
-
-    const relevantEdges = edges.filter(e => 
-      filteredPeople.find(p => p.id === e.source) && 
-      filteredPeople.find(p => p.id === e.target)
-    );
-
-    simulationRef.current = new ForceSimulation(nodes, relevantEdges, dimensions.width, dimensions.height);
-
-    let iterations = 0;
-    const maxIterations = 300;
-
-    const animate = () => {
-      if (iterations < maxIterations && simulationRef.current && !draggedNodeId) {
-        const alpha = Math.max(0.01, 1 - iterations / maxIterations);
-        const updated = simulationRef.current.tick(alpha);
-        
-        const newPositions = {};
-        updated.forEach(node => {
-          newPositions[node.id] = { x: node.x, y: node.y };
+  // Calculate positions
+  const positions = useMemo(() => {
+    const pos = new Map();
+    
+    if (viewMode === 'household' && selectedHouseholdId) {
+      // Circular layout for household
+      const household = visiblePeople;
+      household.forEach((person, i) => {
+        const angle = (i / household.length) * Math.PI * 2;
+        const radius = 30;
+        pos.set(person.id, {
+          x: 50 + radius * Math.cos(angle),
+          y: 50 + radius * Math.sin(angle),
         });
-        setNodePositions(newPositions);
+      });
+    } else {
+      // Generational layout
+      organized.generations.forEach((gen, genIdx) => {
+        const y = 15 + (genIdx * 25);
+        const spacing = 80 / (gen.length + 1);
         
-        iterations++;
-        animationRef.current = requestAnimationFrame(animate);
-      }
-    };
-
-    animate();
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [filteredPeople, edges, dimensions, draggedNodeId]);
-
-  // Handle node drag
-  const handleMouseDown = (personId, e) => {
-    e.stopPropagation();
-    setDraggedNodeId(personId);
-  };
-
-  const handleMouseMove = (e) => {
-    if (!draggedNodeId || !containerRef.current) return;
-    
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    setNodePositions(prev => ({
-      ...prev,
-      [draggedNodeId]: { x, y }
-    }));
-  };
-
-  const handleMouseUp = () => {
-    setDraggedNodeId(null);
-  };
-
-  useEffect(() => {
-    if (draggedNodeId) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-      };
+        gen.forEach((person, idx) => {
+          pos.set(person.id, {
+            x: 10 + spacing * (idx + 1),
+            y: y,
+          });
+        });
+      });
     }
-  }, [draggedNodeId]);
 
-  // Get relationship label
-  const getRelationshipLabel = (type) => {
-    const labels = {
-      partner: '💑 Partner',
-      spouse: '💍 Spouse',
-      parent: '👪 Parent',
-      child: '👶 Child',
-      sibling: '👫 Sibling',
-      grandparent: '👴 Grandparent',
-      grandchild: '👧 Grandchild',
-    };
-    return labels[type] || type;
+    return pos;
+  }, [organized, visiblePeople, viewMode, selectedHouseholdId]);
+
+  // Get relationship lines
+  const lines = useMemo(() => {
+    if (!relationships || !visiblePeople) return [];
+    
+    return relationships
+      .filter(r => {
+        const source = visiblePeople.find(p => p.id === r.person_id);
+        const target = visiblePeople.find(p => p.id === r.related_person_id);
+        return source && target && positions.get(r.person_id) && positions.get(r.related_person_id);
+      })
+      .map(r => ({
+        ...r,
+        source: positions.get(r.person_id),
+        target: positions.get(r.related_person_id),
+      }));
+  }, [relationships, visiblePeople, positions]);
+
+  const selectedPerson = people?.find(p => p.id === selectedPersonId);
+
+  // Reset view
+  const resetView = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
   };
 
   // Get star visuals
@@ -264,10 +147,10 @@ export default function FamilyConstellation({ people, households, relationships 
     const isChild = person.role_type === 'child';
     const isTeen = person.role_type === 'teen';
 
-    let size = 18;
-    if (isChild) size = 14;
-    else if (isTeen) size = 16;
-    else if (isAncestor) size = 20;
+    let size = 16;
+    if (isChild) size = 12;
+    else if (isTeen) size = 14;
+    else if (isAncestor) size = 18;
 
     const baseColor = isAncestor ? '#FBBF77' : '#60A5FA';
     const glowColor = isAncestor ? '#FDBA74' : '#93C5FD';
@@ -275,93 +158,44 @@ export default function FamilyConstellation({ people, households, relationships 
     return { size, baseColor, glowColor };
   };
 
-  const selectedPerson = people?.find(p => p.id === selectedPersonId);
-
-  // Get connections for selected person
-  const selectedConnections = useMemo(() => {
-    if (!selectedPersonId || !edges) return [];
-    return edges.filter(e => e.source === selectedPersonId || e.target === selectedPersonId);
-  }, [selectedPersonId, edges]);
-
   if (!people || people.length === 0) {
     return (
-      <div className="relative w-full h-[600px] rounded-2xl bg-gradient-to-b from-[#050716] via-[#050816] to-[#03040d] flex items-center justify-center">
-        <div className="text-center">
-          <Users className="w-16 h-16 text-slate-700 mx-auto mb-4" />
-          <p className="text-slate-400 text-lg mb-2">No family members yet</p>
-          <p className="text-slate-500 text-sm">Add people to see your constellation</p>
-        </div>
+      <div className="relative w-full h-[600px] rounded-2xl bg-gradient-to-b from-[#050716] to-[#03040d] flex items-center justify-center">
+        <p className="text-slate-500">No family members yet</p>
       </div>
     );
   }
 
   return (
     <div className="absolute inset-0 overflow-hidden">
-      {/* Deep Space Background */}
-      <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#000000] via-[#020206] to-[#030308]" />
-        
-        {/* Star field */}
-        <div className="absolute inset-0 opacity-60">
-          <div 
-            className="absolute inset-0" 
-            style={{
-              backgroundImage: `
-                radial-gradient(1px 1px at 20% 10%, white, transparent),
-                radial-gradient(1px 1px at 80% 20%, white, transparent),
-                radial-gradient(0.5px 0.5px at 40% 30%, white, transparent),
-                radial-gradient(1px 1px at 60% 40%, white, transparent),
-                radial-gradient(0.5px 0.5px at 15% 50%, white, transparent)
-              `,
-              backgroundSize: '200% 200%',
-            }}
-          />
-        </div>
-
-        {/* Nebula clouds */}
-        <div className="absolute inset-0 opacity-25">
-          <div 
-            className="absolute w-[800px] h-[800px] rounded-full"
-            style={{
-              top: '10%',
-              left: '15%',
-              background: 'radial-gradient(ellipse at center, rgba(139, 92, 246, 0.4) 0%, transparent 70%)',
-              filter: 'blur(100px)',
-            }}
-          />
-          <div 
-            className="absolute w-[700px] h-[700px] rounded-full"
-            style={{
-              bottom: '15%',
-              right: '20%',
-              background: 'radial-gradient(ellipse at center, rgba(59, 130, 246, 0.35) 0%, transparent 70%)',
-              filter: 'blur(120px)',
-            }}
-          />
-        </div>
+      {/* Background */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#000000] via-[#020206] to-[#030308]">
+        <div className="absolute inset-0 opacity-40" style={{
+          backgroundImage: `
+            radial-gradient(1px 1px at 20% 30%, white, transparent),
+            radial-gradient(1px 1px at 60% 70%, white, transparent),
+            radial-gradient(0.5px 0.5px at 50% 50%, white, transparent)
+          `,
+          backgroundSize: '200% 200%',
+        }} />
       </div>
 
       {/* Controls */}
-      <div className="absolute top-20 right-4 z-50 glass-card rounded-xl px-4 py-3 border border-slate-700/50 backdrop-blur-xl space-y-3">
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-400 font-medium">View:</span>
-          <Select value={filterMode} onValueChange={setFilterMode}>
-            <SelectTrigger className="w-36 h-8 text-xs bg-slate-800/90 border-slate-700">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-800 border-slate-700">
-              <SelectItem value="all">Whole Family</SelectItem>
-              <SelectItem value="living">Living Members</SelectItem>
-              <SelectItem value="ancestors">Ancestors</SelectItem>
-              <SelectItem value="household">By Household</SelectItem>
-              {selectedPersonId && <SelectItem value="connections">Connections</SelectItem>}
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="absolute top-20 right-4 z-50 glass-card rounded-xl p-3 border border-slate-700/50 space-y-2">
+        <Select value={viewMode} onValueChange={setViewMode}>
+          <SelectTrigger className="h-8 text-xs bg-slate-800/90 border-slate-700">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-slate-800 border-slate-700">
+            <SelectItem value="all">All Family</SelectItem>
+            <SelectItem value="household">By Household</SelectItem>
+            {selectedPersonId && <SelectItem value="lineage">Lineage View</SelectItem>}
+          </SelectContent>
+        </Select>
 
-        {filterMode === 'household' && (
+        {viewMode === 'household' && (
           <Select value={selectedHouseholdId} onValueChange={setSelectedHouseholdId}>
-            <SelectTrigger className="w-full h-8 text-xs bg-slate-800/90 border-slate-700">
+            <SelectTrigger className="h-8 text-xs bg-slate-800/90 border-slate-700">
               <SelectValue placeholder="Select household" />
             </SelectTrigger>
             <SelectContent className="bg-slate-800 border-slate-700">
@@ -372,202 +206,147 @@ export default function FamilyConstellation({ people, households, relationships 
           </Select>
         )}
 
-        <div className="pt-2 border-t border-slate-700/50 text-xs text-slate-500">
-          <p>{filteredPeople.length} members</p>
-          <p className="text-[10px] mt-1">Drag stars to rearrange</p>
+        <div className="flex gap-1 pt-2 border-t border-slate-700/50">
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setZoom(z => Math.min(z + 0.2, 3))}>
+            <ZoomIn className="w-3 h-3" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setZoom(z => Math.max(z - 0.2, 0.5))}>
+            <ZoomOut className="w-3 h-3" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={resetView}>
+            <Maximize2 className="w-3 h-3" />
+          </Button>
         </div>
       </div>
 
       {/* Canvas */}
-      <div ref={containerRef} className="absolute inset-0 z-20">
-        <svg className="absolute inset-0 w-full h-full pointer-events-none">
-          {/* Connection lines */}
-          {filteredPeople.map(person => {
-            if (!nodePositions[person.id]) return null;
-            const personEdges = edges.filter(e => 
-              (e.source === person.id || e.target === person.id) &&
-              filteredPeople.find(p => p.id === e.source) &&
-              filteredPeople.find(p => p.id === e.target)
+      <div
+        className="absolute inset-0 cursor-grab active:cursor-grabbing"
+        onMouseDown={(e) => {
+          setIsDragging(true);
+          setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+        }}
+        onMouseMove={(e) => {
+          if (isDragging) {
+            setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+          }
+        }}
+        onMouseUp={() => setIsDragging(false)}
+        onMouseLeave={() => setIsDragging(false)}
+        onWheel={(e) => {
+          e.preventDefault();
+          const delta = e.deltaY * -0.001;
+          setZoom(z => Math.min(Math.max(0.5, z + delta), 3));
+        }}
+      >
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none"
+          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+        >
+          {lines.map((line, i) => {
+            const isHighlighted = selectedPersonId === line.person_id || selectedPersonId === line.related_person_id;
+            let color = 'rgba(251, 191, 36, 0.2)';
+            let width = 0.3;
+            
+            if (line.relationship_type === 'spouse' || line.relationship_type === 'partner') {
+              color = 'rgba(236, 72, 153, 0.4)';
+              width = 0.4;
+            }
+            
+            if (isHighlighted) {
+              color = color.replace(/[\d.]+\)$/, '0.8)');
+              width *= 2;
+            }
+
+            return (
+              <line
+                key={i}
+                x1={line.source.x}
+                y1={line.source.y}
+                x2={line.target.x}
+                y2={line.target.y}
+                stroke={color}
+                strokeWidth={width}
+                vectorEffect="non-scaling-stroke"
+              />
             );
-
-            return personEdges.map(edge => {
-              const sourcePos = nodePositions[edge.source];
-              const targetPos = nodePositions[edge.target];
-              if (!sourcePos || !targetPos) return null;
-
-              const isSelected = selectedPersonId === edge.source || selectedPersonId === edge.target;
-              const isHovered = hoveredPersonId === edge.source || hoveredPersonId === edge.target;
-
-              let color = 'rgba(251, 191, 36, 0.15)';
-              let width = 1;
-
-              if (edge.type === 'partner' || edge.type === 'spouse') {
-                color = 'rgba(236, 72, 153, 0.3)';
-                width = 1.5;
-              } else if (edge.type === 'parent' || edge.type === 'child') {
-                color = 'rgba(59, 130, 246, 0.25)';
-                width = 1.2;
-              }
-
-              if (isSelected || isHovered) {
-                color = color.replace(/[\d.]+\)$/, '0.6)');
-                width *= 1.5;
-              }
-
-              return (
-                <line
-                  key={`${edge.source}-${edge.target}`}
-                  x1={sourcePos.x}
-                  y1={sourcePos.y}
-                  x2={targetPos.x}
-                  y2={targetPos.y}
-                  stroke={color}
-                  strokeWidth={width}
-                  strokeLinecap="round"
-                />
-              );
-            });
           })}
         </svg>
 
-        {/* Stars */}
-        {filteredPeople.map(person => {
-          const pos = nodePositions[person.id];
-          if (!pos) return null;
+        <div
+          className="absolute inset-0"
+          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: 'center' }}
+        >
+          {visiblePeople.map(person => {
+            const pos = positions.get(person.id);
+            if (!pos) return null;
 
-          const { size, baseColor, glowColor } = getStarVisuals(person);
-          const isSelected = selectedPersonId === person.id;
-          const isHovered = hoveredPersonId === person.id;
-          const isDragging = draggedNodeId === person.id;
+            const { size, baseColor, glowColor } = getStarVisuals(person);
+            const isSelected = selectedPersonId === person.id;
+            const isHovered = hoveredPersonId === person.id;
+            const finalSize = isSelected ? size * 1.4 : isHovered ? size * 1.2 : size;
 
-          const finalSize = isSelected ? size * 1.3 : isHovered ? size * 1.15 : size;
-
-          return (
-            <div
-              key={person.id}
-              className={cn(
-                "absolute cursor-grab active:cursor-grabbing transition-all duration-200",
-                isDragging && "z-50"
-              )}
-              style={{
-                left: pos.x,
-                top: pos.y,
-                transform: 'translate(-50%, -50%)',
-              }}
-              onMouseEnter={() => setHoveredPersonId(person.id)}
-              onMouseLeave={() => setHoveredPersonId(null)}
-              onMouseDown={(e) => handleMouseDown(person.id, e)}
-              onClick={() => setSelectedPersonId(person.id)}
-            >
+            return (
               <div
-                className="relative"
-                style={{ width: finalSize, height: finalSize }}
+                key={person.id}
+                className="absolute cursor-pointer transition-transform duration-300 hover:z-20"
+                style={{ left: `${pos.x}%`, top: `${pos.y}%`, transform: 'translate(-50%, -50%)' }}
+                onMouseEnter={() => setHoveredPersonId(person.id)}
+                onMouseLeave={() => setHoveredPersonId(null)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedPersonId(person.id);
+                }}
               >
-                {/* Core */}
-                <div
-                  className="absolute inset-0 rounded-full"
-                  style={{
-                    background: `radial-gradient(circle at 45% 40%, ${baseColor}, transparent 70%)`,
-                    filter: 'blur(0.6px)',
-                    boxShadow: isSelected || isHovered
-                      ? `0 0 ${finalSize * 2}px ${glowColor}, 0 0 ${finalSize * 3}px ${glowColor}40`
-                      : `0 0 ${finalSize}px ${glowColor}30`,
-                  }}
-                />
-
-                {/* Pulse for selected */}
-                {isSelected && (
+                <div style={{ width: finalSize, height: finalSize }} className="relative">
                   <div
-                    className="absolute inset-0 rounded-full animate-pulse"
+                    className="absolute inset-0 rounded-full"
                     style={{
-                      width: finalSize * 3,
-                      height: finalSize * 3,
-                      left: '50%',
-                      top: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      background: `radial-gradient(circle, ${glowColor}30 0%, transparent 70%)`,
+                      background: `radial-gradient(circle at 45% 40%, ${baseColor}, transparent 70%)`,
+                      filter: 'blur(0.5px)',
+                      boxShadow: isSelected ? `0 0 ${finalSize * 3}px ${glowColor}` : `0 0 ${finalSize}px ${glowColor}40`,
                     }}
                   />
+                </div>
+
+                {(isHovered || isSelected) && (
+                  <div className="absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap z-50">
+                    <div className="rounded-lg border border-amber-500/30 bg-slate-900/95 px-3 py-1.5 text-xs backdrop-blur-md">
+                      <div className="font-medium text-white">{person.name}</div>
+                      {person.nickname && <div className="text-[10px] text-amber-400">"{person.nickname}"</div>}
+                    </div>
+                  </div>
                 )}
               </div>
-
-              {/* Label on hover */}
-              {(isHovered || isSelected) && (
-                <div className="absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap animate-in fade-in zoom-in-95 duration-200 z-50">
-                  <div className="rounded-lg border border-amber-500/30 bg-slate-900/95 px-3 py-1.5 text-xs text-white shadow-lg backdrop-blur-md">
-                    <div className="font-medium">{person.name}</div>
-                    {person.nickname && (
-                      <div className="text-[10px] text-amber-400/80">"{person.nickname}"</div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
-      {/* Selected Person Panel */}
+      {/* Info Panel */}
       {selectedPerson && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[500px] max-w-[calc(100vw-2rem)] glass-card rounded-2xl p-6 border border-amber-500/30 backdrop-blur-xl z-50 animate-in slide-in-from-bottom duration-300">
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div className="flex items-start gap-4">
-              <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden border-2 border-amber-500/30">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[500px] max-w-[calc(100vw-2rem)] glass-card rounded-2xl p-6 border border-amber-500/30 z-50">
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex gap-3">
+              <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center">
                 {selectedPerson.photo_url ? (
-                  <img src={selectedPerson.photo_url} alt="" className="w-full h-full object-cover" />
+                  <img src={selectedPerson.photo_url} className="w-full h-full object-cover rounded-full" />
                 ) : (
-                  <span className="text-2xl text-slate-400">{selectedPerson.name?.charAt(0)}</span>
+                  <span className="text-lg text-slate-400">{selectedPerson.name?.charAt(0)}</span>
                 )}
               </div>
               <div>
-                <h3 className="text-xl font-semibold text-slate-100">{selectedPerson.name}</h3>
-                {selectedPerson.nickname && (
-                  <p className="text-sm text-amber-400 mt-0.5">"{selectedPerson.nickname}"</p>
-                )}
-                <Badge className="mt-2 bg-blue-500/20 text-blue-400 border-blue-500/30">
-                  {selectedPerson.role_type}
-                </Badge>
+                <h3 className="text-lg font-semibold text-slate-100">{selectedPerson.name}</h3>
+                {selectedPerson.nickname && <p className="text-sm text-amber-400">"{selectedPerson.nickname}"</p>}
+                <Badge className="mt-1 text-xs">{selectedPerson.role_type}</Badge>
               </div>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSelectedPersonId(null)}
-              className="text-slate-400 hover:text-slate-100"
-            >
+            <Button variant="ghost" size="icon" onClick={() => setSelectedPersonId(null)}>
               <X className="w-4 h-4" />
             </Button>
           </div>
-
-          {/* Connections */}
-          {selectedConnections.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-slate-400">Connections ({selectedConnections.length})</h4>
-              <div className="space-y-1">
-                {selectedConnections.slice(0, 5).map((edge, i) => {
-                  const otherId = edge.source === selectedPersonId ? edge.target : edge.source;
-                  const otherPerson = people.find(p => p.id === otherId);
-                  if (!otherPerson) return null;
-
-                  return (
-                    <div key={i} className="flex items-center gap-2 text-sm">
-                      <span className="text-xs">{getRelationshipLabel(edge.type)}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-slate-300 hover:text-amber-400 h-auto py-1"
-                        onClick={() => setSelectedPersonId(otherId)}
-                      >
-                        {otherPerson.name}
-                      </Button>
-                    </div>
-                  );
-                })}
-                {selectedConnections.length > 5 && (
-                  <p className="text-xs text-slate-500">+ {selectedConnections.length - 5} more</p>
-                )}
-              </div>
-            </div>
+          
+          {selectedPerson.about && (
+            <p className="text-sm text-slate-400 mt-3">{selectedPerson.about}</p>
           )}
         </div>
       )}
