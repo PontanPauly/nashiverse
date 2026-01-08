@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, Send, Search, User, Image as ImageIcon } from "lucide-react";
+import { MessageCircle, Send, Search, User, Image as ImageIcon, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +14,7 @@ export default function Messages() {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messageText, setMessageText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [showNewChat, setShowNewChat] = useState(false);
   const messagesEndRef = useRef(null);
   const queryClient = useQueryClient();
 
@@ -161,14 +162,26 @@ export default function Messages() {
         {/* Sidebar - Conversations List */}
         <div className="w-80 border-r border-slate-700/50 flex flex-col">
           <div className="p-4 border-b border-slate-700/50">
-            <h1 className="text-xl font-bold text-slate-100 flex items-center gap-2 mb-3">
-              <MessageCircle className="w-5 h-5 text-amber-400" />
-              Messages
-            </h1>
+            <div className="flex items-center justify-between mb-3">
+              <h1 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-amber-400" />
+                Messages
+              </h1>
+              <Button
+                onClick={() => {
+                  setShowNewChat(!showNewChat);
+                  setSearchQuery("");
+                }}
+                size="icon"
+                className="bg-amber-500 hover:bg-amber-600 text-slate-900"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
-                placeholder="Search people..."
+                placeholder={showNewChat ? "Select a person..." : "Search people..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 bg-slate-800 border-slate-700 text-slate-100"
@@ -177,17 +190,18 @@ export default function Messages() {
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {searchQuery ? (
-              // Show all people when searching
+            {showNewChat || searchQuery ? (
+              // Show all people when starting new chat or searching
               <div className="p-2">
-                {filteredPeople.map(person => (
+                {filteredPeople.length > 0 ? filteredPeople.map(person => (
                   <button
                     key={person.id}
                     onClick={() => {
                       setSelectedConversation(person);
                       setSearchQuery("");
+                      setShowNewChat(false);
                     }}
-                    className="w-full p-3 rounded-lg hover:bg-slate-800/50 transition-colors text-left"
+                    className="w-full p-3 rounded-lg hover:bg-slate-800/50 transition-colors text-left mb-1"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden">
@@ -203,7 +217,11 @@ export default function Messages() {
                       </div>
                     </div>
                   </button>
-                ))}
+                )) : (
+                  <div className="text-center py-8 px-4">
+                    <p className="text-slate-500 text-sm">No people found</p>
+                  </div>
+                )}
               </div>
             ) : (
               // Show conversations
