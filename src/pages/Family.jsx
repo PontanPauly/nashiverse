@@ -143,7 +143,7 @@ export default function Family() {
           <Button 
             onClick={() => setViewMode(viewMode === 'list' ? 'constellation' : 'list')}
             variant="outline" 
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            className="border-slate-600 text-slate-100 hover:bg-slate-800 hover:border-slate-500"
           >
             <Network className="w-4 h-4 mr-2" />
             {viewMode === 'list' ? 'Constellation View' : 'List View'}
@@ -151,7 +151,7 @@ export default function Family() {
           <Button 
             onClick={() => setShowHouseholdForm(true)}
             variant="outline" 
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            className="border-slate-600 text-slate-100 hover:bg-slate-800 hover:border-slate-500"
           >
             <HomeIcon className="w-4 h-4 mr-2" />
             Add Household
@@ -177,12 +177,12 @@ export default function Family() {
         <>
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input
               placeholder="Search family members..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500"
+              className="pl-10 bg-slate-800/50 border-slate-600 text-slate-100 placeholder:text-slate-400"
             />
           </div>
 
