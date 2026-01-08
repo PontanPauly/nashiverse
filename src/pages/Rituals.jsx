@@ -8,7 +8,7 @@ import {
   RotateCcw,
   Edit,
   Trash2,
-  Home
+  Heart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -112,7 +112,7 @@ export default function Rituals() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
-            <Home className="w-6 h-6 text-amber-400" />
+            <Heart className="w-6 h-6 text-amber-400" />
             Traditions
           </h1>
           <p className="text-slate-500 mt-1">The practices that make your family unique</p>
