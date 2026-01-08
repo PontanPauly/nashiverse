@@ -13,147 +13,209 @@ import { motion, AnimatePresence } from 'framer-motion';
 const PersonNode = ({ data, selected }) => {
   const [isHovered, setIsHovered] = useState(false);
 
-  // Star size and shape based on role
-  const getStarConfig = (roleType) => {
-    const configs = {
-      'adult': { size: 24, points: 5, brightness: 1 },
-      'teen': { size: 20, points: 4, brightness: 0.95 },
-      'child': { size: 16, points: 6, brightness: 0.9 },
-      'ancestor': { size: 32, points: 8, brightness: 1.1 },
+  // Star size based on role
+  const getStarSize = (roleType) => {
+    const sizes = {
+      'adult': 10,
+      'teen': 8,
+      'child': 6,
+      'ancestor': 14,
     };
-    return configs[roleType] || configs['adult'];
+    return sizes[roleType] || 10;
   };
 
-  // Household color with more vibrant palette
-  const getHouseholdColor = (householdId) => {
-    if (!householdId) return '#94a3b8';
-    const colors = ['#fcd34d', '#60a5fa', '#c084fc', '#f472b6', '#34d399', '#fb923c'];
-    const hash = householdId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[hash % colors.length];
-  };
-
-  const starColor = getHouseholdColor(data.household_id);
-  const starConfig = getStarConfig(data.role_type);
-
-  // Unique drift animation
-  const driftVariants = {
-    animate: {
-      x: [0, Math.random() * 6 - 3, 0],
-      y: [0, Math.random() * 6 - 3, 0],
-      transition: {
-        duration: 10 + Math.random() * 5,
-        repeat: Infinity,
-        ease: "easeInOut"
-      }
+  // Household color palette for chromatic effects
+  const getStarColors = (householdId) => {
+    if (!householdId) {
+      return { 
+        primary: '#e0e7ff', 
+        secondary: '#a5b4fc',
+        tertiary: '#818cf8'
+      };
     }
-  };
-
-  // Multi-pointed star path
-  const createStarPath = (points, size) => {
-    const outerRadius = size;
-    const innerRadius = size * 0.4;
-    const step = (Math.PI * 2) / points;
-    let path = '';
     
-    for (let i = 0; i < points * 2; i++) {
-      const angle = i * step / 2 - Math.PI / 2;
-      const radius = i % 2 === 0 ? outerRadius : innerRadius;
-      const x = size + Math.cos(angle) * radius;
-      const y = size + Math.sin(angle) * radius;
-      path += `${i === 0 ? 'M' : 'L'} ${x},${y} `;
-    }
-    path += 'Z';
-    return path;
+    const palettes = [
+      { primary: '#fef3c7', secondary: '#fde68a', tertiary: '#fcd34d' }, // yellow
+      { primary: '#dbeafe', secondary: '#93c5fd', tertiary: '#60a5fa' }, // blue
+      { primary: '#f3e8ff', secondary: '#d8b4fe', tertiary: '#c084fc' }, // purple
+      { primary: '#fce7f3', secondary: '#fbcfe8', tertiary: '#f472b6' }, // pink
+      { primary: '#d1fae5', secondary: '#6ee7b7', tertiary: '#34d399' }, // green
+      { primary: '#fed7aa', secondary: '#fdba74', tertiary: '#fb923c' }, // orange
+    ];
+    
+    const hash = householdId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return palettes[hash % palettes.length];
   };
+
+  const size = getStarSize(data.role_type);
+  const colors = getStarColors(data.household_id);
+  
+  // Random twinkle timing for natural effect
+  const twinkleDuration = 2 + Math.random() * 3;
+  const pulseDelay = Math.random() * 2;
 
   return (
     <motion.div 
       className="relative cursor-pointer"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      variants={driftVariants}
-      animate="animate"
+      style={{ width: size * 8, height: size * 8 }}
     >
-      {/* Outer glow ring */}
+      {/* Outer chromatic aberration ring (blue/red shift) */}
       <motion.div 
-        className="absolute rounded-full blur-2xl"
+        className="absolute rounded-full"
         style={{ 
-          backgroundColor: starColor,
-          inset: -starConfig.size * 1.5,
+          width: size * 8,
+          height: size * 8,
+          background: `radial-gradient(circle, ${colors.tertiary}30 0%, transparent 60%)`,
+          filter: 'blur(12px)',
         }}
         animate={{
-          opacity: isHovered || selected ? 0.6 : 0.2,
-          scale: isHovered || selected ? 1.4 : 1,
-        }}
-        transition={{ duration: 0.4 }}
-      />
-      
-      {/* Middle shimmer */}
-      <motion.div 
-        className="absolute rounded-full blur-md"
-        style={{ 
-          backgroundColor: starColor,
-          inset: -starConfig.size * 0.8,
-        }}
-        animate={{
-          opacity: [0.3, 0.7, 0.3],
-          scale: [1, 1.1, 1],
+          opacity: [0.4, 0.7, 0.4],
+          scale: [1, 1.2, 1],
         }}
         transition={{
-          duration: 4 + Math.random() * 2,
+          duration: twinkleDuration,
           repeat: Infinity,
+          delay: pulseDelay,
           ease: "easeInOut"
         }}
       />
       
-      {/* Core star */}
-      <motion.svg 
-        width={starConfig.size * 2}
-        height={starConfig.size * 2}
-        viewBox={`0 0 ${starConfig.size * 2} ${starConfig.size * 2}`}
-        className="relative drop-shadow-2xl"
+      {/* Mid-layer glow with color shift */}
+      <motion.div 
+        className="absolute rounded-full"
+        style={{ 
+          width: size * 6,
+          height: size * 6,
+          left: size,
+          top: size,
+          background: `radial-gradient(circle, ${colors.secondary} 0%, ${colors.tertiary}50 40%, transparent 70%)`,
+          filter: 'blur(8px)',
+        }}
         animate={{
-          scale: isHovered || selected ? 1.4 : 1,
-          rotate: data.is_deceased ? 0 : [0, 360],
+          opacity: [0.5, 0.9, 0.5],
+          scale: [0.9, 1.1, 0.9],
         }}
         transition={{
-          scale: { duration: 0.3 },
-          rotate: { duration: 60, repeat: Infinity, ease: "linear" }
+          duration: twinkleDuration * 0.8,
+          repeat: Infinity,
+          delay: pulseDelay + 0.1,
+          ease: "easeInOut"
         }}
-      >
-        <defs>
-          <radialGradient id={`gradient-${data.id}`} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="white" stopOpacity={starConfig.brightness} />
-            <stop offset="50%" stopColor={starColor} stopOpacity="1" />
-            <stop offset="100%" stopColor={starColor} stopOpacity={data.is_deceased ? "0.3" : "0.8"} />
-          </radialGradient>
-          <filter id={`glow-${data.id}`}>
-            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-            <feMerge>
-              <feMergeNode in="coloredBlur"/>
-              <feMergeNode in="SourceGraphic"/>
-            </feMerge>
-          </filter>
-        </defs>
-        <path
-          d={createStarPath(starConfig.points, starConfig.size)}
-          fill={`url(#gradient-${data.id})`}
-          filter={`url(#glow-${data.id})`}
-          style={{ opacity: data.is_deceased ? 0.5 : 1 }}
+      />
+      
+      {/* Lens flare cross pattern */}
+      <motion.div 
+        className="absolute"
+        style={{ 
+          width: size * 8,
+          height: 2,
+          left: 0,
+          top: size * 4 - 1,
+          background: `linear-gradient(90deg, transparent, ${colors.primary}80, transparent)`,
+          filter: 'blur(1px)',
+        }}
+        animate={{
+          opacity: isHovered || selected ? [0.3, 0.6, 0.3] : [0.1, 0.3, 0.1],
+        }}
+        transition={{
+          duration: twinkleDuration,
+          repeat: Infinity,
+          delay: pulseDelay,
+        }}
+      />
+      
+      <motion.div 
+        className="absolute"
+        style={{ 
+          width: 2,
+          height: size * 8,
+          left: size * 4 - 1,
+          top: 0,
+          background: `linear-gradient(180deg, transparent, ${colors.primary}80, transparent)`,
+          filter: 'blur(1px)',
+        }}
+        animate={{
+          opacity: isHovered || selected ? [0.3, 0.6, 0.3] : [0.1, 0.3, 0.1],
+        }}
+        transition={{
+          duration: twinkleDuration,
+          repeat: Infinity,
+          delay: pulseDelay + 0.15,
+        }}
+      />
+      
+      {/* Inner bright core */}
+      <motion.div 
+        className="absolute rounded-full"
+        style={{ 
+          width: size * 3,
+          height: size * 3,
+          left: size * 2.5,
+          top: size * 2.5,
+          background: `radial-gradient(circle, white 0%, ${colors.primary} 30%, ${colors.secondary} 60%, transparent 100%)`,
+          filter: 'blur(3px)',
+          boxShadow: `0 0 ${size * 2}px ${colors.primary}`,
+        }}
+        animate={{
+          opacity: [0.8, 1, 0.8],
+          scale: isHovered || selected ? [1.2, 1.4, 1.2] : [1, 1.15, 1],
+        }}
+        transition={{
+          duration: twinkleDuration * 0.5,
+          repeat: Infinity,
+          delay: pulseDelay + 0.2,
+          ease: "easeInOut"
+        }}
+      />
+      
+      {/* Bright center point */}
+      <motion.div 
+        className="absolute rounded-full"
+        style={{ 
+          width: size * 1.5,
+          height: size * 1.5,
+          left: size * 3.25,
+          top: size * 3.25,
+          background: 'white',
+          filter: 'blur(1px)',
+          boxShadow: `0 0 ${size * 3}px white`,
+        }}
+        animate={{
+          opacity: [0.9, 1, 0.9],
+          scale: isHovered || selected ? [1.3, 1.6, 1.3] : [1, 1.2, 1],
+        }}
+        transition={{
+          duration: twinkleDuration * 0.3,
+          repeat: Infinity,
+          delay: pulseDelay + 0.3,
+        }}
+      />
+
+      {/* Deceased indicator - dimmed star */}
+      {data.is_deceased && (
+        <div 
+          className="absolute inset-0 rounded-full"
+          style={{ 
+            background: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'brightness(0.5)',
+          }}
         />
-      </motion.svg>
+      )}
 
       {/* Name label */}
       <AnimatePresence>
         {(isHovered || selected) && (
           <motion.div 
-            className="absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none z-50"
+            className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none z-50"
+            style={{ top: size * 8 + 8 }}
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -5 }}
           >
-            <div className="px-4 py-2 rounded-xl glass-card border-2 border-amber-400/50 shadow-2xl">
-              <p className="text-sm font-bold text-slate-100">{data.name}</p>
+            <div className="px-3 py-1.5 rounded-lg glass-card border border-amber-400/50 shadow-xl">
+              <p className="text-xs font-medium text-slate-100">{data.name}</p>
               {data.nickname && (
                 <p className="text-xs text-amber-300">"{data.nickname}"</p>
               )}
