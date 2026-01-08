@@ -16,7 +16,8 @@ import {
   Cake,
   BookOpen,
   Download,
-  Lightbulb
+  Lightbulb,
+  Image
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
