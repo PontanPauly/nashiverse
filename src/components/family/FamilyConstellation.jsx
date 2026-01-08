@@ -181,9 +181,15 @@ export default function FamilyConstellation({ people, households, relationships 
           const p1Pos = getStarPosition(couple.parent1);
           const p2Pos = getStarPosition(couple.parent2);
           
-          // Barycenter between parents (slightly offset for visual interest)
-          const hubX = (p1Pos.x + p2Pos.x) / 2 + (idx % 2 === 0 ? 0.5 : -0.5);
-          const hubY = (p1Pos.y + p2Pos.y) / 2 + (idx % 3 === 0 ? 0.5 : -0.5);
+          // Barycenter between parents - offset perpendicular to couple axis
+          const dx = p2Pos.x - p1Pos.x;
+          const dy = p2Pos.y - p1Pos.y;
+          const len = Math.sqrt(dx * dx + dy * dy) || 1;
+          const perpX = -dy / len;
+          const perpY = dx / len;
+          
+          const hubX = (p1Pos.x + p2Pos.x) / 2 + perpX * 0.8;
+          const hubY = (p1Pos.y + p2Pos.y) / 2 + perpY * 0.8;
           
           // Binary link between parents (gentle arc)
           lines.push({
@@ -216,18 +222,27 @@ export default function FamilyConstellation({ people, households, relationships 
             y2: hubY,
           });
           
-          // Hub to children
-          couple.children.forEach(childId => {
+          // Hub to children - fan out to avoid overlapping lines
+          const fanTotal = couple.children.length;
+          couple.children.forEach((childId, j) => {
             const child = people.find(p => p.id === childId);
             if (child) {
               const childPos = getStarPosition(child);
+              
+              // Spread start points around the hub
+              const t = j - (fanTotal - 1) / 2;
+              const spread = 0.9;
+              const fromX = hubX + perpX * t * spread;
+              const fromY = hubY + perpY * t * spread;
+              
               lines.push({
                 id: `hub-child-${childId}`,
                 type: 'hub-child',
-                x1: hubX,
-                y1: hubY,
+                x1: fromX,
+                y1: fromY,
                 x2: childPos.x,
                 y2: childPos.y,
+                fanT: t,
               });
               processedChildren.add(childId);
             }
@@ -344,13 +359,13 @@ export default function FamilyConstellation({ people, households, relationships 
     setPan({ x: desiredShiftX / newZoom, y: desiredShiftY / newZoom });
   };
 
-  // Auto-fit on load
+  // Auto-fit on load (only once)
   useEffect(() => {
     if (people && people.length > 0) {
       const t = setTimeout(() => fitToUniverse(people), 200);
       return () => clearTimeout(t);
     }
-  }, [people?.length, selectedConstellationId]);
+  }, [people?.length]);
 
   // Check if person is part of a couple
   const isInCouple = (personId) => {
@@ -547,6 +562,15 @@ export default function FamilyConstellation({ people, households, relationships 
           }}
         >
           {constellationLines.map((line, index) => {
+            const isWhole = selectedConstellationId === 'all';
+            const shouldAnimate = !isWhole;
+            
+            const baseStyle = shouldAnimate ? {
+              strokeDasharray: '1000',
+              strokeDashoffset: '1000',
+              animation: `drawLine 0.6s ease forwards ${index * 0.04}s`,
+            } : {};
+
             if (line.type === 'couple') {
               // Gentle arc between couple
               const midX = (line.x1 + line.x2) / 2;
@@ -560,38 +584,43 @@ export default function FamilyConstellation({ people, households, relationships 
                 <path
                   key={line.id}
                   d={`M ${line.x1} ${line.y1} Q ${controlX} ${controlY} ${line.x2} ${line.y2}`}
-                  stroke="rgba(251,191,36,0.5)"
-                  strokeWidth="2"
+                  stroke="rgba(251,191,36,0.22)"
+                  strokeWidth="0.65"
                   fill="none"
+                  vectorEffect="non-scaling-stroke"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   style={{
-                    filter: 'drop-shadow(0 0 6px rgba(251,191,36,0.6))',
-                    strokeDasharray: '1000',
-                    strokeDashoffset: '1000',
-                    animation: `drawLine 0.8s ease forwards ${index * 0.08}s`,
+                    filter: isWhole ? 'none' : 'drop-shadow(0 0 3px rgba(251,191,36,0.25))',
+                    ...baseStyle,
                   }}
                 />
               );
             } else if (line.type === 'parent-hub' || line.type === 'hub-child') {
-              // Curved path through hub
+              // Curved path through hub with fan variation
               const midX = (line.x1 + line.x2) / 2;
               const midY = (line.y1 + line.y2) / 2;
               const dx = line.x2 - line.x1;
               const dy = line.y2 - line.y1;
-              const controlX = midX + dy * 0.15;
-              const controlY = midY - dx * 0.15;
+              
+              // Vary control point based on fan position
+              const fanOffset = (line.fanT || 0) * 0.5;
+              const controlX = midX + dy * (0.15 + fanOffset);
+              const controlY = midY - dx * (0.15 + fanOffset);
 
               return (
                 <path
                   key={line.id}
                   d={`M ${line.x1} ${line.y1} Q ${controlX} ${controlY} ${line.x2} ${line.y2}`}
-                  stroke="rgba(251,191,36,0.35)"
-                  strokeWidth="1.5"
+                  stroke="rgba(251,191,36,0.16)"
+                  strokeWidth="0.45"
                   fill="none"
+                  vectorEffect="non-scaling-stroke"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   style={{
-                    filter: 'drop-shadow(0 0 4px rgba(251,191,36,0.4))',
-                    strokeDasharray: '1000',
-                    strokeDashoffset: '1000',
-                    animation: `drawLine 0.8s ease forwards ${index * 0.08}s`,
+                    filter: isWhole ? 'none' : 'drop-shadow(0 0 2px rgba(251,191,36,0.20))',
+                    ...baseStyle,
                   }}
                 />
               );
@@ -600,17 +629,17 @@ export default function FamilyConstellation({ people, households, relationships 
               return (
                 <line
                   key={line.id}
-                  x1={`${line.x1}%`}
-                  y1={`${line.y1}%`}
-                  x2={`${line.x2}%`}
-                  y2={`${line.y2}%`}
-                  stroke="rgba(251,191,36,0.3)"
-                  strokeWidth="1.5"
+                  x1={line.x1}
+                  y1={line.y1}
+                  x2={line.x2}
+                  y2={line.y2}
+                  stroke="rgba(251,191,36,0.12)"
+                  strokeWidth="0.4"
+                  vectorEffect="non-scaling-stroke"
+                  strokeLinecap="round"
                   style={{
-                    filter: 'drop-shadow(0 0 4px rgba(251,191,36,0.4))',
-                    strokeDasharray: '1000',
-                    strokeDashoffset: '1000',
-                    animation: `drawLine 0.8s ease forwards ${index * 0.08}s`,
+                    filter: isWhole ? 'none' : 'drop-shadow(0 0 2px rgba(251,191,36,0.18))',
+                    ...baseStyle,
                   }}
                 />
               );
