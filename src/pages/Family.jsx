@@ -347,6 +347,8 @@ export default function Family() {
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* Empty State */}
       {people.length === 0 && households.length === 0 && (
