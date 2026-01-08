@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import ReactFlow, {
   Background,
   useNodesState,
@@ -8,19 +8,23 @@ import 'reactflow/dist/style.css';
 import { Star, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const PersonNode = ({ data, selected }) => {
   const [isHovered, setIsHovered] = useState(false);
 
-  // Star size based on role
+  // Star size based on role (with depth variation)
   const getStarSize = (roleType) => {
-    switch(roleType) {
-      case 'adult': return 'w-4 h-4';
-      case 'teen': return 'w-3.5 h-3.5';
-      case 'child': return 'w-3 h-3';
-      case 'ancestor': return 'w-5 h-5';
-      default: return 'w-4 h-4';
-    }
+    const depth = data.depth || 1;
+    const baseSize = {
+      'adult': 16,
+      'teen': 14,
+      'child': 12,
+      'ancestor': 20,
+    }[roleType] || 16;
+    
+    const scaledSize = baseSize * depth;
+    return { width: scaledSize, height: scaledSize };
   };
 
   // Household color
@@ -33,51 +37,107 @@ const PersonNode = ({ data, selected }) => {
 
   const starColor = getHouseholdColor(data.household_id);
   const starSize = getStarSize(data.role_type);
+  const depth = data.depth || 1;
+  const opacity = depth === 0.6 ? 0.4 : depth === 0.8 ? 0.6 : 1;
+
+  // Unique drift animation per star
+  const driftVariants = {
+    animate: {
+      x: [0, Math.random() * 4 - 2, 0],
+      y: [0, Math.random() * 4 - 2, 0],
+      transition: {
+        duration: 8 + Math.random() * 4,
+        repeat: Infinity,
+        ease: "easeInOut"
+      }
+    }
+  };
 
   return (
-    <div 
+    <motion.div 
       className="relative"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      variants={driftVariants}
+      animate="animate"
+      style={{ opacity }}
     >
       {/* Glow effect */}
-      <div 
-        className={cn(
-          "absolute inset-0 rounded-full blur-xl transition-opacity duration-500",
-          isHovered || selected ? "opacity-60" : "opacity-30"
-        )}
+      <motion.div 
+        className="absolute inset-0 rounded-full blur-xl"
         style={{ 
           backgroundColor: starColor,
           transform: 'scale(3)',
         }}
+        animate={{
+          opacity: isHovered || selected ? 0.8 : 0.3,
+          scale: isHovered || selected ? 4 : 3,
+        }}
+        transition={{ duration: 0.5 }}
+      />
+      
+      {/* Shimmer effect */}
+      <motion.div 
+        className="absolute inset-0 rounded-full"
+        style={{ 
+          backgroundColor: starColor,
+          transform: 'scale(2)',
+          filter: 'blur(8px)'
+        }}
+        animate={{
+          opacity: [0.2, 0.5, 0.2],
+        }}
+        transition={{
+          duration: 3 + Math.random() * 2,
+          repeat: Infinity,
+          ease: "easeInOut"
+        }}
       />
       
       {/* Star */}
-      <div className="relative">
+      <motion.div 
+        className="relative"
+        animate={{
+          scale: isHovered || selected ? 1.3 : 1,
+          rotate: [0, 5, -5, 0],
+        }}
+        transition={{
+          scale: { duration: 0.3 },
+          rotate: { duration: 20, repeat: Infinity, ease: "easeInOut" }
+        }}
+      >
         <Star 
-          className={cn(
-            starSize,
-            "transition-all duration-300 cursor-pointer",
-            isHovered || selected ? "scale-125" : "scale-100",
-            data.is_deceased && "opacity-50"
-          )}
-          style={{ color: starColor }}
+          className="cursor-pointer"
+          style={{ 
+            color: starColor,
+            width: starSize.width,
+            height: starSize.height,
+            opacity: data.is_deceased ? 0.5 : 1,
+          }}
           fill={starColor}
         />
-      </div>
+      </motion.div>
 
       {/* Name on hover */}
-      {(isHovered || selected) && (
-        <div className="absolute top-8 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none">
-          <div className="px-3 py-1.5 rounded-lg glass-card border border-slate-700/50">
-            <p className="text-xs font-medium text-slate-100">{data.name}</p>
-            {data.nickname && (
-              <p className="text-xs text-slate-400">"{data.nickname}"</p>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+      <AnimatePresence>
+        {(isHovered || selected) && (
+          <motion.div 
+            className="absolute top-8 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none z-50"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div className="px-3 py-1.5 rounded-lg glass-card border border-slate-700/50 shadow-xl">
+              <p className="text-xs font-medium text-slate-100">{data.name}</p>
+              {data.nickname && (
+                <p className="text-xs text-slate-400">"{data.nickname}"</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };
 
@@ -87,8 +147,9 @@ const nodeTypes = {
 
 export default function FamilyConstellation({ people, households, relationships }) {
   const [selectedPerson, setSelectedPerson] = useState(null);
+  const [hoveredPerson, setHoveredPerson] = useState(null);
 
-  // Create constellation nodes
+  // Create constellation nodes with depth layers
   const initialNodes = useMemo(() => {
     const householdGroups = {};
     
@@ -106,7 +167,7 @@ export default function FamilyConstellation({ people, households, relationships 
     const centerY = 400;
     const householdRadius = 300;
 
-    // Create constellation pattern
+    // Create constellation pattern with depth
     Object.entries(householdGroups).forEach(([householdId, groupPeople], groupIndex) => {
       const totalGroups = Object.keys(householdGroups).length;
       const groupAngle = (groupIndex / totalGroups) * Math.PI * 2;
@@ -123,10 +184,14 @@ export default function FamilyConstellation({ people, households, relationships 
         const x = householdCenterX + Math.cos(personAngle) * orbitRadius;
         const y = householdCenterY + Math.sin(personAngle) * orbitRadius;
         
+        // Assign depth layer (0.6 = background, 0.8 = mid, 1.0 = foreground)
+        const depthLayers = [0.6, 0.8, 1.0];
+        const depth = depthLayers[index % 3];
+        
         nodes.push({
           id: person.id,
           type: 'person',
-          data: person,
+          data: { ...person, depth },
           position: { x, y },
         });
       });
@@ -135,46 +200,65 @@ export default function FamilyConstellation({ people, households, relationships 
     return nodes;
   }, [people, households]);
 
-  // Create subtle relationship edges (hidden by default)
+  // Create subtle relationship edges (only visible on hover)
   const initialEdges = useMemo(() => {
-    return relationships.map((rel, index) => {
-      const getEdgeStyle = (relType) => {
-        switch(relType) {
-          case 'spouse':
-            return { stroke: '#ec4899', strokeWidth: 2, strokeDasharray: '5,5' };
-          case 'parent':
-          case 'child':
-            return { stroke: '#60a5fa', strokeWidth: 1.5, strokeDasharray: '3,3' };
-          case 'sibling':
-            return { stroke: '#a78bfa', strokeWidth: 1.5, strokeDasharray: '3,3' };
-          default:
-            return { stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '2,2' };
-        }
-      };
+    if (!hoveredPerson) return [];
+    
+    return relationships
+      .filter(rel => rel.person_id === hoveredPerson || rel.related_person_id === hoveredPerson)
+      .map((rel, index) => {
+        const getEdgeStyle = (relType) => {
+          switch(relType) {
+            case 'spouse':
+              return { stroke: '#ec4899', strokeWidth: 2 };
+            case 'parent':
+            case 'child':
+              return { stroke: '#fbbf24', strokeWidth: 1.5 };
+            case 'sibling':
+              return { stroke: '#a78bfa', strokeWidth: 1.5 };
+            default:
+              return { stroke: '#94a3b8', strokeWidth: 1 };
+          }
+        };
 
-      const style = getEdgeStyle(rel.relationship_type);
+        const style = getEdgeStyle(rel.relationship_type);
 
-      return {
-        id: `edge-${index}`,
-        source: rel.person_id,
-        target: rel.related_person_id,
-        type: 'straight',
-        style: {
-          ...style,
-          opacity: 0.2,
-        },
-        animated: false,
-      };
-    });
-  }, [relationships]);
+        return {
+          id: `edge-${index}`,
+          source: rel.person_id,
+          target: rel.related_person_id,
+          type: 'straight',
+          style: {
+            ...style,
+            opacity: 0.4,
+          },
+          animated: true,
+        };
+      });
+  }, [relationships, hoveredPerson]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  // Update edges when hoveredPerson changes
+  useEffect(() => {
+    setEdges(initialEdges);
+  }, [hoveredPerson, initialEdges, setEdges]);
 
   const onNodeClick = (event, node) => {
     if (node.type === 'person') {
       setSelectedPerson(node.data);
     }
+  };
+
+  const onNodeMouseEnter = (event, node) => {
+    if (node.type === 'person') {
+      setHoveredPerson(node.id);
+    }
+  };
+
+  const onNodeMouseLeave = () => {
+    setHoveredPerson(null);
   };
 
   return (
@@ -185,6 +269,8 @@ export default function FamilyConstellation({ people, households, relationships 
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
+        onNodeMouseEnter={onNodeMouseEnter}
+        onNodeMouseLeave={onNodeMouseLeave}
         nodeTypes={nodeTypes}
         fitView
         minZoom={0.3}
@@ -194,19 +280,29 @@ export default function FamilyConstellation({ people, households, relationships 
           background: 'transparent',
         }}
         proOptions={{ hideAttribution: true }}
+        panOnScroll={true}
+        zoomOnDoubleClick={true}
+        panOnDrag={true}
       >
         <Background 
           color="#475569" 
           gap={60} 
           size={0.5}
-          style={{ opacity: 0.1 }}
+          style={{ opacity: 0.05 }}
         />
       </ReactFlow>
 
       {/* Person Detail Card */}
-      {selectedPerson && (
-        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-96">
-          <div className="glass-card rounded-2xl p-6 border-2 border-amber-500/30 shadow-2xl">
+      <AnimatePresence>
+        {selectedPerson && (
+          <motion.div 
+            className="fixed top-1/2 left-1/2 z-50 w-96"
+            initial={{ opacity: 0, scale: 0.8, x: '-50%', y: '-50%' }}
+            animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
+            exit={{ opacity: 0, scale: 0.8, x: '-50%', y: '-50%' }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="glass-card rounded-2xl p-6 border-2 border-amber-500/30 shadow-2xl">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden">
@@ -263,18 +359,24 @@ export default function FamilyConstellation({ people, households, relationships 
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      )}
+              </div>
+              </div>
+              </motion.div>
+              )}
+              </AnimatePresence>
 
       {/* Click to dismiss overlay */}
-      {selectedPerson && (
-        <div 
-          className="fixed inset-0 bg-black/40 z-40"
-          onClick={() => setSelectedPerson(null)}
-        />
-      )}
+      <AnimatePresence>
+        {selectedPerson && (
+          <motion.div 
+            className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedPerson(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
