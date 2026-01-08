@@ -91,6 +91,26 @@ export default function Settings() {
     }
   };
 
+  const handleMakeAdmin = async () => {
+    try {
+      await base44.functions.invoke('makeAdmin');
+      await loadUser();
+      toast.success("You are now an admin!");
+    } catch (error) {
+      toast.error("Failed to make admin");
+    }
+  };
+
+  const handleCleanupData = async () => {
+    if (!window.confirm("Delete ALL test data? This cannot be undone.")) return;
+    try {
+      await base44.functions.invoke('cleanupTestData');
+      toast.success("Test data cleared!");
+    } catch (error) {
+      toast.error("Failed to cleanup data");
+    }
+  };
+
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
