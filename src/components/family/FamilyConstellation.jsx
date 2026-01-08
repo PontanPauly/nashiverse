@@ -428,10 +428,11 @@ export default function FamilyConstellation({ people, households, relationships 
                   </div>
                 </div>
               )}
-              </div>
-              );
-              })}
-              </div>
+            </div>
+          );
+        })}
+        </div>
+      </div>
 
       {/* Context Panel - floating */}
       {selectedPerson && (
