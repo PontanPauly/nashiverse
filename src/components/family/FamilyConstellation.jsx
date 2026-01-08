@@ -547,16 +547,16 @@ export default function FamilyConstellation({ people, households, relationships 
               </div>
             )}
           </div>
-          </div>
-          )}
+        </div>
+      )}
 
-          <style>{`
-          @keyframes drawLine {
+      <style>{`
+        @keyframes drawLine {
           to {
             stroke-dashoffset: 0;
           }
-          }
-          `}</style>
-          </div>
-          );
-          }
+        }
+      `}</style>
+    </div>
+  );
+}
