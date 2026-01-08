@@ -76,24 +76,7 @@ export default function Family() {
     onSuccess: () => queryClient.invalidateQueries(['households']),
   });
 
-  const [generatingData, setGeneratingData] = useState(false);
 
-  const generateFamilyData = async () => {
-    if (!confirm('This will delete all existing family data (except you) and generate 50 new people. Continue?')) return;
-    
-    setGeneratingData(true);
-    try {
-      await base44.functions.invoke('generateFamilyData');
-      queryClient.invalidateQueries(['people']);
-      queryClient.invalidateQueries(['households']);
-      queryClient.invalidateQueries(['relationships']);
-      alert('Family data generated successfully!');
-    } catch (error) {
-      alert('Error generating data: ' + error.message);
-    } finally {
-      setGeneratingData(false);
-    }
-  };
 
   const filteredPeople = people.filter(person => {
     const matchesSearch = person.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -209,13 +192,6 @@ export default function Family() {
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Person
-              </Button>
-              <Button 
-                onClick={generateFamilyData}
-                disabled={generatingData}
-                className="bg-purple-500/90 hover:bg-purple-600 text-white font-semibold backdrop-blur-md"
-              >
-                {generatingData ? 'Generating...' : 'Generate Demo Data'}
               </Button>
             </div>
           </div>
