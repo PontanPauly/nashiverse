@@ -16,7 +16,7 @@ import {
   Image,
   Flame,
   Search,
-  Package,
+  BookOpen,
   MessageSquare
 } from "lucide-react";
 import GlobalSearch from "@/components/search/GlobalSearch";
@@ -50,7 +50,7 @@ export default function Layout({ children, currentPageName }) {
     { name: "Traditions", href: createPageUrl("Rituals"), icon: Flame },
     { name: "Moments", href: createPageUrl("Moments"), icon: Image },
     { name: "Love Notes", href: createPageUrl("LoveNotes"), icon: Heart },
-    { name: "Stories", href: createPageUrl("FamilyStories"), icon: Package },
+    { name: "Stories", href: createPageUrl("FamilyStories"), icon: BookOpen },
     { name: "Calendar", href: createPageUrl("Calendar"), icon: Calendar },
   ];
 
