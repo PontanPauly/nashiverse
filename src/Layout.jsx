@@ -6,13 +6,14 @@ import {
   Home, 
   Users, 
   MapPin, 
-  Sparkles, 
+  Calendar, 
   Heart, 
   Settings,
   Menu,
   X,
   LogOut,
-  Star
+  Star,
+  Image
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -39,8 +40,8 @@ export default function Layout({ children, currentPageName }) {
     { name: "Home", href: createPageUrl("Home"), icon: Home },
     { name: "Family", href: createPageUrl("Family"), icon: Users },
     { name: "Trips", href: createPageUrl("Trips"), icon: MapPin },
-    { name: "Rituals", href: createPageUrl("Rituals"), icon: Sparkles },
-    { name: "Moments", href: createPageUrl("Moments"), icon: Star },
+    { name: "Rituals", href: createPageUrl("Rituals"), icon: Calendar },
+    { name: "Moments", href: createPageUrl("Moments"), icon: Image },
     { name: "Love Notes", href: createPageUrl("LoveNotes"), icon: Heart },
   ];
 
