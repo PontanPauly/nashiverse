@@ -38,24 +38,36 @@ import { cn } from "@/lib/utils";
 
 export default function ParticipantManager({ tripId, participants, people, rooms }) {
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [selectedPersonId, setSelectedPersonId] = useState("");
+  const [selectedPersonIds, setSelectedPersonIds] = useState([]);
   const [loading, setLoading] = useState(false);
   
   const queryClient = useQueryClient();
 
-  const addParticipant = async () => {
-    if (!selectedPersonId) return;
+  const togglePerson = (personId) => {
+    if (selectedPersonIds.includes(personId)) {
+      setSelectedPersonIds(selectedPersonIds.filter(id => id !== personId));
+    } else {
+      setSelectedPersonIds([...selectedPersonIds, personId]);
+    }
+  };
+
+  const addParticipants = async () => {
+    if (selectedPersonIds.length === 0) return;
     setLoading(true);
     
-    await base44.entities.TripParticipant.create({
-      trip_id: tripId,
-      person_id: selectedPersonId,
-      status: 'invited'
-    });
+    await Promise.all(
+      selectedPersonIds.map(personId =>
+        base44.entities.TripParticipant.create({
+          trip_id: tripId,
+          person_id: personId,
+          status: 'invited'
+        })
+      )
+    );
     
     setLoading(false);
     setShowAddDialog(false);
-    setSelectedPersonId("");
+    setSelectedPersonIds([]);
     queryClient.invalidateQueries(['trip-participants', tripId]);
   };
 
@@ -239,29 +251,52 @@ export default function ParticipantManager({ tripId, participants, people, rooms
             <DialogTitle className="text-slate-100">Invite to Trip</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <Select value={selectedPersonId} onValueChange={setSelectedPersonId}>
-              <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-100">
-                <SelectValue placeholder="Select a family member" />
-              </SelectTrigger>
-              <SelectContent className="bg-slate-800 border-slate-700">
+            <div>
+              <Label className="text-slate-300 text-sm mb-2 block">
+                Select People ({selectedPersonIds.length} selected)
+              </Label>
+              <div className="max-h-64 overflow-y-auto space-y-2 p-2 bg-slate-800/50 rounded-lg border border-slate-700">
                 {availablePeople.map(person => (
-                  <SelectItem key={person.id} value={person.id}>
-                    {person.name} ({person.role_type})
-                  </SelectItem>
+                  <div
+                    key={person.id}
+                    onClick={() => togglePerson(person.id)}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors",
+                      selectedPersonIds.includes(person.id)
+                        ? "bg-amber-500/20 border-2 border-amber-500/50"
+                        : "bg-slate-700/50 border-2 border-transparent hover:border-slate-600"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors",
+                      selectedPersonIds.includes(person.id)
+                        ? "bg-amber-500 border-amber-500"
+                        : "border-slate-600"
+                    )}>
+                      {selectedPersonIds.includes(person.id) && <Check className="w-3 h-3 text-slate-900" />}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-slate-200 font-medium">{person.name}</p>
+                      <p className="text-xs text-slate-500 capitalize">{person.role_type}</p>
+                    </div>
+                  </div>
                 ))}
-              </SelectContent>
-            </Select>
+              </div>
+            </div>
             
             <div className="flex justify-end gap-3">
-              <Button variant="ghost" onClick={() => setShowAddDialog(false)} className="text-slate-400">
+              <Button variant="ghost" onClick={() => {
+                setShowAddDialog(false);
+                setSelectedPersonIds([]);
+              }} className="text-slate-400">
                 Cancel
               </Button>
               <Button 
-                onClick={addParticipant}
+                onClick={addParticipants}
                 className="bg-amber-500 hover:bg-amber-600 text-slate-900"
-                disabled={!selectedPersonId || loading}
+                disabled={selectedPersonIds.length === 0 || loading}
               >
-                {loading ? "Adding..." : "Send Invite"}
+                {loading ? "Adding..." : `Invite ${selectedPersonIds.length || ''} ${selectedPersonIds.length === 1 ? 'Person' : 'People'}`}
               </Button>
             </div>
           </div>

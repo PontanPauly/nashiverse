@@ -32,16 +32,38 @@ export default function BudgetManager({ tripId, people }) {
     people.forEach(p => balance[p.id] = 0);
 
     expenses.forEach(expense => {
-      const splitCount = (expense.split_with_person_ids || []).length || 1;
-      const perPerson = expense.amount / splitCount;
-
-      // Paid by person gets positive
+      // Person who paid gets credited
       balance[expense.paid_by_person_id] = (balance[expense.paid_by_person_id] || 0) + expense.amount;
 
-      // Split among people
-      (expense.split_with_person_ids || [expense.paid_by_person_id]).forEach(personId => {
-        balance[personId] = (balance[personId] || 0) - perPerson;
-      });
+      // Calculate splits
+      if (expense.custom_splits && Object.keys(expense.custom_splits).length > 0) {
+        // Custom splits exist
+        let customTotal = 0;
+        Object.entries(expense.custom_splits).forEach(([personId, amount]) => {
+          balance[personId] = (balance[personId] || 0) - amount;
+          customTotal += amount;
+        });
+
+        // Remaining amount split equally among non-custom people
+        const remaining = expense.amount - customTotal;
+        const nonCustomPeople = (expense.split_with_person_ids || []).filter(
+          id => !expense.custom_splits[id]
+        );
+        
+        if (nonCustomPeople.length > 0 && remaining > 0) {
+          const amountPerPerson = remaining / nonCustomPeople.length;
+          nonCustomPeople.forEach(personId => {
+            balance[personId] = (balance[personId] || 0) - amountPerPerson;
+          });
+        }
+      } else {
+        // Equal split
+        const splitCount = (expense.split_with_person_ids || []).length || 1;
+        const perPerson = expense.amount / splitCount;
+        (expense.split_with_person_ids || [expense.paid_by_person_id]).forEach(personId => {
+          balance[personId] = (balance[personId] || 0) - perPerson;
+        });
+      }
     });
 
     return balance;
@@ -183,11 +205,31 @@ function ExpenseForm({ tripId, people, expense, onClose, onSuccess }) {
   const toggleSplit = (personId) => {
     const current = formData.split_with_person_ids;
     if (current.includes(personId)) {
-      setFormData({ ...formData, split_with_person_ids: current.filter(id => id !== personId) });
+      const newSplits = { ...formData.custom_splits };
+      delete newSplits[personId];
+      setFormData({ 
+        ...formData, 
+        split_with_person_ids: current.filter(id => id !== personId),
+        custom_splits: newSplits 
+      });
     } else {
       setFormData({ ...formData, split_with_person_ids: [...current, personId] });
     }
   };
+
+  const setCustomAmount = (personId, amount) => {
+    const newSplits = { ...formData.custom_splits };
+    if (amount && parseFloat(amount) > 0) {
+      newSplits[personId] = parseFloat(amount);
+    } else {
+      delete newSplits[personId];
+    }
+    setFormData({ ...formData, custom_splits: newSplits });
+  };
+
+  const customTotal = Object.values(formData.custom_splits || {}).reduce((sum, val) => sum + val, 0);
+  const remaining = parseFloat(formData.amount || 0) - customTotal;
+  const nonCustomCount = formData.split_with_person_ids.filter(id => !formData.custom_splits?.[id]).length;
 
   return (
     <Dialog open onOpenChange={onClose}>
