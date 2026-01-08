@@ -89,31 +89,40 @@ export default function Home() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {/* Hero Welcome */}
-      <section className="text-center py-20">
-        <h1 className="text-5xl lg:text-6xl font-bold text-slate-100 mb-4">
-          Welcome Home
-        </h1>
+      {/* Universe Welcome */}
+      <section className="relative overflow-hidden rounded-3xl glass-card p-8 lg:p-12 border-2 border-amber-500/20">
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-transparent to-amber-900/20" />
+        <div className="absolute top-4 right-4 w-32 h-32 bg-amber-400/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-4 left-4 w-40 h-40 bg-purple-500/10 rounded-full blur-3xl" />
         
-        <h2 className="text-3xl lg:text-4xl font-light text-amber-400 mb-6">
-          {personProfile?.nickname || personProfile?.name || user.full_name || "Family Member"}
-        </h2>
-        
-        <p className="text-xl text-slate-400 mb-10">
-          Moments today. Traditions tomorrow.
-        </p>
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 mb-4">
+            <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+            <span className="text-sm font-medium text-amber-300">Welcome Home</span>
+          </div>
+          
+          <h1 className="text-4xl lg:text-5xl font-bold mb-3 bg-gradient-to-r from-amber-200 via-slate-100 to-purple-200 bg-clip-text text-transparent">
+            {personProfile?.nickname || personProfile?.name || user.full_name || "Family Member"}
+          </h1>
+          
+          <p className="text-xl text-purple-300/80">
+            Moments today. Traditions tomorrow.
+          </p>
 
-        <div className="flex flex-wrap justify-center gap-4">
-          <Link to={createPageUrl("Trips")}>
-            <Button size="lg" className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-medium px-8">
-              Plan a Trip
-            </Button>
-          </Link>
-          <Link to={createPageUrl("Family")}>
-            <Button size="lg" variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-800 px-8">
-              View Constellations
-            </Button>
-          </Link>
+          <div className="mt-8 flex flex-wrap gap-4">
+            <Link to={createPageUrl("Trips")}>
+              <Button className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-900 font-medium shadow-lg shadow-amber-500/20">
+                <Plus className="w-4 h-4 mr-2" />
+                Plan a Trip
+              </Button>
+            </Link>
+            <Link to={createPageUrl("Family")}>
+              <Button variant="outline" className="border-purple-500/50 text-purple-200 hover:bg-purple-900/30 hover:border-purple-400/70">
+                <Users className="w-4 h-4 mr-2" />
+                View Constellations
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
 
