@@ -222,21 +222,7 @@ export default function Family() {
 
           {/* Households */}
           <div className="space-y-6">
-        <>
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-            <Input
-              placeholder="Search family members..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-slate-800 border-slate-500 text-white placeholder:text-slate-300 focus:border-amber-400"
-            />
-          </div>
-
-          {/* Households */}
-          <div className="space-y-6">
-        {households.map((household, index) => {
+            {households.map((household, index) => {
           const householdPeople = getPeopleInHousehold(household.id);
           
           return (
@@ -352,12 +338,12 @@ export default function Family() {
                   </div>
                 )}
               </div>
-            </div>
-          );
-        })}
+              </div>
+            );
+          })}
 
-        {/* People without household */}
-        {getPeopleWithoutHousehold().length > 0 && (
+          {/* People without household */}
+          {getPeopleWithoutHousehold().length > 0 && (
           <div className="glass-card rounded-2xl overflow-hidden">
             <div className="p-4 border-b border-slate-700/50">
               <h2 className="text-lg font-semibold text-slate-100">Unassigned Members</h2>
@@ -394,14 +380,10 @@ export default function Family() {
             </div>
           </div>
         )}
-          </div>
         </div>
-        </div>
-        )}
 
-        {/* Empty State - Only show in list view */}
-        {viewMode === 'list' && (
-      {people.length === 0 && households.length === 0 && (
+        {/* Empty State */}
+        {people.length === 0 && households.length === 0 && (
         <div className="glass-card rounded-2xl p-12 text-center">
           <Users className="w-16 h-16 text-slate-700 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-slate-200 mb-2">Start Building Your Family</h2>
@@ -423,15 +405,13 @@ export default function Family() {
               <Plus className="w-4 h-4 mr-2" />
               Add Person
             </Button>
-          </div>
-          </div>
-          )}
-          </>
-          );
+            </div>
+            </div>
+            )}
+            </div>
+            )}
 
-          return (
-          <div className="max-w-6xl mx-auto space-y-6">
-          {/* Person Form Dialog - Only admins can edit */}
+            {/* Person Form Dialog - Only admins can edit */}
       <Dialog open={showPersonForm || !!editingPerson} onOpenChange={(open) => {
         if (!open) {
           setShowPersonForm(false);
@@ -488,6 +468,6 @@ export default function Family() {
           />
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
