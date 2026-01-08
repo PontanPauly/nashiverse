@@ -13,46 +13,222 @@ import { motion, AnimatePresence } from 'framer-motion';
 const PersonNode = ({ data, selected }) => {
   const [isHovered, setIsHovered] = useState(false);
 
-  // Star size based on role
+  // Star configuration
+  const pattern = data.star_pattern || 'classic';
+  const intensity = (data.star_intensity || 5) / 5;
+  const flareCount = data.star_flare_count || 8;
+  
   const getStarSize = (roleType) => {
-    const sizes = {
-      'adult': 10,
-      'teen': 8,
-      'child': 6,
-      'ancestor': 14,
-    };
-    return sizes[roleType] || 10;
+    const sizes = { 'adult': 12, 'teen': 10, 'child': 8, 'ancestor': 16 };
+    return sizes[roleType] || 12;
   };
 
-  // Household color palette for chromatic effects
   const getStarColors = (householdId) => {
-    if (!householdId) {
-      return { 
-        primary: '#e0e7ff', 
-        secondary: '#a5b4fc',
-        tertiary: '#818cf8'
-      };
-    }
-    
+    if (!householdId) return { primary: '#e0e7ff', secondary: '#a5b4fc', tertiary: '#818cf8' };
     const palettes = [
-      { primary: '#fef3c7', secondary: '#fde68a', tertiary: '#fcd34d' }, // yellow
-      { primary: '#dbeafe', secondary: '#93c5fd', tertiary: '#60a5fa' }, // blue
-      { primary: '#f3e8ff', secondary: '#d8b4fe', tertiary: '#c084fc' }, // purple
-      { primary: '#fce7f3', secondary: '#fbcfe8', tertiary: '#f472b6' }, // pink
-      { primary: '#d1fae5', secondary: '#6ee7b7', tertiary: '#34d399' }, // green
-      { primary: '#fed7aa', secondary: '#fdba74', tertiary: '#fb923c' }, // orange
+      { primary: '#fef3c7', secondary: '#fde68a', tertiary: '#fcd34d' },
+      { primary: '#dbeafe', secondary: '#93c5fd', tertiary: '#60a5fa' },
+      { primary: '#f3e8ff', secondary: '#d8b4fe', tertiary: '#c084fc' },
+      { primary: '#fce7f3', secondary: '#fbcfe8', tertiary: '#f472b6' },
+      { primary: '#d1fae5', secondary: '#6ee7b7', tertiary: '#34d399' },
+      { primary: '#fed7aa', secondary: '#fdba74', tertiary: '#fb923c' },
     ];
-    
     const hash = householdId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return palettes[hash % palettes.length];
   };
 
   const size = getStarSize(data.role_type);
   const colors = getStarColors(data.household_id);
-  
-  // Random twinkle timing for natural effect
-  const twinkleDuration = 2 + Math.random() * 3;
+  const twinkleDuration = 2 + Math.random() * 2;
   const pulseDelay = Math.random() * 2;
+
+  // Render different star patterns
+  const renderStarPattern = () => {
+    const baseSize = size * 8;
+    
+    switch(pattern) {
+      case 'burst':
+        return (
+          <>
+            {[...Array(flareCount)].map((_, i) => {
+              const angle = (i / flareCount) * Math.PI * 2;
+              const length = size * 4 * intensity;
+              return (
+                <motion.div
+                  key={i}
+                  className="absolute"
+                  style={{
+                    width: 3,
+                    height: length,
+                    left: size * 4,
+                    top: size * 4 - length / 2,
+                    background: `linear-gradient(180deg, transparent, ${colors.primary}, white, ${colors.primary}, transparent)`,
+                    transformOrigin: `50% ${length / 2}px`,
+                    transform: `rotate(${angle}rad)`,
+                    filter: 'blur(1px)',
+                  }}
+                  animate={{ opacity: [0.4, 0.9, 0.4], scaleY: [0.8, 1.2, 0.8] }}
+                  transition={{ duration: twinkleDuration, repeat: Infinity, delay: pulseDelay }}
+                />
+              );
+            })}
+          </>
+        );
+        
+      case 'diamond':
+        return (
+          <motion.div
+            className="absolute"
+            style={{
+              width: size * 6,
+              height: size * 6,
+              left: size,
+              top: size,
+              transform: 'rotate(45deg)',
+              background: `linear-gradient(135deg, ${colors.tertiary}, ${colors.primary}, white, ${colors.primary}, ${colors.tertiary})`,
+              clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+              filter: 'blur(2px)',
+            }}
+            animate={{ opacity: [0.6, 1, 0.6], scale: [0.9, 1.1, 0.9] }}
+            transition={{ duration: twinkleDuration, repeat: Infinity, delay: pulseDelay }}
+          />
+        );
+        
+      case 'cross':
+        return (
+          <>
+            <motion.div
+              className="absolute"
+              style={{
+                width: size * 8,
+                height: size * 2,
+                left: 0,
+                top: size * 3,
+                background: `linear-gradient(90deg, transparent, ${colors.secondary}, ${colors.primary}, white, ${colors.primary}, ${colors.secondary}, transparent)`,
+                filter: 'blur(2px)',
+              }}
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: twinkleDuration, repeat: Infinity, delay: pulseDelay }}
+            />
+            <motion.div
+              className="absolute"
+              style={{
+                width: size * 2,
+                height: size * 8,
+                left: size * 3,
+                top: 0,
+                background: `linear-gradient(180deg, transparent, ${colors.secondary}, ${colors.primary}, white, ${colors.primary}, ${colors.secondary}, transparent)`,
+                filter: 'blur(2px)',
+              }}
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: twinkleDuration, repeat: Infinity, delay: pulseDelay + 0.2 }}
+            />
+          </>
+        );
+        
+      case 'spiral':
+        return (
+          <>
+            {[...Array(6)].map((_, i) => (
+              <motion.div
+                key={i}
+                className="absolute rounded-full"
+                style={{
+                  width: size * (2 + i),
+                  height: size * (2 + i),
+                  left: size * (3 - i / 2),
+                  top: size * (3 - i / 2),
+                  border: `2px solid ${colors.primary}`,
+                  filter: 'blur(1px)',
+                  opacity: 0.8 - i * 0.1,
+                }}
+                animate={{ rotate: [0, 360] }}
+                transition={{ duration: 8 + i * 2, repeat: Infinity, ease: "linear" }}
+              />
+            ))}
+          </>
+        );
+        
+      case 'nebula':
+        return (
+          <>
+            {[...Array(5)].map((_, i) => (
+              <motion.div
+                key={i}
+                className="absolute rounded-full"
+                style={{
+                  width: size * (3 + Math.random() * 3),
+                  height: size * (3 + Math.random() * 3),
+                  left: size * (2 + Math.random() * 2),
+                  top: size * (2 + Math.random() * 2),
+                  background: `radial-gradient(circle, ${[colors.primary, colors.secondary, colors.tertiary][i % 3]}60, transparent)`,
+                  filter: 'blur(8px)',
+                }}
+                animate={{ opacity: [0.3, 0.7, 0.3], scale: [0.9, 1.2, 0.9] }}
+                transition={{ duration: 3 + i, repeat: Infinity, delay: i * 0.3 }}
+              />
+            ))}
+          </>
+        );
+        
+      case 'pulsar':
+        return (
+          <>
+            {[...Array(4)].map((_, i) => (
+              <motion.div
+                key={i}
+                className="absolute rounded-full"
+                style={{
+                  width: size * (4 + i * 2),
+                  height: size * (4 + i * 2),
+                  left: size * (2 - i),
+                  top: size * (2 - i),
+                  border: `3px solid ${colors.primary}`,
+                  filter: 'blur(2px)',
+                }}
+                animate={{ opacity: [0, 0.8, 0], scale: [0.5, 1.5, 1.5] }}
+                transition={{ duration: 2, repeat: Infinity, delay: i * 0.3 }}
+              />
+            ))}
+          </>
+        );
+        
+      case 'binary':
+        return (
+          <>
+            <motion.div
+              className="absolute rounded-full"
+              style={{
+                width: size * 3,
+                height: size * 3,
+                left: size * 2,
+                top: size * 2.5,
+                background: `radial-gradient(circle, white, ${colors.primary}, ${colors.secondary}40, transparent)`,
+                filter: 'blur(3px)',
+              }}
+              animate={{ x: [0, size * 1.5, 0], opacity: [0.8, 1, 0.8] }}
+              transition={{ duration: 3, repeat: Infinity }}
+            />
+            <motion.div
+              className="absolute rounded-full"
+              style={{
+                width: size * 2.5,
+                height: size * 2.5,
+                left: size * 3.5,
+                top: size * 2.75,
+                background: `radial-gradient(circle, white, ${colors.tertiary}, ${colors.secondary}40, transparent)`,
+                filter: 'blur(3px)',
+              }}
+              animate={{ x: [0, -size * 1.5, 0], opacity: [0.7, 0.9, 0.7] }}
+              transition={{ duration: 3, repeat: Infinity }}
+            />
+          </>
+        );
+        
+      default: // classic
+        return null;
+    }
+  };
 
   return (
     <motion.div 
@@ -61,28 +237,25 @@ const PersonNode = ({ data, selected }) => {
       onMouseLeave={() => setIsHovered(false)}
       style={{ width: size * 8, height: size * 8 }}
     >
-      {/* Outer chromatic aberration ring (blue/red shift) */}
+      {/* Outer glow */}
       <motion.div 
         className="absolute rounded-full"
         style={{ 
-          width: size * 8,
-          height: size * 8,
-          background: `radial-gradient(circle, ${colors.tertiary}30 0%, transparent 60%)`,
-          filter: 'blur(12px)',
+          width: size * 10 * intensity,
+          height: size * 10 * intensity,
+          left: size * (4 - intensity * 1),
+          top: size * (4 - intensity * 1),
+          background: `radial-gradient(circle, ${colors.tertiary}40 0%, transparent 70%)`,
+          filter: 'blur(16px)',
         }}
-        animate={{
-          opacity: [0.4, 0.7, 0.4],
-          scale: [1, 1.2, 1],
-        }}
-        transition={{
-          duration: twinkleDuration,
-          repeat: Infinity,
-          delay: pulseDelay,
-          ease: "easeInOut"
-        }}
+        animate={{ opacity: [0.3, 0.6, 0.3], scale: [0.9, 1.1, 0.9] }}
+        transition={{ duration: twinkleDuration, repeat: Infinity, delay: pulseDelay }}
       />
       
-      {/* Mid-layer glow with color shift */}
+      {/* Pattern layer */}
+      {renderStarPattern()}
+      
+      {/* Mid glow */}
       <motion.div 
         className="absolute rounded-full"
         style={{ 
@@ -93,118 +266,30 @@ const PersonNode = ({ data, selected }) => {
           background: `radial-gradient(circle, ${colors.secondary} 0%, ${colors.tertiary}50 40%, transparent 70%)`,
           filter: 'blur(8px)',
         }}
-        animate={{
-          opacity: [0.5, 0.9, 0.5],
-          scale: [0.9, 1.1, 0.9],
-        }}
-        transition={{
-          duration: twinkleDuration * 0.8,
-          repeat: Infinity,
-          delay: pulseDelay + 0.1,
-          ease: "easeInOut"
-        }}
+        animate={{ opacity: [0.5, 0.9, 0.5] }}
+        transition={{ duration: twinkleDuration * 0.7, repeat: Infinity, delay: pulseDelay + 0.1 }}
       />
       
-      {/* Lens flare cross pattern */}
-      <motion.div 
-        className="absolute"
-        style={{ 
-          width: size * 8,
-          height: 2,
-          left: 0,
-          top: size * 4 - 1,
-          background: `linear-gradient(90deg, transparent, ${colors.primary}80, transparent)`,
-          filter: 'blur(1px)',
-        }}
-        animate={{
-          opacity: isHovered || selected ? [0.3, 0.6, 0.3] : [0.1, 0.3, 0.1],
-        }}
-        transition={{
-          duration: twinkleDuration,
-          repeat: Infinity,
-          delay: pulseDelay,
-        }}
-      />
-      
-      <motion.div 
-        className="absolute"
-        style={{ 
-          width: 2,
-          height: size * 8,
-          left: size * 4 - 1,
-          top: 0,
-          background: `linear-gradient(180deg, transparent, ${colors.primary}80, transparent)`,
-          filter: 'blur(1px)',
-        }}
-        animate={{
-          opacity: isHovered || selected ? [0.3, 0.6, 0.3] : [0.1, 0.3, 0.1],
-        }}
-        transition={{
-          duration: twinkleDuration,
-          repeat: Infinity,
-          delay: pulseDelay + 0.15,
-        }}
-      />
-      
-      {/* Inner bright core */}
+      {/* Core */}
       <motion.div 
         className="absolute rounded-full"
         style={{ 
-          width: size * 3,
-          height: size * 3,
-          left: size * 2.5,
-          top: size * 2.5,
-          background: `radial-gradient(circle, white 0%, ${colors.primary} 30%, ${colors.secondary} 60%, transparent 100%)`,
-          filter: 'blur(3px)',
-          boxShadow: `0 0 ${size * 2}px ${colors.primary}`,
+          width: size * 2.5 * intensity,
+          height: size * 2.5 * intensity,
+          left: size * (3.75 - intensity * 0.625),
+          top: size * (3.75 - intensity * 0.625),
+          background: `radial-gradient(circle, white 0%, ${colors.primary} 40%, ${colors.secondary} 70%, transparent)`,
+          filter: 'blur(2px)',
+          boxShadow: `0 0 ${size * 4 * intensity}px ${colors.primary}`,
         }}
-        animate={{
-          opacity: [0.8, 1, 0.8],
-          scale: isHovered || selected ? [1.2, 1.4, 1.2] : [1, 1.15, 1],
-        }}
-        transition={{
-          duration: twinkleDuration * 0.5,
-          repeat: Infinity,
-          delay: pulseDelay + 0.2,
-          ease: "easeInOut"
-        }}
-      />
-      
-      {/* Bright center point */}
-      <motion.div 
-        className="absolute rounded-full"
-        style={{ 
-          width: size * 1.5,
-          height: size * 1.5,
-          left: size * 3.25,
-          top: size * 3.25,
-          background: 'white',
-          filter: 'blur(1px)',
-          boxShadow: `0 0 ${size * 3}px white`,
-        }}
-        animate={{
-          opacity: [0.9, 1, 0.9],
-          scale: isHovered || selected ? [1.3, 1.6, 1.3] : [1, 1.2, 1],
-        }}
-        transition={{
-          duration: twinkleDuration * 0.3,
-          repeat: Infinity,
-          delay: pulseDelay + 0.3,
-        }}
+        animate={{ opacity: [0.9, 1, 0.9], scale: isHovered ? [1.3, 1.5, 1.3] : [1, 1.2, 1] }}
+        transition={{ duration: twinkleDuration * 0.4, repeat: Infinity, delay: pulseDelay + 0.2 }}
       />
 
-      {/* Deceased indicator - dimmed star */}
       {data.is_deceased && (
-        <div 
-          className="absolute inset-0 rounded-full"
-          style={{ 
-            background: 'rgba(0,0,0,0.6)',
-            backdropFilter: 'brightness(0.5)',
-          }}
-        />
+        <div className="absolute inset-0 rounded-full" style={{ background: 'rgba(0,0,0,0.6)' }} />
       )}
 
-      {/* Name label */}
       <AnimatePresence>
         {(isHovered || selected) && (
           <motion.div 
@@ -216,9 +301,7 @@ const PersonNode = ({ data, selected }) => {
           >
             <div className="px-3 py-1.5 rounded-lg glass-card border border-amber-400/50 shadow-xl">
               <p className="text-xs font-medium text-slate-100">{data.name}</p>
-              {data.nickname && (
-                <p className="text-xs text-amber-300">"{data.nickname}"</p>
-              )}
+              {data.nickname && <p className="text-xs text-amber-300">"{data.nickname}"</p>}
             </div>
           </motion.div>
         )}

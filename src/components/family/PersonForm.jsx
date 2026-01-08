@@ -357,6 +357,23 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
           {loading ? "Saving..." : (person ? "Update Person" : "Add Person")}
         </Button>
       </div>
+
+      {/* Star Customizer Dialog */}
+      <Dialog open={showStarCustomizer} onOpenChange={setShowStarCustomizer}>
+        <DialogContent className="bg-slate-900 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-slate-100">Customize Your Star</DialogTitle>
+          </DialogHeader>
+          <StarCustomizer
+            person={formData}
+            onSave={(starConfig) => {
+              setFormData({ ...formData, ...starConfig });
+              setShowStarCustomizer(false);
+            }}
+            onCancel={() => setShowStarCustomizer(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }
