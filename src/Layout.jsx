@@ -46,6 +46,10 @@ export default function Layout({ children, currentPageName }) {
     { name: "Love Notes", href: createPageUrl("LoveNotes"), icon: Heart },
   ];
 
+  const profileNav = user ? [
+    { name: "My Profile", href: createPageUrl("Profile"), icon: Star },
+  ] : [];
+
   const isActive = (href) => {
     return location.pathname === new URL(href, window.location.origin).pathname;
   };
@@ -224,6 +228,27 @@ export default function Layout({ children, currentPageName }) {
                   onClick={() => setSidebarOpen(false)}
                   className={cn(
                     "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
+                    active 
+                      ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" 
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  )}
+                >
+                  <Icon className={cn("w-5 h-5", active && "text-amber-400")} />
+                  <span className="font-medium">{item.name}</span>
+                </Link>
+              );
+            })}
+            
+            {profileNav.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  onClick={() => setSidebarOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 border-t border-slate-800/30 mt-2 pt-3",
                     active 
                       ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" 
                       : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
