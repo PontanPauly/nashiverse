@@ -65,6 +65,11 @@ export default function TripDetail() {
     enabled: !!tripId,
   });
 
+  const { data: user } = useQuery({
+    queryKey: ['user'],
+    queryFn: () => base44.auth.me(),
+  });
+
   const { data: participants = [] } = useQuery({
     queryKey: ['trip-participants', tripId],
     queryFn: () => base44.entities.TripParticipant.filter({ trip_id: tripId }),
@@ -118,6 +123,11 @@ export default function TripDetail() {
       .map(p => p.person_id);
     return people.filter(p => acceptedParticipantIds.includes(p.id));
   };
+
+  // Check if current user is attending
+  const myPerson = people.find(p => p.linked_user_email === user?.email);
+  const myParticipation = participants.find(p => p.person_id === myPerson?.id);
+  const isAttending = myParticipation?.status === 'accepted';
 
   const getAllergiesForAttendees = () => {
     const attendees = getAttendingPeople();
