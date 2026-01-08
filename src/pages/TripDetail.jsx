@@ -46,7 +46,7 @@ import MealManager from "@/components/trips/MealManager.jsx";
 import RoomManager from "@/components/trips/RoomManager.jsx";
 import ActivityManager from "@/components/trips/ActivityManager.jsx";
 import BudgetManager from "@/components/trips/BudgetManager.jsx";
-import PackingManager from "@/components/trips/PackingManager.jsx";
+import SharedItemsManager from "@/components/trips/SharedItemsManager.jsx";
 
 export default function TripDetail() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -241,9 +241,9 @@ export default function TripDetail() {
             <DollarSign className="w-4 h-4 mr-1" />
             Budget
           </TabsTrigger>
-          <TabsTrigger value="packing" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
+          <TabsTrigger value="shared" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
             <Package className="w-4 h-4 mr-1" />
-            Packing
+            Shared Items
           </TabsTrigger>
         </TabsList>
 
@@ -347,9 +347,9 @@ export default function TripDetail() {
           />
         </TabsContent>
 
-        {/* Packing Tab */}
-        <TabsContent value="packing">
-          <PackingManager 
+        {/* Shared Items Tab */}
+        <TabsContent value="shared">
+          <SharedItemsManager 
             tripId={tripId}
             people={getAttendingPeople()}
           />

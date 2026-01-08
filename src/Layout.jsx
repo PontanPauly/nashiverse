@@ -15,7 +15,8 @@ import {
   Star,
   Image,
   Flame,
-  Search
+  Search,
+  Package
 } from "lucide-react";
 import GlobalSearch from "@/components/search/GlobalSearch";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ export default function Layout({ children, currentPageName }) {
     { name: "Home", href: createPageUrl("Home"), icon: Home },
     { name: "Family", href: createPageUrl("Family"), icon: Users },
     { name: "Trips", href: createPageUrl("Trips"), icon: MapPin },
+    { name: "My Packing", href: createPageUrl("MyPacking"), icon: Package },
     { name: "Traditions", href: createPageUrl("Rituals"), icon: Flame },
     { name: "Moments", href: createPageUrl("Moments"), icon: Image },
     { name: "Love Notes", href: createPageUrl("LoveNotes"), icon: Heart },

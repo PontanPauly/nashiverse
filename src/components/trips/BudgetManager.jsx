@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, DollarSign, Trash2, Upload } from "lucide-react";
+import { Plus, DollarSign, Trash2, Upload, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ import { format } from "date-fns";
 
 export default function BudgetManager({ tripId, people }) {
   const [showForm, setShowForm] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: expenses = [] } = useQuery({
@@ -97,6 +98,17 @@ export default function BudgetManager({ tripId, people }) {
                 <Button
                   variant="ghost"
                   size="icon"
+                  onClick={() => {
+                    setEditingExpense(expense);
+                    setShowForm(true);
+                  }}
+                  className="text-slate-400 hover:text-slate-200"
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => deleteExpense.mutate(expense.id)}
                   className="text-red-400 hover:text-red-300"
                 >
@@ -112,9 +124,14 @@ export default function BudgetManager({ tripId, people }) {
         <ExpenseForm
           tripId={tripId}
           people={people}
-          onClose={() => setShowForm(false)}
+          expense={editingExpense}
+          onClose={() => {
+            setShowForm(false);
+            setEditingExpense(null);
+          }}
           onSuccess={() => {
             setShowForm(false);
+            setEditingExpense(null);
             queryClient.invalidateQueries(['expenses', tripId]);
           }}
         />
@@ -123,12 +140,13 @@ export default function BudgetManager({ tripId, people }) {
   );
 }
 
-function ExpenseForm({ tripId, people, onClose, onSuccess }) {
-  const [formData, setFormData] = useState({
+function ExpenseForm({ tripId, people, expense, onClose, onSuccess }) {
+  const [formData, setFormData] = useState(expense || {
     description: '',
     amount: '',
     paid_by_person_id: '',
     split_with_person_ids: [],
+    split_equally: true,
     category: 'other',
     date: new Date().toISOString().split('T')[0],
     receipt_url: '',
@@ -137,11 +155,18 @@ function ExpenseForm({ tripId, people, onClose, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await base44.entities.Expense.create({
+    const dataToSave = {
       ...formData,
       trip_id: tripId,
       amount: parseFloat(formData.amount),
-    });
+      split_with_person_ids: formData.split_equally ? people.map(p => p.id) : formData.split_with_person_ids,
+    };
+    
+    if (expense?.id) {
+      await base44.entities.Expense.update(expense.id, dataToSave);
+    } else {
+      await base44.entities.Expense.create(dataToSave);
+    }
     onSuccess();
   };
 
@@ -167,7 +192,7 @@ function ExpenseForm({ tripId, people, onClose, onSuccess }) {
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="bg-slate-900 border-slate-700">
         <DialogHeader>
-          <DialogTitle className="text-slate-100">Add Expense</DialogTitle>
+          <DialogTitle className="text-slate-100">{expense ? 'Edit Expense' : 'Add Expense'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -236,22 +261,53 @@ function ExpenseForm({ tripId, people, onClose, onSuccess }) {
           </div>
 
           <div>
-            <Label className="text-slate-300">Split With</Label>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {people.map(person => (
-                <Badge
-                  key={person.id}
-                  onClick={() => toggleSplit(person.id)}
-                  className={`cursor-pointer ${
-                    formData.split_with_person_ids.includes(person.id)
-                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                      : 'bg-slate-700 text-slate-400 border-slate-600'
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-slate-300">Split</Label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, split_equally: true })}
+                  className={`px-3 py-1 rounded text-xs ${
+                    formData.split_equally
+                      ? 'bg-amber-500 text-slate-900'
+                      : 'bg-slate-700 text-slate-400'
                   }`}
                 >
-                  {person.name}
-                </Badge>
-              ))}
+                  Equally
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, split_equally: false })}
+                  className={`px-3 py-1 rounded text-xs ${
+                    !formData.split_equally
+                      ? 'bg-amber-500 text-slate-900'
+                      : 'bg-slate-700 text-slate-400'
+                  }`}
+                >
+                  Specific
+                </button>
+              </div>
             </div>
+            {!formData.split_equally && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {people.map(person => (
+                  <Badge
+                    key={person.id}
+                    onClick={() => toggleSplit(person.id)}
+                    className={`cursor-pointer ${
+                      formData.split_with_person_ids.includes(person.id)
+                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                        : 'bg-slate-700 text-slate-400 border-slate-600'
+                    }`}
+                  >
+                    {person.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {formData.split_equally && (
+              <p className="text-xs text-slate-500 mt-2">Split equally among all attendees</p>
+            )}
           </div>
 
           <div>
@@ -268,7 +324,7 @@ function ExpenseForm({ tripId, people, onClose, onSuccess }) {
           <div className="flex justify-end gap-3">
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
             <Button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-900">
-              Add Expense
+              {expense ? 'Update Expense' : 'Add Expense'}
             </Button>
           </div>
         </form>
