@@ -38,8 +38,8 @@ const Star = ({
   const glowSize = baseSize * 2.5;
 
   const starStyle = {
-    '--star-x': `${x}%`,
-    '--star-y': `${y}%`,
+    left: `${x}%`,
+    top: `${y}%`,
     '--star-size': `${baseSize}px`,
     '--glow-size': `${glowSize}px`,
     '--star-r': color.r,

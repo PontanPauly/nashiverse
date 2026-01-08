@@ -100,8 +100,6 @@
 
 .star {
   position: absolute;
-  left: var(--star-x);
-  top: var(--star-y);
   transform: translate(-50%, -50%);
   cursor: pointer;
   z-index: 10;
