@@ -38,11 +38,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import TripForm from "@/components/trips/TripForm";
-import ParticipantManager from "@/components/trips/ParticipantManager";
-import MealManager from "@/components/trips/MealManager";
-import RoomManager from "@/components/trips/RoomManager";
-import ActivityManager from "@/components/trips/ActivityManager";
+import TripForm from "@/components/trips/TripForm.jsx";
+import ParticipantManager from "@/components/trips/ParticipantManager.jsx";
+import MealManager from "@/components/trips/MealManager.jsx";
+import RoomManager from "@/components/trips/RoomManager.jsx";
+import ActivityManager from "@/components/trips/ActivityManager.jsx";
 
 export default function TripDetail() {
   const urlParams = new URLSearchParams(window.location.search);
