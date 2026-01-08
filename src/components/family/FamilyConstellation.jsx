@@ -13,125 +13,149 @@ import { motion, AnimatePresence } from 'framer-motion';
 const PersonNode = ({ data, selected }) => {
   const [isHovered, setIsHovered] = useState(false);
 
-  // Star size based on role (with depth variation)
-  const getStarSize = (roleType) => {
-    const depth = data.depth || 1;
-    const baseSize = {
-      'adult': 16,
-      'teen': 14,
-      'child': 12,
-      'ancestor': 20,
-    }[roleType] || 16;
-    
-    const scaledSize = baseSize * depth;
-    return { width: scaledSize, height: scaledSize };
+  // Star size and shape based on role
+  const getStarConfig = (roleType) => {
+    const configs = {
+      'adult': { size: 24, points: 5, brightness: 1 },
+      'teen': { size: 20, points: 4, brightness: 0.95 },
+      'child': { size: 16, points: 6, brightness: 0.9 },
+      'ancestor': { size: 32, points: 8, brightness: 1.1 },
+    };
+    return configs[roleType] || configs['adult'];
   };
 
-  // Household color
+  // Household color with more vibrant palette
   const getHouseholdColor = (householdId) => {
     if (!householdId) return '#94a3b8';
-    const colors = ['#fbbf24', '#60a5fa', '#a78bfa', '#ec4899', '#10b981', '#f59e0b'];
+    const colors = ['#fcd34d', '#60a5fa', '#c084fc', '#f472b6', '#34d399', '#fb923c'];
     const hash = householdId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[hash % colors.length];
   };
 
   const starColor = getHouseholdColor(data.household_id);
-  const starSize = getStarSize(data.role_type);
-  const depth = data.depth || 1;
-  const opacity = depth === 0.6 ? 0.7 : depth === 0.8 ? 0.85 : 1;
+  const starConfig = getStarConfig(data.role_type);
 
-  // Unique drift animation per star
+  // Unique drift animation
   const driftVariants = {
     animate: {
-      x: [0, Math.random() * 4 - 2, 0],
-      y: [0, Math.random() * 4 - 2, 0],
+      x: [0, Math.random() * 6 - 3, 0],
+      y: [0, Math.random() * 6 - 3, 0],
       transition: {
-        duration: 8 + Math.random() * 4,
+        duration: 10 + Math.random() * 5,
         repeat: Infinity,
         ease: "easeInOut"
       }
     }
   };
 
+  // Multi-pointed star path
+  const createStarPath = (points, size) => {
+    const outerRadius = size;
+    const innerRadius = size * 0.4;
+    const step = (Math.PI * 2) / points;
+    let path = '';
+    
+    for (let i = 0; i < points * 2; i++) {
+      const angle = i * step / 2 - Math.PI / 2;
+      const radius = i % 2 === 0 ? outerRadius : innerRadius;
+      const x = size + Math.cos(angle) * radius;
+      const y = size + Math.sin(angle) * radius;
+      path += `${i === 0 ? 'M' : 'L'} ${x},${y} `;
+    }
+    path += 'Z';
+    return path;
+  };
+
   return (
     <motion.div 
-      className="relative"
+      className="relative cursor-pointer"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       variants={driftVariants}
       animate="animate"
-      style={{ opacity }}
     >
-      {/* Glow effect */}
+      {/* Outer glow ring */}
       <motion.div 
-        className="absolute inset-0 rounded-full blur-xl"
+        className="absolute rounded-full blur-2xl"
         style={{ 
           backgroundColor: starColor,
-          transform: 'scale(3)',
+          inset: -starConfig.size * 1.5,
         }}
         animate={{
-          opacity: isHovered || selected ? 0.8 : 0.3,
-          scale: isHovered || selected ? 4 : 3,
+          opacity: isHovered || selected ? 0.6 : 0.2,
+          scale: isHovered || selected ? 1.4 : 1,
         }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.4 }}
       />
       
-      {/* Shimmer effect */}
+      {/* Middle shimmer */}
       <motion.div 
-        className="absolute inset-0 rounded-full"
+        className="absolute rounded-full blur-md"
         style={{ 
           backgroundColor: starColor,
-          transform: 'scale(2)',
-          filter: 'blur(8px)'
+          inset: -starConfig.size * 0.8,
         }}
         animate={{
-          opacity: [0.2, 0.5, 0.2],
+          opacity: [0.3, 0.7, 0.3],
+          scale: [1, 1.1, 1],
         }}
         transition={{
-          duration: 3 + Math.random() * 2,
+          duration: 4 + Math.random() * 2,
           repeat: Infinity,
           ease: "easeInOut"
         }}
       />
       
-      {/* Star */}
-      <motion.div 
-        className="relative"
+      {/* Core star */}
+      <motion.svg 
+        width={starConfig.size * 2}
+        height={starConfig.size * 2}
+        viewBox={`0 0 ${starConfig.size * 2} ${starConfig.size * 2}`}
+        className="relative drop-shadow-2xl"
         animate={{
-          scale: isHovered || selected ? 1.3 : 1,
-          rotate: [0, 5, -5, 0],
+          scale: isHovered || selected ? 1.4 : 1,
+          rotate: data.is_deceased ? 0 : [0, 360],
         }}
         transition={{
           scale: { duration: 0.3 },
-          rotate: { duration: 20, repeat: Infinity, ease: "easeInOut" }
+          rotate: { duration: 60, repeat: Infinity, ease: "linear" }
         }}
       >
-        <Star 
-          className="cursor-pointer"
-          style={{ 
-            color: starColor,
-            width: starSize.width,
-            height: starSize.height,
-            opacity: data.is_deceased ? 0.5 : 1,
-          }}
-          fill={starColor}
+        <defs>
+          <radialGradient id={`gradient-${data.id}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="white" stopOpacity={starConfig.brightness} />
+            <stop offset="50%" stopColor={starColor} stopOpacity="1" />
+            <stop offset="100%" stopColor={starColor} stopOpacity={data.is_deceased ? "0.3" : "0.8"} />
+          </radialGradient>
+          <filter id={`glow-${data.id}`}>
+            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <path
+          d={createStarPath(starConfig.points, starConfig.size)}
+          fill={`url(#gradient-${data.id})`}
+          filter={`url(#glow-${data.id})`}
+          style={{ opacity: data.is_deceased ? 0.5 : 1 }}
         />
-      </motion.div>
+      </motion.svg>
 
-      {/* Name on hover */}
+      {/* Name label */}
       <AnimatePresence>
         {(isHovered || selected) && (
           <motion.div 
-            className="absolute top-8 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none z-50"
-            initial={{ opacity: 0, y: -10 }}
+            className="absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none z-50"
+            initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
+            exit={{ opacity: 0, y: -5 }}
           >
-            <div className="px-3 py-1.5 rounded-lg glass-card border border-slate-700/50 shadow-xl">
-              <p className="text-xs font-medium text-slate-100">{data.name}</p>
+            <div className="px-4 py-2 rounded-xl glass-card border-2 border-amber-400/50 shadow-2xl">
+              <p className="text-sm font-bold text-slate-100">{data.name}</p>
               {data.nickname && (
-                <p className="text-xs text-slate-400">"{data.nickname}"</p>
+                <p className="text-xs text-amber-300">"{data.nickname}"</p>
               )}
             </div>
           </motion.div>
@@ -149,7 +173,7 @@ export default function FamilyConstellation({ people, households, relationships 
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [hoveredPerson, setHoveredPerson] = useState(null);
 
-  // Create constellation nodes with depth layers
+  // Create beautiful constellation patterns
   const initialNodes = useMemo(() => {
     const householdGroups = {};
     
@@ -163,35 +187,57 @@ export default function FamilyConstellation({ people, households, relationships 
     });
 
     const nodes = [];
-    const centerX = 800;
-    const centerY = 400;
-    const householdRadius = 300;
+    const viewportWidth = 1600;
+    const viewportHeight = 900;
+    const totalGroups = Object.keys(householdGroups).length;
 
-    // Create constellation pattern with depth
+    // Create organic constellation clusters
     Object.entries(householdGroups).forEach(([householdId, groupPeople], groupIndex) => {
-      const totalGroups = Object.keys(householdGroups).length;
-      const groupAngle = (groupIndex / totalGroups) * Math.PI * 2;
+      // Position household clusters in a spiral galaxy pattern
+      const spiralAngle = groupIndex * 1.618 * Math.PI; // Golden angle
+      const spiralRadius = 200 + groupIndex * 150;
       
-      // Household center point
-      const householdCenterX = centerX + Math.cos(groupAngle) * householdRadius;
-      const householdCenterY = centerY + Math.sin(groupAngle) * householdRadius;
+      const clusterCenterX = viewportWidth / 2 + Math.cos(spiralAngle) * spiralRadius;
+      const clusterCenterY = viewportHeight / 2 + Math.sin(spiralAngle) * spiralRadius;
 
-      // Arrange people in orbital pattern around household center
+      // Create constellation shape for each household
       groupPeople.forEach((person, index) => {
-        const personAngle = (index / groupPeople.length) * Math.PI * 2;
-        const orbitRadius = 80 + Math.random() * 60;
+        let x, y;
         
-        const x = householdCenterX + Math.cos(personAngle) * orbitRadius;
-        const y = householdCenterY + Math.sin(personAngle) * orbitRadius;
+        if (groupPeople.length === 1) {
+          // Single star
+          x = clusterCenterX;
+          y = clusterCenterY;
+        } else if (groupPeople.length === 2) {
+          // Binary star system
+          const offset = 80;
+          x = clusterCenterX + (index === 0 ? -offset : offset);
+          y = clusterCenterY;
+        } else if (groupPeople.length <= 5) {
+          // Pentagon/circular pattern
+          const angle = (index / groupPeople.length) * Math.PI * 2 - Math.PI / 2;
+          const radius = 100;
+          x = clusterCenterX + Math.cos(angle) * radius;
+          y = clusterCenterY + Math.sin(angle) * radius;
+        } else {
+          // Larger families: concentric rings
+          const ring = Math.floor(index / 6);
+          const posInRing = index % 6;
+          const totalInRing = Math.min(6, groupPeople.length - ring * 6);
+          const angle = (posInRing / totalInRing) * Math.PI * 2;
+          const radius = 100 + ring * 80;
+          x = clusterCenterX + Math.cos(angle) * radius;
+          y = clusterCenterY + Math.sin(angle) * radius;
+        }
         
-        // Assign depth layer (0.6 = background, 0.8 = mid, 1.0 = foreground)
-        const depthLayers = [0.6, 0.8, 1.0];
-        const depth = depthLayers[index % 3];
+        // Add slight organic variation
+        x += (Math.random() - 0.5) * 30;
+        y += (Math.random() - 0.5) * 30;
         
         nodes.push({
           id: person.id,
           type: 'person',
-          data: { ...person, depth },
+          data: { ...person, householdIndex: groupIndex },
           position: { x, y },
         });
       });
@@ -200,42 +246,76 @@ export default function FamilyConstellation({ people, households, relationships 
     return nodes;
   }, [people, households]);
 
-  // Create subtle relationship edges (only visible on hover)
+  // Always show constellation lines between household members and relationships
   const initialEdges = useMemo(() => {
-    if (!hoveredPerson) return [];
+    const edges = [];
     
-    return relationships
-      .filter(rel => rel.person_id === hoveredPerson || rel.related_person_id === hoveredPerson)
-      .map((rel, index) => {
-        const getEdgeStyle = (relType) => {
-          switch(relType) {
-            case 'spouse':
-              return { stroke: '#ec4899', strokeWidth: 2 };
-            case 'parent':
-            case 'child':
-              return { stroke: '#fbbf24', strokeWidth: 1.5 };
-            case 'sibling':
-              return { stroke: '#a78bfa', strokeWidth: 1.5 };
-            default:
-              return { stroke: '#94a3b8', strokeWidth: 1 };
+    // Create household constellation lines (always visible)
+    const householdGroups = {};
+    people.forEach(person => {
+      const householdId = person.household_id || 'unassigned';
+      if (!householdGroups[householdId]) {
+        householdGroups[householdId] = [];
+      }
+      householdGroups[householdId].push(person);
+    });
+    
+    Object.values(householdGroups).forEach(groupPeople => {
+      if (groupPeople.length > 1) {
+        // Connect household members with subtle lines
+        for (let i = 0; i < groupPeople.length; i++) {
+          for (let j = i + 1; j < groupPeople.length; j++) {
+            edges.push({
+              id: `household-${groupPeople[i].id}-${groupPeople[j].id}`,
+              source: groupPeople[i].id,
+              target: groupPeople[j].id,
+              type: 'straight',
+              style: {
+                stroke: '#475569',
+                strokeWidth: 1,
+                opacity: hoveredPerson === groupPeople[i].id || hoveredPerson === groupPeople[j].id ? 0.4 : 0.15,
+              },
+            });
           }
-        };
+        }
+      }
+    });
+    
+    // Add relationship lines (highlighted on hover)
+    relationships.forEach((rel, index) => {
+      const isHovered = hoveredPerson === rel.person_id || hoveredPerson === rel.related_person_id;
+      
+      const getEdgeStyle = (relType) => {
+        switch(relType) {
+          case 'spouse':
+            return { stroke: '#f472b6', strokeWidth: 3, animated: true };
+          case 'parent':
+          case 'child':
+            return { stroke: '#fcd34d', strokeWidth: 2.5, animated: true };
+          case 'sibling':
+            return { stroke: '#c084fc', strokeWidth: 2.5, animated: true };
+          default:
+            return { stroke: '#60a5fa', strokeWidth: 2, animated: true };
+        }
+      };
 
-        const style = getEdgeStyle(rel.relationship_type);
+      const style = getEdgeStyle(rel.relationship_type);
 
-        return {
-          id: `edge-${index}`,
-          source: rel.person_id,
-          target: rel.related_person_id,
-          type: 'straight',
-          style: {
-            ...style,
-            opacity: 0.4,
-          },
-          animated: true,
-        };
+      edges.push({
+        id: `rel-${index}`,
+        source: rel.person_id,
+        target: rel.related_person_id,
+        type: 'smoothstep',
+        style: {
+          ...style,
+          opacity: isHovered ? 0.8 : 0.3,
+        },
+        animated: isHovered,
       });
-  }, [relationships, hoveredPerson]);
+    });
+
+    return edges;
+  }, [relationships, hoveredPerson, people]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
