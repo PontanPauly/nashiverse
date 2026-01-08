@@ -247,7 +247,7 @@ export default function Layout({ children, currentPageName }) {
               </div>
               <div>
                 <h1 className="text-xl font-semibold bg-gradient-to-r from-amber-200 via-amber-100 to-purple-200 bg-clip-text text-transparent">Nashiverse</h1>
-                <p className="text-xs text-purple-300/60">Your Family Universe</p>
+                <p className="text-xs text-purple-300/80">Your Family Universe</p>
               </div>
             </Link>
             <Button
@@ -273,8 +273,8 @@ export default function Layout({ children, currentPageName }) {
                   className={cn(
                     "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
                     active 
-                      ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" 
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                      ? "bg-amber-500/10 text-amber-300 border border-amber-500/30" 
+                      : "text-slate-300 hover:text-slate-100 hover:bg-slate-800/50"
                   )}
                 >
                   <Icon className={cn("w-5 h-5", active && "text-amber-400")} />
@@ -318,7 +318,7 @@ export default function Layout({ children, currentPageName }) {
                   <p className="text-sm font-medium text-slate-200 truncate">
                     {user.full_name || "Family Member"}
                   </p>
-                  <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                  <p className="text-xs text-slate-400 truncate">{user.email}</p>
                 </div>
               </div>
               <div className="mt-2 flex gap-2">

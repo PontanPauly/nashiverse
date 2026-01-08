@@ -48,7 +48,7 @@ export default function FamilyStories() {
             <BookOpen className="w-6 h-6 text-amber-400" />
             Family Stories
           </h1>
-          <p className="text-slate-500 mt-1">Preserve your family's history and memories</p>
+          <p className="text-slate-400 mt-1">Preserve your family's history and memories</p>
         </div>
         <Button onClick={() => setShowForm(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-900">
           <Plus className="w-4 h-4 mr-2" />
@@ -132,7 +132,7 @@ export default function FamilyStories() {
         <div className="glass-card rounded-2xl p-12 text-center">
           <BookOpen className="w-16 h-16 text-slate-700 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-slate-200 mb-2">No Stories Yet</h2>
-          <p className="text-slate-500 mb-6">Start preserving your family's precious memories</p>
+          <p className="text-slate-400 mb-6">Start preserving your family's precious memories</p>
           <Button onClick={() => setShowForm(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-900">
             <Plus className="w-4 h-4 mr-2" />
             Write Your First Story
@@ -215,7 +215,7 @@ function StoryForm({ open, onClose, story, people }) {
               placeholder="Write your story here... (Markdown supported)"
               required
             />
-            <p className="text-xs text-slate-500">You can use markdown for formatting</p>
+            <p className="text-xs text-slate-400">You can use markdown for formatting</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

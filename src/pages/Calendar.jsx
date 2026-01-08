@@ -149,7 +149,7 @@ export default function Calendar() {
             <CalendarIcon className="w-6 h-6 text-amber-400" />
             Family Calendar
           </h1>
-          <p className="text-slate-500 mt-1">Birthdays and important events</p>
+          <p className="text-slate-400 mt-1">Birthdays and important events</p>
         </div>
         <Button onClick={() => { setEditingEvent(null); setShowEventForm(true); }} className="bg-amber-500 hover:bg-amber-600 text-slate-900">
           <Plus className="w-4 h-4 mr-2" />
@@ -183,7 +183,7 @@ export default function Calendar() {
             {/* Day Headers */}
             <div className="grid grid-cols-7 gap-2 mb-2">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="text-center text-xs font-medium text-slate-500 py-2">
+                <div key={day} className="text-center text-xs font-medium text-slate-400 py-2">
                   {day}
                 </div>
               ))}
@@ -212,7 +212,7 @@ export default function Calendar() {
                       hover:bg-slate-800 hover:border-slate-600
                     `}
                   >
-                    <div className={`text-sm font-medium mb-1 ${isCurrentMonth ? 'text-slate-200' : 'text-slate-600'}`}>
+                    <div className={`text-sm font-medium mb-1 ${isCurrentMonth ? 'text-slate-100' : 'text-slate-500'}`}>
                       {format(day, 'd')}
                     </div>
                     <div className="space-y-1">
@@ -223,7 +223,7 @@ export default function Calendar() {
                         </div>
                       ))}
                       {dayEvents.length > 2 && (
-                        <div className="text-[10px] text-slate-500">+{dayEvents.length - 2} more</div>
+                        <div className="text-[10px] text-slate-400">+{dayEvents.length - 2} more</div>
                       )}
                     </div>
                   </button>
@@ -251,13 +251,13 @@ export default function Calendar() {
                                 {item.person.name}
                               </span>
                             </div>
-                            <p className="text-xs text-slate-500">Turning {item.age}</p>
+                            <p className="text-xs text-slate-400">Turning {item.age}</p>
                           </>
                         ) : (
                           <>
                             <div className="text-sm font-medium text-slate-200 mb-1">{item.title}</div>
                             {item.event.description && (
-                              <p className="text-xs text-slate-500 truncate">{item.event.description}</p>
+                              <p className="text-xs text-slate-400 truncate">{item.event.description}</p>
                             )}
                           </>
                         )}
@@ -272,7 +272,7 @@ export default function Calendar() {
                          `${item.daysUntil}d`}
                       </Badge>
                     </div>
-                    <div className="text-xs text-slate-500 mt-2">
+                    <div className="text-xs text-slate-400 mt-2">
                       {format(item.date, 'MMM d, yyyy')}
                     </div>
                     {item.type === 'event' && (

@@ -242,7 +242,7 @@ export default function Family() {
                 <Users className="w-6 h-6 text-amber-400" />
                 Family
               </h1>
-              <p className="text-slate-500 mt-1">{people.length} members across {households.length} households</p>
+              <p className="text-slate-400 mt-1">{people.length} members across {households.length} households</p>
             </div>
 
             <div className="flex gap-2">
@@ -407,7 +407,7 @@ export default function Family() {
                                 )}
                               </div>
                               {person.nickname && (
-                                <p className="text-sm text-slate-500">"{person.nickname}"</p>
+                                <p className="text-sm text-amber-400">"{person.nickname}"</p>
                               )}
                               <Badge className={cn("mt-2 border", getRoleBadgeColor(person.role_type))}>
                                 <RoleIcon className="w-3 h-3 mr-1" />
@@ -416,7 +416,7 @@ export default function Family() {
 
                               {/* Relationship summary */}
                               {(personParents.length > 0 || partnerName) && (
-                                <div className="mt-2 text-xs text-slate-500 space-y-0.5">
+                                <div className="mt-2 text-xs text-slate-400 space-y-0.5">
                                   {personParents.length > 0 && (
                                     <div>Parents: {personParents.join(", ")}</div>
                                   )}
