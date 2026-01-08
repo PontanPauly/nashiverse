@@ -344,72 +344,71 @@ export default function Family() {
 
           {/* People without household */}
           {getPeopleWithoutHousehold().length > 0 && (
-          <div className="glass-card rounded-2xl overflow-hidden">
-            <div className="p-4 border-b border-slate-700/50">
-              <h2 className="text-lg font-semibold text-slate-100">Unassigned Members</h2>
-              <p className="text-sm text-slate-500">Not yet assigned to a household</p>
-            </div>
-            <div className="p-4">
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {getPeopleWithoutHousehold().map((person) => {
-                  const RoleIcon = getRoleIcon(person.role_type);
-                  return (
-                    <div 
-                      key={person.id}
-                      className="p-4 rounded-xl bg-slate-800/50 hover:bg-slate-800 transition-colors border border-slate-700/50 cursor-pointer"
-                      onClick={() => setEditingPerson(person)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center">
-                          <span className="text-lg font-medium text-slate-400">
-                            {person.name?.charAt(0)}
-                          </span>
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-medium text-slate-100">{person.name}</h3>
-                          <Badge className={cn("mt-1 border", getRoleBadgeColor(person.role_type))}>
-                            <RoleIcon className="w-3 h-3 mr-1" />
-                            {person.role_type}
-                          </Badge>
+            <div className="glass-card rounded-2xl overflow-hidden">
+              <div className="p-4 border-b border-slate-700/50">
+                <h2 className="text-lg font-semibold text-slate-100">Unassigned Members</h2>
+                <p className="text-sm text-slate-500">Not yet assigned to a household</p>
+              </div>
+              <div className="p-4">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {getPeopleWithoutHousehold().map((person) => {
+                    const RoleIcon = getRoleIcon(person.role_type);
+                    return (
+                      <div 
+                        key={person.id}
+                        className="p-4 rounded-xl bg-slate-800/50 hover:bg-slate-800 transition-colors border border-slate-700/50 cursor-pointer"
+                        onClick={() => setEditingPerson(person)}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center">
+                            <span className="text-lg font-medium text-slate-400">
+                              {person.name?.charAt(0)}
+                            </span>
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-medium text-slate-100">{person.name}</h3>
+                            <Badge className={cn("mt-1 border", getRoleBadgeColor(person.role_type))}>
+                              <RoleIcon className="w-3 h-3 mr-1" />
+                              {person.role_type}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        )}
-        </div>
+          )}
 
-        {/* Empty State */}
-        {people.length === 0 && households.length === 0 && (
-        <div className="glass-card rounded-2xl p-12 text-center">
-          <Users className="w-16 h-16 text-slate-700 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-slate-200 mb-2">Start Building Your Family</h2>
-          <p className="text-slate-500 mb-6 max-w-md mx-auto">
-            Add households and family members to begin creating your family universe.
-          </p>
-          <div className="flex justify-center gap-3">
-            <Button 
-              onClick={() => setShowHouseholdForm(true)}
-              className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
-            >
-              <HomeIcon className="w-4 h-4 mr-2" />
-              Create Household
-            </Button>
-            <Button 
-              onClick={() => setShowPersonForm(true)}
-              className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Person
-            </Button>
+          {/* Empty State */}
+          {people.length === 0 && households.length === 0 && (
+            <div className="glass-card rounded-2xl p-12 text-center">
+              <Users className="w-16 h-16 text-slate-700 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-slate-200 mb-2">Start Building Your Family</h2>
+              <p className="text-slate-500 mb-6 max-w-md mx-auto">
+                Add households and family members to begin creating your family universe.
+              </p>
+              <div className="flex justify-center gap-3">
+                <Button 
+                  onClick={() => setShowHouseholdForm(true)}
+                  className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
+                >
+                  <HomeIcon className="w-4 h-4 mr-2" />
+                  Create Household
+                </Button>
+                <Button 
+                  onClick={() => setShowPersonForm(true)}
+                  className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Person
+                </Button>
+              </div>
             </div>
-            </div>
-            )}
-            </div>
-            )}
+          )}
+        </div>
+      )}
 
             {/* Person Form Dialog - Only admins can edit */}
       <Dialog open={showPersonForm || !!editingPerson} onOpenChange={(open) => {
