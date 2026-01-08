@@ -248,10 +248,10 @@ export default function Home() {
               <Download className="w-4 h-4 mr-2" />
               Export Data
             </Button>
-            <Link to={createPageUrl("Birthdays")} className="block">
+            <Link to={createPageUrl("Calendar")} className="block">
               <Button variant="outline" className="w-full justify-start border-slate-700 text-slate-300 hover:bg-slate-800">
-                <Cake className="w-4 h-4 mr-2" />
-                Birthdays
+                <Calendar className="w-4 h-4 mr-2" />
+                Calendar
               </Button>
             </Link>
             <Link to={createPageUrl("FamilyStories")} className="block">
@@ -274,7 +274,7 @@ export default function Home() {
               </div>
               <h2 className="text-lg font-semibold text-slate-100">Upcoming Birthdays</h2>
             </div>
-            <Link to={createPageUrl("Birthdays")} className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center">
+            <Link to={createPageUrl("Calendar")} className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center">
               View all
               <ChevronRight className="w-4 h-4" />
             </Link>
