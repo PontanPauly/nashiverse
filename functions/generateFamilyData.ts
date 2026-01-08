@@ -157,9 +157,57 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Create family stories
+    const storyPrompt = `Create 5 heartwarming family stories. Include varied themes:
+    - A childhood memory
+    - A holiday tradition
+    - A funny family moment
+    - A milestone celebration
+    - An ancestor's story
+
+    Make them emotional, detailed (2-3 paragraphs each), and realistic.
+
+    Return JSON array format:
+    [{
+      "title": "story title",
+      "content": "full story with emotional detail",
+      "story_date": "YYYY-MM-DD",
+      "tags": ["tag1", "tag2"]
+    }]`;
+
+    const storiesResponse = await base44.asServiceRole.integrations.Core.InvokeLLM({
+      prompt: storyPrompt,
+      response_json_schema: {
+        type: "object",
+        properties: {
+          stories: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+                content: { type: "string" },
+                story_date: { type: "string" },
+                tags: { type: "array", items: { type: "string" } }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const stories = storiesResponse.stories || [];
+    for (const story of stories) {
+      await base44.asServiceRole.entities.FamilyStory.create({
+        ...story,
+        author_person_id: personIds[Math.floor(Math.random() * Math.min(5, personIds.length))],
+        subject_person_ids: personIds.slice(0, Math.floor(Math.random() * 3) + 1)
+      });
+    }
+
     return Response.json({ 
       success: true, 
-      message: `Generated ${familyData.people.length} people across ${familyData.households.length} households with ${familyData.relationships.length} relationships` 
+      message: `Generated ${familyData.people.length} people, ${familyData.households.length} households, ${familyData.relationships.length} relationships, and ${stories.length} stories` 
     });
 
   } catch (error) {
