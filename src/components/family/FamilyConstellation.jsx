@@ -34,6 +34,11 @@ export default function FamilyConstellation({ people, households, relationships 
   const [hoveredPersonId, setHoveredPersonId] = useState(null);
   const [filterMode, setFilterMode] = useState('all');
   const [selectedHouseholdId, setSelectedHouseholdId] = useState(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const containerRef = useRef(null);
 
   // Generate organic positions
   const positions = useMemo(() => {
@@ -130,6 +135,38 @@ export default function FamilyConstellation({ people, households, relationships 
 
   const selectedPerson = people?.find(p => p.id === selectedPersonId);
 
+  // Fit view on mount
+  React.useEffect(() => {
+    if (!containerRef.current || visiblePeople.length === 0) return;
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    
+    // Find bounds of all stars
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    visiblePeople.forEach(p => {
+      const pos = positions.get(p.id);
+      if (pos) {
+        minX = Math.min(minX, pos.x);
+        minY = Math.min(minY, pos.y);
+        maxX = Math.max(maxX, pos.x);
+        maxY = Math.max(maxY, pos.y);
+      }
+    });
+    
+    const padding = 5;
+    const boundsW = maxX - minX + padding * 2;
+    const boundsH = maxY - minY + padding * 2;
+    
+    const scaleX = 100 / boundsW;
+    const scaleY = 100 / boundsH;
+    const newZoom = Math.min(scaleX, scaleY, 1) * 0.85;
+    
+    setZoom(newZoom);
+    setPan({ x: 0, y: 0 });
+  }, [visiblePeople.length, filterMode]);
+
   if (!people || people.length === 0) {
     return (
       <div className="relative w-full h-[600px] rounded-2xl bg-gradient-to-b from-[#050716] to-[#03040d] flex items-center justify-center">
@@ -221,9 +258,33 @@ export default function FamilyConstellation({ people, households, relationships 
       </div>
 
       {/* Constellation */}
-      <div className="absolute inset-0 z-20">
+      <div 
+        ref={containerRef}
+        className="absolute inset-0 z-20 cursor-grab active:cursor-grabbing"
+        onMouseDown={(e) => {
+          setIsDragging(true);
+          setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+        }}
+        onMouseMove={(e) => {
+          if (isDragging) {
+            setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+          }
+        }}
+        onMouseUp={() => setIsDragging(false)}
+        onMouseLeave={() => setIsDragging(false)}
+        onWheel={(e) => {
+          e.preventDefault();
+          const delta = e.deltaY * -0.002;
+          setZoom(z => Math.min(Math.max(0.3, z + delta), 3));
+        }}
+      >
         {/* Connection lines */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <svg 
+          className="absolute inset-0 w-full h-full pointer-events-none" 
+          viewBox="0 0 100 100" 
+          preserveAspectRatio="none"
+          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: 'center' }}
+        >
           {connections.map((conn, i) => {
             let opacity = 0.15;
             let width = 0.15;
@@ -257,6 +318,7 @@ export default function FamilyConstellation({ people, households, relationships 
         </svg>
 
         {/* Stars */}
+        <div style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: 'center' }}>
         {visiblePeople.map(person => {
           const pos = positions.get(person.id);
           if (!pos) return null;
@@ -333,6 +395,7 @@ export default function FamilyConstellation({ people, households, relationships 
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* Info panel */}
