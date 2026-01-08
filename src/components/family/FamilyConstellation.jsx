@@ -34,6 +34,10 @@ export default function FamilyConstellation({ people, households, relationships 
   const [hoveredPersonId, setHoveredPersonId] = useState(null);
   const [filterMode, setFilterMode] = useState('all');
   const [selectedHouseholdId, setSelectedHouseholdId] = useState(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   // Generate organic positions
   const positions = useMemo(() => {
@@ -215,15 +219,52 @@ export default function FamilyConstellation({ people, households, relationships 
           </Select>
         )}
 
+        <div className="flex gap-1 pt-2 border-t border-slate-700/50">
+          <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => setZoom(z => Math.min(z + 0.2, 3))}>
+            <span className="text-xs">+</span>
+          </Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => setZoom(z => Math.max(z - 0.2, 0.5))}>
+            <span className="text-xs">−</span>
+          </Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>
+            <span className="text-xs">⊙</span>
+          </Button>
+        </div>
         <div className="pt-2 border-t border-slate-700/50 text-xs text-slate-500">
           <p>{visiblePeople.length} stars</p>
         </div>
       </div>
 
       {/* Constellation */}
-      <div className="absolute inset-0 z-20">
+      <div 
+        className="absolute inset-0 z-20 cursor-grab active:cursor-grabbing"
+        onMouseDown={(e) => {
+          setIsDragging(true);
+          setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+        }}
+        onMouseMove={(e) => {
+          if (isDragging) {
+            setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+          }
+        }}
+        onMouseUp={() => setIsDragging(false)}
+        onMouseLeave={() => setIsDragging(false)}
+        onWheel={(e) => {
+          e.preventDefault();
+          const delta = e.deltaY * -0.001;
+          setZoom(z => Math.min(Math.max(0.5, z + delta), 3));
+        }}
+      >
         {/* Connection lines */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <svg 
+          className="absolute inset-0 w-full h-full pointer-events-none" 
+          viewBox="0 0 100 100" 
+          preserveAspectRatio="none"
+          style={{ 
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: 'center'
+          }}
+        >
           {connections.map((conn, i) => {
             let opacity = 0.15;
             let width = 0.15;
@@ -257,24 +298,32 @@ export default function FamilyConstellation({ people, households, relationships 
         </svg>
 
         {/* Stars */}
-        {visiblePeople.map(person => {
-          const pos = positions.get(person.id);
-          if (!pos) return null;
+        <div 
+          className="absolute inset-0"
+          style={{ 
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: 'center'
+          }}
+        >
+          {visiblePeople.map(person => {
+            const pos = positions.get(person.id);
+            if (!pos) return null;
 
-          const { size, baseColor, glowColor, brightness, twinkleDelay } = getStarVisuals(person);
-          const isSelected = selectedPersonId === person.id;
-          const isHovered = hoveredPersonId === person.id;
-          const finalSize = isSelected ? size * 1.5 : isHovered ? size * 1.25 : size;
+            const { size, baseColor, glowColor, brightness, twinkleDelay } = getStarVisuals(person);
+            const isSelected = selectedPersonId === person.id;
+            const isHovered = hoveredPersonId === person.id;
+            const finalSize = isSelected ? size * 1.5 : isHovered ? size * 1.25 : size;
 
-          return (
-            <div
-              key={person.id}
-              className="absolute cursor-pointer transition-all duration-500 ease-out hover:z-20"
-              style={{
-                left: `${pos.x}%`,
-                top: `${pos.y}%`,
-                transform: 'translate(-50%, -50%)',
-              }}
+            return (
+              <div
+                key={person.id}
+                className="absolute cursor-pointer transition-all duration-500 ease-out hover:z-20"
+                style={{
+                  left: `${pos.x}%`,
+                  top: `${pos.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
               onMouseEnter={() => setHoveredPersonId(person.id)}
               onMouseLeave={() => setHoveredPersonId(null)}
               onClick={() => setSelectedPersonId(person.id)}
@@ -333,6 +382,7 @@ export default function FamilyConstellation({ people, households, relationships 
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* Info panel */}
