@@ -1,23 +1,23 @@
-import Family from './pages/Family';
 import Home from './pages/Home';
-import LoveNotes from './pages/LoveNotes';
-import Moments from './pages/Moments';
-import Rituals from './pages/Rituals';
-import Settings from './pages/Settings';
-import TripDetail from './pages/TripDetail';
+import Family from './pages/Family';
 import Trips from './pages/Trips';
+import TripDetail from './pages/TripDetail';
+import Rituals from './pages/Rituals';
+import Moments from './pages/Moments';
+import LoveNotes from './pages/LoveNotes';
+import Settings from './pages/Settings';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "Family": Family,
     "Home": Home,
-    "LoveNotes": LoveNotes,
-    "Moments": Moments,
-    "Rituals": Rituals,
-    "Settings": Settings,
-    "TripDetail": TripDetail,
+    "Family": Family,
     "Trips": Trips,
+    "TripDetail": TripDetail,
+    "Rituals": Rituals,
+    "Moments": Moments,
+    "LoveNotes": LoveNotes,
+    "Settings": Settings,
 }
 
 export const pagesConfig = {
