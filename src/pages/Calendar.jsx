@@ -166,16 +166,16 @@ export default function Calendar() {
               {format(currentDate, 'MMMM yyyy')}
             </h2>
             <div className="flex gap-2">
-              <Button variant="outline" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="border-slate-700 text-slate-300">
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())} className="border-slate-700 text-slate-300">
-                Today
-              </Button>
-              <Button variant="outline" size="icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="border-slate-700 text-slate-300">
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
+               <Button variant="outline" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50">
+                 <ChevronLeft className="w-4 h-4" />
+               </Button>
+               <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())} className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50">
+                 Today
+               </Button>
+               <Button variant="outline" size="icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50">
+                 <ChevronRight className="w-4 h-4" />
+               </Button>
+             </div>
           </div>
 
           {/* Calendar Grid */}
@@ -198,13 +198,12 @@ export default function Calendar() {
                 
                 return (
                   <button
-                    key={idx}
-                    onClick={() => {
-                      setSelectedDate(day);
-                      if (dayEvents.length === 0) {
-                        setShowEventForm(true);
-                      }
-                    }}
+                     key={idx}
+                     onClick={() => {
+                       setSelectedDate(day);
+                       setEditingEvent(null);
+                       setShowEventForm(true);
+                     }}
                     className={`
                       min-h-[80px] p-2 rounded-lg border transition-colors text-left relative
                       ${isCurrentMonth ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-900/30 border-slate-800'}
@@ -387,9 +386,11 @@ function EventForm({ open, onClose, event, people, defaultDate }) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="bg-slate-900 border-slate-700">
-        <DialogHeader>
-          <DialogTitle className="text-slate-100">{event ? 'Edit Event' : 'New Event'}</DialogTitle>
-        </DialogHeader>
+         <DialogHeader>
+           <DialogTitle className="text-slate-100">
+             {event ? 'Edit' : 'Add'} {event?.event_type && event.event_type !== 'other' ? event.event_type.charAt(0).toUpperCase() + event.event_type.slice(1) : 'Event to Calendar'}
+           </DialogTitle>
+         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label className="text-slate-300">Title *</Label>
