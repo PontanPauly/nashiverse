@@ -147,6 +147,7 @@ function ExpenseForm({ tripId, people, expense, onClose, onSuccess }) {
     paid_by_person_id: '',
     split_with_person_ids: [],
     split_equally: true,
+    custom_splits: {},
     category: 'other',
     date: new Date().toISOString().split('T')[0],
     receipt_url: '',
@@ -289,21 +290,51 @@ function ExpenseForm({ tripId, people, expense, onClose, onSuccess }) {
               </div>
             </div>
             {!formData.split_equally && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {people.map(person => (
-                  <Badge
-                    key={person.id}
-                    onClick={() => toggleSplit(person.id)}
-                    className={`cursor-pointer ${
-                      formData.split_with_person_ids.includes(person.id)
-                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                        : 'bg-slate-700 text-slate-400 border-slate-600'
-                    }`}
-                  >
-                    {person.name}
-                  </Badge>
-                ))}
-              </div>
+              <>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {people.map(person => (
+                    <Badge
+                      key={person.id}
+                      onClick={() => toggleSplit(person.id)}
+                      className={`cursor-pointer ${
+                        formData.split_with_person_ids.includes(person.id)
+                          ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                          : 'bg-slate-700 text-slate-400 border-slate-600'
+                      }`}
+                    >
+                      {person.name}
+                    </Badge>
+                  ))}
+                </div>
+
+                {formData.split_with_person_ids.length > 0 && formData.amount && (
+                  <div className="mt-4 space-y-2">
+                    <Label className="text-slate-300 text-xs">Custom Amounts (optional)</Label>
+                    {formData.split_with_person_ids.map(personId => {
+                      const person = people.find(p => p.id === personId);
+                      return (
+                        <div key={personId} className="flex items-center gap-2">
+                          <span className="text-sm text-slate-400 w-32">{person?.name}</span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="Auto"
+                            value={formData.custom_splits?.[personId] || ''}
+                            onChange={(e) => setCustomAmount(personId, e.target.value)}
+                            className="bg-slate-800 border-slate-700 text-slate-100 h-8 text-sm"
+                          />
+                        </div>
+                      );
+                    })}
+                    {nonCustomCount > 0 && (
+                      <p className="text-xs text-slate-500 mt-2">
+                        {nonCustomCount} {nonCustomCount === 1 ? 'person' : 'people'} splitting ${remaining.toFixed(2)} equally
+                        {nonCustomCount > 0 && ` ($${(remaining / nonCustomCount).toFixed(2)} each)`}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
             )}
             {formData.split_equally && (
               <p className="text-xs text-slate-500 mt-2">Split equally among all attendees</p>
