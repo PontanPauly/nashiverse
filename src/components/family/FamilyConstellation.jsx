@@ -10,18 +10,22 @@ const seededRandom = (seed) => {
   return x - Math.floor(x);
 };
 
-// Generate organic cluster position with some randomness
-const generateOrganicPosition = (index, total, householdSeed, clusterIndex = 0) => {
+// Generate organic cluster position based on generation/age
+const generateOrganicPosition = (person, index, householdSeed, generationLevel = 0) => {
   // Create natural clustering using golden angle
   const goldenAngle = 137.5;
-  const angle = (index * goldenAngle + clusterIndex * 60 + householdSeed * 30) * (Math.PI / 180);
+  const angle = (index * goldenAngle + householdSeed * 30) * (Math.PI / 180);
   
-  // Spiral out from center with variation
-  const radius = 15 + Math.sqrt(index + 1) * 8 + seededRandom(householdSeed + index) * 15;
+  // Base radius on generation: ancestors/oldest in center, youngest outside
+  let baseRadius = 8 + (generationLevel * 18);
   
-  // Add organic jitter
-  const jitterX = (seededRandom(householdSeed * 2 + index) - 0.5) * 12;
-  const jitterY = (seededRandom(householdSeed * 3 + index) - 0.5) * 12;
+  // Add variation within generation ring
+  const radiusVariation = (seededRandom(householdSeed + index) - 0.5) * 10;
+  const radius = baseRadius + radiusVariation;
+  
+  // Add organic jitter for natural feel
+  const jitterX = (seededRandom(householdSeed * 2 + index) - 0.5) * 8;
+  const jitterY = (seededRandom(householdSeed * 3 + index) - 0.5) * 8;
   
   const x = 50 + radius * Math.cos(angle) + jitterX;
   const y = 50 + radius * Math.sin(angle) + jitterY;
@@ -39,7 +43,61 @@ export default function FamilyConstellation({ people, households, relationships 
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  // Generate organic positions
+  // Calculate generations for positioning
+  const generations = useMemo(() => {
+    if (!people || !relationships) return new Map();
+    
+    const genMap = new Map();
+    const hasParent = new Set();
+    
+    // Find who has parents
+    relationships.forEach(rel => {
+      if (rel.relationship_type === 'parent') {
+        hasParent.add(rel.related_person_id);
+      }
+    });
+    
+    // Ancestors and adults without parents = generation 0
+    const roots = people.filter(p => 
+      !hasParent.has(p.id) && (p.role_type === 'adult' || p.role_type === 'ancestor' || p.is_deceased)
+    );
+    roots.forEach(p => genMap.set(p.id, 0));
+    
+    // BFS to assign generations
+    let currentGen = roots;
+    let genLevel = 0;
+    const visited = new Set(roots.map(p => p.id));
+    
+    while (currentGen.length > 0) {
+      const nextGen = [];
+      currentGen.forEach(parent => {
+        const children = relationships
+          .filter(r => r.relationship_type === 'parent' && r.person_id === parent.id)
+          .map(r => people.find(p => p.id === r.related_person_id))
+          .filter(p => p && !visited.has(p.id));
+        
+        children.forEach(child => {
+          genMap.set(child.id, genLevel + 1);
+          visited.add(child.id);
+          nextGen.push(child);
+        });
+      });
+      
+      currentGen = nextGen;
+      genLevel++;
+    }
+    
+    // Remaining people (no connections) go to outer ring
+    people.forEach(p => {
+      if (!genMap.has(p.id)) {
+        genMap.set(p.id, genLevel);
+      }
+    });
+    
+    return genMap;
+  }, [people, relationships]);
+
+  // Generate organic positions based on generation
   const positions = useMemo(() => {
     if (!people) return new Map();
     
@@ -50,32 +108,28 @@ export default function FamilyConstellation({ people, households, relationships 
       const seed = household[0]?.household_id?.charCodeAt(0) || 1;
       
       household.forEach((person, i) => {
-        pos.set(person.id, generateOrganicPosition(i, household.length, seed, 0));
+        const gen = generations.get(person.id) || 0;
+        pos.set(person.id, generateOrganicPosition(person, i, seed, gen));
       });
     } else {
-      // Group by household for natural clustering
-      const byHousehold = new Map();
+      // Group by generation then household for natural clustering
+      const byGeneration = new Map();
       people.forEach(p => {
-        const hid = p.household_id || 'none';
-        if (!byHousehold.has(hid)) byHousehold.set(hid, []);
-        byHousehold.get(hid).push(p);
+        const gen = generations.get(p.id) || 0;
+        if (!byGeneration.has(gen)) byGeneration.set(gen, []);
+        byGeneration.get(gen).push(p);
       });
       
-      let globalIndex = 0;
-      byHousehold.forEach((members, householdId) => {
-        const householdSeed = householdId === 'none' ? 999 : householdId.charCodeAt(0);
-        const clusterIndex = Array.from(byHousehold.keys()).indexOf(householdId);
-        
-        members.forEach((person, localIndex) => {
-          pos.set(person.id, generateOrganicPosition(globalIndex + localIndex, people.length, householdSeed, clusterIndex));
+      byGeneration.forEach((members, gen) => {
+        members.forEach((person, i) => {
+          const householdSeed = person.household_id?.charCodeAt(0) || (person.id.charCodeAt(0) + 999);
+          pos.set(person.id, generateOrganicPosition(person, i, householdSeed, gen));
         });
-        
-        globalIndex += members.length;
       });
     }
     
     return pos;
-  }, [people, filterMode, selectedHouseholdId]);
+  }, [people, generations, filterMode, selectedHouseholdId]);
 
   // Visible people
   const visiblePeople = useMemo(() => {
