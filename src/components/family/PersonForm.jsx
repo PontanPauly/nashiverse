@@ -548,22 +548,20 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-slate-300">Children</Label>
-              {childrenIds.length > 0 && (
-                <Select value="" onValueChange={addChild}>
-                  <SelectTrigger className="w-32 h-8 text-xs bg-slate-800 border-slate-700 text-slate-100">
-                    <SelectValue placeholder="Add child" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-700">
-                    {people.filter(p => 
-                      (p.role_type === 'child' || p.role_type === 'teen') && 
-                      p.id !== person.id && 
-                      !childrenIds.includes(p.id)
-                    ).map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              <Select value="" onValueChange={addChild}>
+                <SelectTrigger className="w-32 h-8 text-xs bg-slate-800 border-slate-700 text-slate-100">
+                  <SelectValue placeholder="Add child" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-700">
+                  {people.filter(p => 
+                    (p.role_type === 'child' || p.role_type === 'teen') && 
+                    p.id !== person.id && 
+                    !childrenIds.includes(p.id)
+                  ).map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             {childrenIds.length > 0 ? (
               <div className="flex flex-wrap gap-2">
@@ -579,6 +577,14 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
             ) : (
               <p className="text-sm text-slate-500">No children linked yet</p>
             )}
+          </div>
+        )}
+
+        {/* Warning for children without parents */}
+        {(formData.role_type === 'child' || formData.role_type === 'teen') && parentIds.length === 0 && (
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+            <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+            <p className="text-sm text-amber-400">This {formData.role_type} has no parents linked yet.</p>
           </div>
         )}
       </div>
