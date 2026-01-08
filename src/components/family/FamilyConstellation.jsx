@@ -98,9 +98,18 @@ const Star = ({
   );
 };
 
-// Constellation Lines Component
+// Constellation Lines Component - Only renders when stars are active/hovered
 const ConstellationLines = ({ connections, stars, activeStarId, hoveredStarId }) => {
   if (!connections || connections.length === 0) return null;
+  if (!activeStarId && !hoveredStarId) return null; // Only show on interaction
+
+  // Filter to show only relevant connections
+  const relevantConnections = connections.filter(({ from, to }) => 
+    from === activeStarId || to === activeStarId || 
+    from === hoveredStarId || to === hoveredStarId
+  );
+
+  if (relevantConnections.length === 0) return null;
 
   return (
     <svg className="constellation-lines" style={{ 
@@ -112,14 +121,11 @@ const ConstellationLines = ({ connections, stars, activeStarId, hoveredStarId })
       pointerEvents: 'none',
       zIndex: 1
     }}>
-      {connections.map(({ from, to }, idx) => {
+      {relevantConnections.map(({ from, to }, idx) => {
         const starFrom = stars.find(s => s.id === from);
         const starTo = stars.find(s => s.id === to);
         
         if (!starFrom || !starTo) return null;
-
-        const isHighlighted = hoveredStarId === from || hoveredStarId === to || 
-                             activeStarId === from || activeStarId === to;
 
         return (
           <line
@@ -128,7 +134,7 @@ const ConstellationLines = ({ connections, stars, activeStarId, hoveredStarId })
             y1={`${starFrom.y}%`}
             x2={`${starTo.x}%`}
             y2={`${starTo.y}%`}
-            className={`constellation-line ${isHighlighted ? 'constellation-line--highlight' : ''}`}
+            className="constellation-line constellation-line--highlight"
             style={{ '--line-delay': `${idx * 60}ms` }}
           />
         );
@@ -155,7 +161,6 @@ export default function FamilyConstellation({ people, households, relationships 
     });
 
     const starsArray = [];
-    const totalGroups = Object.keys(householdGroups).length;
 
     // Create organic constellation clusters
     Object.entries(householdGroups).forEach(([householdId, groupPeople], groupIndex) => {
@@ -266,6 +271,16 @@ export default function FamilyConstellation({ people, households, relationships 
   }, []);
 
   const activeStar = stars.find(s => s.id === activeStarId);
+  
+  // Determine which stars are connected to active/hovered star
+  const connectedStarIds = useMemo(() => {
+    const starId = activeStarId || hoveredStarId;
+    if (!starId) return [];
+    
+    return connections
+      .filter(c => c.from === starId || c.to === starId)
+      .map(c => c.from === starId ? c.to : c.from);
+  }, [connections, activeStarId, hoveredStarId]);
 
   return (
     <div className="nashiverse">
@@ -294,7 +309,7 @@ export default function FamilyConstellation({ people, households, relationships 
           key={star.id}
           {...star}
           isActive={star.id === activeStarId}
-          isConnected={connections.some(c => c.from === star.id || c.to === star.id)}
+          isConnected={connectedStarIds.includes(star.id)}
           onHover={handleStarHover}
           onLeave={handleStarLeave}
           onClick={handleStarClick}
