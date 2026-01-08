@@ -201,87 +201,51 @@ export default function Messages() {
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {showNewChat || searchQuery ? (
-              // Show all people when starting new chat or searching
-              <div className="p-2">
-                {filteredPeople.length > 0 ? filteredPeople.map(person => (
-                  <button
-                    key={person.id}
-                    onClick={() => {
-                      setSelectedConversation(person);
-                      setSearchQuery("");
-                      setShowNewChat(false);
-                    }}
-                    className="w-full p-3 rounded-lg hover:bg-slate-800/50 transition-colors text-left mb-1"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden">
-                        {person.photo_url ? (
-                          <img src={person.photo_url} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-sm font-medium text-slate-400">{person.name?.charAt(0)}</span>
+            <div className="p-2">
+              {conversationList.length > 0 ? conversationList.map(({ conversation, displayName, lastMessage, unreadCount }) => (
+                <button
+                  key={conversation.id}
+                  onClick={() => setSelectedConversation(conversation)}
+                  className={cn(
+                    "w-full p-3 rounded-lg transition-colors text-left mb-1",
+                    selectedConversation?.id === conversation.id
+                      ? "bg-amber-500/10 border border-amber-500/30"
+                      : "hover:bg-slate-800/50"
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {conversation.type === 'group' ? (
+                        <Users className="w-5 h-5 text-amber-400" />
+                      ) : (
+                        <span className="text-sm font-medium text-slate-400">{displayName?.charAt(0)}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className="font-medium text-slate-100 text-sm truncate">{displayName}</h3>
+                        <span className="text-xs text-slate-500">{formatMessageTime(lastMessage.created_date)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-slate-400 truncate">{lastMessage.content}</p>
+                        {unreadCount > 0 && (
+                          <span className="ml-2 bg-amber-500 text-slate-900 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
+                            {unreadCount}
+                          </span>
                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-slate-100 text-sm truncate">{person.name}</h3>
-                        {person.nickname && <p className="text-xs text-slate-400">"{person.nickname}"</p>}
-                      </div>
                     </div>
-                  </button>
-                )) : (
-                  <div className="text-center py-8 px-4">
-                    <p className="text-slate-500 text-sm">No people found</p>
                   </div>
-                )}
+                </button>
+              )) : (
+                <div className="text-center py-12 px-4">
+                  <MessageCircle className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+                  <p className="text-slate-500 text-sm">No conversations yet</p>
+                  <p className="text-slate-600 text-xs mt-1">Click + to start chatting</p>
+                </div>
+              )}
               </div>
-            ) : (
-              // Show conversations
-              <div className="p-2">
-                {conversations.length > 0 ? conversations.map(({ person, lastMessage, unreadCount }) => (
-                  <button
-                    key={person.id}
-                    onClick={() => setSelectedConversation(person)}
-                    className={cn(
-                      "w-full p-3 rounded-lg transition-colors text-left mb-1",
-                      selectedConversation?.id === person.id
-                        ? "bg-amber-500/10 border border-amber-500/30"
-                        : "hover:bg-slate-800/50"
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0">
-                        {person.photo_url ? (
-                          <img src={person.photo_url} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-sm font-medium text-slate-400">{person.name?.charAt(0)}</span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <h3 className="font-medium text-slate-100 text-sm truncate">{person.name}</h3>
-                          <span className="text-xs text-slate-500">{formatMessageTime(lastMessage.created_date)}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs text-slate-400 truncate">{lastMessage.content}</p>
-                          {unreadCount > 0 && (
-                            <span className="ml-2 bg-amber-500 text-slate-900 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
-                              {unreadCount}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                )) : (
-                  <div className="text-center py-12 px-4">
-                    <MessageCircle className="w-12 h-12 text-slate-700 mx-auto mb-3" />
-                    <p className="text-slate-500 text-sm">No conversations yet</p>
-                    <p className="text-slate-600 text-xs mt-1">Search above to start chatting</p>
-                  </div>
-                )}
               </div>
-            )}
-          </div>
         </div>
 
         {/* Main Chat Area */}
