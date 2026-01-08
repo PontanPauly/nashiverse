@@ -111,13 +111,13 @@ export default function Home() {
 
           <div className="mt-8 flex flex-wrap gap-4">
             <Link to={createPageUrl("Trips")}>
-              <Button className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-900 font-medium shadow-lg shadow-amber-500/20">
+              <Button className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-900 font-semibold shadow-lg shadow-amber-500/20">
                 <Plus className="w-4 h-4 mr-2" />
                 Plan a Trip
               </Button>
             </Link>
             <Link to={createPageUrl("Family")}>
-              <Button variant="outline" className="border-slate-600 text-slate-100 hover:bg-slate-800 hover:border-slate-500">
+              <Button className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500 font-medium">
                 <Users className="w-4 h-4 mr-2" />
                 View Constellations
               </Button>
@@ -196,7 +196,7 @@ export default function Home() {
               <MapPin className="w-12 h-12 text-slate-700 mx-auto mb-3" />
               <p className="text-slate-500">No upcoming trips</p>
               <Link to={createPageUrl("Trips")}>
-                <Button variant="link" className="text-amber-400 mt-2">
+                <Button variant="link" className="text-amber-400 hover:text-amber-300 mt-2 font-medium">
                   Plan your first trip
                 </Button>
               </Link>
@@ -240,7 +240,7 @@ export default function Home() {
               <Heart className="w-12 h-12 text-slate-700 mx-auto mb-3" />
               <p className="text-slate-500">No love notes yet</p>
               <Link to={createPageUrl("LoveNotes")}>
-                <Button variant="link" className="text-amber-400 mt-2">
+                <Button variant="link" className="text-amber-400 hover:text-amber-300 mt-2 font-medium">
                   Send your first note
                 </Button>
               </Link>

@@ -109,7 +109,7 @@ export default function LoveNotes() {
         
         <Button 
           onClick={() => setShowNoteForm(true)}
-          className="bg-rose-500 hover:bg-rose-600 text-white"
+          className="bg-rose-500 hover:bg-rose-600 text-white font-semibold"
         >
           <Send className="w-4 h-4 mr-2" />
           Send a Note
@@ -187,7 +187,7 @@ export default function LoveNotes() {
                   <Button 
                     variant="ghost" 
                     size="icon"
-                    className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400"
+                    className="opacity-0 group-hover:opacity-100 text-slate-200 hover:text-red-400 hover:bg-red-500/20"
                     onClick={() => deleteLoveNote.mutate(note.id)}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -235,7 +235,7 @@ export default function LoveNotes() {
           </p>
           <Button 
             onClick={() => setShowNoteForm(true)}
-            className="bg-rose-500 hover:bg-rose-600 text-white"
+            className="bg-rose-500 hover:bg-rose-600 text-white font-semibold"
           >
             <Send className="w-4 h-4 mr-2" />
             Send First Note
@@ -366,12 +366,12 @@ function LoveNoteForm({ people, trips, myPersonId, onSuccess, onCancel }) {
       </div>
 
       <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
-        <Button type="button" variant="ghost" onClick={onCancel} className="text-slate-400">
+        <Button type="button" variant="ghost" onClick={onCancel} className="text-slate-200 hover:text-white hover:bg-slate-700">
           Cancel
         </Button>
         <Button 
           type="submit" 
-          className="bg-rose-500 hover:bg-rose-600 text-white" 
+          className="bg-rose-500 hover:bg-rose-600 text-white font-semibold" 
           disabled={loading || !formData.content || !formData.from_person_id || !formData.to_person_id}
         >
           <Send className="w-4 h-4 mr-2" />

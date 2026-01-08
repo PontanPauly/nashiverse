@@ -101,7 +101,7 @@ export default function Moments() {
         
         <Button 
           onClick={() => setShowMomentForm(true)}
-          className="bg-amber-500 hover:bg-amber-600 text-slate-900"
+          className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add Moment
@@ -183,7 +183,7 @@ export default function Moments() {
           </p>
           <Button 
             onClick={() => setShowMomentForm(true)}
-            className="bg-amber-500 hover:bg-amber-600 text-slate-900"
+            className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
           >
             <Plus className="w-4 h-4 mr-2" />
             Add First Moment
@@ -270,7 +270,7 @@ export default function Moments() {
               <div className="mt-6 pt-4 border-t border-slate-700 flex justify-end">
                 <Button 
                   variant="ghost" 
-                  className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                  className="text-red-400 hover:text-red-300 hover:bg-red-500/20 font-semibold"
                   onClick={() => {
                     deleteMoment.mutate(selectedMoment.id);
                     setSelectedMoment(null);
@@ -479,12 +479,12 @@ function MomentForm({ trips, people, onSuccess, onCancel }) {
       </div>
 
       <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
-        <Button type="button" variant="ghost" onClick={onCancel} className="text-slate-400">
+        <Button type="button" variant="ghost" onClick={onCancel} className="text-slate-200 hover:text-white hover:bg-slate-700">
           Cancel
         </Button>
         <Button 
           type="submit" 
-          className="bg-amber-500 hover:bg-amber-600 text-slate-900" 
+          className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold" 
           disabled={loading || (!formData.content && !formData.media_urls.length)}
         >
           {loading ? "Saving..." : "Add Moment"}

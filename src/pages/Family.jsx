@@ -142,23 +142,21 @@ export default function Family() {
         <div className="flex gap-2">
           <Button 
             onClick={() => setViewMode(viewMode === 'list' ? 'constellation' : 'list')}
-            variant="outline" 
-            className="border-slate-600 text-slate-100 hover:bg-slate-800 hover:border-slate-500"
+            className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
           >
             <Network className="w-4 h-4 mr-2" />
             {viewMode === 'list' ? 'Constellation View' : 'List View'}
           </Button>
           <Button 
             onClick={() => setShowHouseholdForm(true)}
-            variant="outline" 
-            className="border-slate-600 text-slate-100 hover:bg-slate-800 hover:border-slate-500"
+            className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
           >
             <HomeIcon className="w-4 h-4 mr-2" />
             Add Household
           </Button>
           <Button 
             onClick={() => setShowPersonForm(true)}
-            className="bg-amber-500 hover:bg-amber-600 text-slate-900"
+            className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Person
@@ -177,12 +175,12 @@ export default function Family() {
         <>
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
             <Input
               placeholder="Search family members..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-slate-800/50 border-slate-600 text-slate-100 placeholder:text-slate-400"
+              className="pl-10 bg-slate-800 border-slate-500 text-white placeholder:text-slate-300 focus:border-amber-400"
             />
           </div>
 
@@ -211,7 +209,7 @@ export default function Family() {
                   
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="text-white/80 hover:text-white hover:bg-white/20">
+                      <Button variant="ghost" size="icon" className="text-white hover:text-white hover:bg-white/30">
                         <MoreHorizontal className="w-4 h-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -361,15 +359,14 @@ export default function Family() {
           <div className="flex justify-center gap-3">
             <Button 
               onClick={() => setShowHouseholdForm(true)}
-              variant="outline"
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
             >
               <HomeIcon className="w-4 h-4 mr-2" />
               Create Household
             </Button>
             <Button 
               onClick={() => setShowPersonForm(true)}
-              className="bg-amber-500 hover:bg-amber-600 text-slate-900"
+              className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
             >
               <Plus className="w-4 h-4 mr-2" />
               Add Person

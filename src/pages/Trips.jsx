@@ -285,7 +285,7 @@ export default function Trips() {
           </p>
           <Button 
             onClick={() => setShowTripForm(true)}
-            className="bg-amber-500 hover:bg-amber-600 text-slate-900"
+            className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
           >
             <Plus className="w-4 h-4 mr-2" />
             Plan New Trip

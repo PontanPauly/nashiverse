@@ -190,7 +190,7 @@ export default function Settings() {
                     <div className="flex gap-2">
                       <Button 
                         size="sm"
-                        className="bg-green-600 hover:bg-green-700"
+                        className="bg-green-600 hover:bg-green-700 text-white"
                         onClick={() => handleApproveRequest(request)}
                       >
                         <Check className="w-4 h-4" />
@@ -314,7 +314,7 @@ function FamilySettingsForm({ settings, onUpdate }) {
         />
       </div>
 
-      <Button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-900" disabled={loading}>
+      <Button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold" disabled={loading}>
         {loading ? "Saving..." : "Save Settings"}
       </Button>
     </form>
