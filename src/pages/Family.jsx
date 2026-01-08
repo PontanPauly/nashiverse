@@ -407,6 +407,7 @@ export default function Family() {
               </div>
             </div>
           )}
+          </div>
         </div>
       )}
 
