@@ -7,7 +7,8 @@ import {
   Users,
   RotateCcw,
   Edit,
-  Trash2
+  Trash2,
+  Home
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -111,8 +112,8 @@ export default function Rituals() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
-            <Calendar className="w-6 h-6 text-amber-400" />
-            Rituals & Traditions
+            <Home className="w-6 h-6 text-amber-400" />
+            Traditions
           </h1>
           <p className="text-slate-500 mt-1">The practices that make your family unique</p>
         </div>
@@ -122,7 +123,7 @@ export default function Rituals() {
           className="bg-amber-500 hover:bg-amber-600 text-slate-900"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Add Ritual
+          Add Tradition
         </Button>
       </div>
 
@@ -253,14 +254,14 @@ export default function Rituals() {
           <Calendar className="w-16 h-16 text-slate-700 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-slate-200 mb-2">Start Your Family Traditions</h2>
           <p className="text-slate-500 mb-6 max-w-md mx-auto">
-            Document the rituals and traditions that bring your family together – from annual reunions to weekly calls.
+            Document the traditions that bring your family together – from annual reunions to weekly calls.
           </p>
           <Button 
             onClick={() => setShowRitualForm(true)}
             className="bg-amber-500 hover:bg-amber-600 text-slate-900"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Add First Ritual
+            Add First Tradition
           </Button>
         </div>
       )}
