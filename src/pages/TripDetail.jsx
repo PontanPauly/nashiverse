@@ -20,7 +20,9 @@ import {
   X,
   HelpCircle,
   AlertCircle,
-  MoreHorizontal
+  MoreHorizontal,
+  DollarSign,
+  Package
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +45,8 @@ import ParticipantManager from "@/components/trips/ParticipantManager.jsx";
 import MealManager from "@/components/trips/MealManager.jsx";
 import RoomManager from "@/components/trips/RoomManager.jsx";
 import ActivityManager from "@/components/trips/ActivityManager.jsx";
+import BudgetManager from "@/components/trips/BudgetManager.jsx";
+import PackingManager from "@/components/trips/PackingManager.jsx";
 
 export default function TripDetail() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -233,6 +237,14 @@ export default function TripDetail() {
             <CalendarDays className="w-4 h-4 mr-1" />
             Activities
           </TabsTrigger>
+          <TabsTrigger value="budget" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
+            <DollarSign className="w-4 h-4 mr-1" />
+            Budget
+          </TabsTrigger>
+          <TabsTrigger value="packing" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
+            <Package className="w-4 h-4 mr-1" />
+            Packing
+          </TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -324,6 +336,22 @@ export default function TripDetail() {
             trip={trip}
             activities={activities}
             people={people}
+          />
+        </TabsContent>
+
+        {/* Budget Tab */}
+        <TabsContent value="budget">
+          <BudgetManager 
+            tripId={tripId}
+            people={getAttendingPeople()}
+          />
+        </TabsContent>
+
+        {/* Packing Tab */}
+        <TabsContent value="packing">
+          <PackingManager 
+            tripId={tripId}
+            people={getAttendingPeople()}
           />
         </TabsContent>
       </Tabs>

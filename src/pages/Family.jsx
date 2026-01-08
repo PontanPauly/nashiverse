@@ -40,6 +40,8 @@ import LineageView from "@/components/family/LineageView";
 
 export default function Family() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [ageFilter, setAgeFilter] = useState("all");
   const [showPersonForm, setShowPersonForm] = useState(false);
   const [showHouseholdForm, setShowHouseholdForm] = useState(false);
   const [editingPerson, setEditingPerson] = useState(null);
@@ -74,10 +76,22 @@ export default function Family() {
     onSuccess: () => queryClient.invalidateQueries(['households']),
   });
 
-  const filteredPeople = people.filter(person => 
-    person.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    person.nickname?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPeople = people.filter(person => {
+    const matchesSearch = person.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      person.nickname?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesRole = roleFilter === "all" || person.role_type === roleFilter;
+    
+    let matchesAge = true;
+    if (ageFilter === "children") {
+      matchesAge = person.role_type === "child";
+    } else if (ageFilter === "teens") {
+      matchesAge = person.role_type === "teen";
+    } else if (ageFilter === "adults") {
+      matchesAge = person.role_type === "adult" || person.role_type === "ancestor";
+    }
+    
+    return matchesSearch && matchesRole && matchesAge;
+  });
 
   const getPeopleInHousehold = (householdId) => {
     return filteredPeople.filter(p => p.household_id === householdId);
@@ -261,15 +275,38 @@ export default function Family() {
             </div>
           </div>
 
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-            <Input
-              placeholder="Search family members..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-slate-800 border-slate-500 text-white placeholder:text-slate-300 focus:border-amber-400"
-            />
+          {/* Search and Filters */}
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+              <Input
+                placeholder="Search family members..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-slate-800 border-slate-500 text-white placeholder:text-slate-300 focus:border-amber-400"
+              />
+            </div>
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-500 text-white focus:border-amber-400"
+            >
+              <option value="all">All Roles</option>
+              <option value="adult">Adults</option>
+              <option value="teen">Teens</option>
+              <option value="child">Children</option>
+              <option value="ancestor">Ancestors</option>
+            </select>
+            <select
+              value={ageFilter}
+              onChange={(e) => setAgeFilter(e.target.value)}
+              className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-500 text-white focus:border-amber-400"
+            >
+              <option value="all">All Ages</option>
+              <option value="children">Children</option>
+              <option value="teens">Teens</option>
+              <option value="adults">Adults</option>
+            </select>
           </div>
 
           {/* Households */}
