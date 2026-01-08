@@ -188,8 +188,8 @@ export default function Home() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Stars in Constellation", value: people.length, icon: Users, color: "from-amber-500 to-orange-500", border: "border-amber-500/20 hover:border-amber-500/40" },
-          { label: "Cosmic Journeys", value: trips.length, icon: MapPin, color: "from-blue-500 to-cyan-500", border: "border-blue-500/20 hover:border-blue-500/40" },
-          { label: "Captured Memories", value: moments.length, icon: Star, color: "from-purple-500 to-pink-500", border: "border-purple-500/20 hover:border-purple-500/40" },
+          { label: "Trips", value: trips.length, icon: MapPin, color: "from-blue-500 to-cyan-500", border: "border-blue-500/20 hover:border-blue-500/40" },
+           { label: "Captured Memories", value: moments.length, icon: Image, color: "from-purple-500 to-pink-500", border: "border-purple-500/20 hover:border-purple-500/40" },
           { label: "Notes of Gratitude", value: loveNotes.length, icon: Heart, color: "from-pink-500 to-rose-500", border: "border-pink-500/20 hover:border-pink-500/40" },
         ].map((stat, i) => (
           <div key={i} className={cn("relative glass-card rounded-2xl p-5 border transition-all group", stat.border)}>
