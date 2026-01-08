@@ -128,7 +128,7 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
         <div>
           <label className="cursor-pointer">
             <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-            <Button type="button" variant="outline" size="sm" className="border-slate-700 text-slate-300" disabled={uploading}>
+            <Button type="button" variant="outline" size="sm" className="border-amber-500/50 text-slate-100 hover:bg-amber-500/10 hover:border-amber-500" disabled={uploading}>
               <Upload className="w-4 h-4 mr-2" />
               {uploading ? "Uploading..." : "Upload Photo"}
             </Button>
