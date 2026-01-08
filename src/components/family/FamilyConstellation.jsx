@@ -346,9 +346,11 @@ export default function FamilyConstellation({ people, households, relationships 
 
   // Auto-fit on load
   useEffect(() => {
-    const t = setTimeout(() => fitToUniverse(people), 100);
-    return () => clearTimeout(t);
-  }, [people?.length]);
+    if (people && people.length > 0) {
+      const t = setTimeout(() => fitToUniverse(people), 200);
+      return () => clearTimeout(t);
+    }
+  }, [people?.length, selectedConstellationId]);
 
   // Check if person is part of a couple
   const isInCouple = (personId) => {
@@ -537,6 +539,8 @@ export default function FamilyConstellation({ people, households, relationships 
         {/* Constellation lines */}
         <svg 
           className="pointer-events-none absolute inset-0 h-full w-full z-10"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             transformOrigin: 'center center',
