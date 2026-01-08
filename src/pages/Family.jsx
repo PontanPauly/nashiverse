@@ -14,7 +14,8 @@ import {
   Edit,
   Trash2,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  Network
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import PersonForm from "@/components/family/PersonForm";
 import HouseholdForm from "@/components/family/HouseholdForm";
+import FamilyConstellation from "@/components/family/FamilyConstellation";
 
 export default function Family() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,6 +44,7 @@ export default function Family() {
   const [editingPerson, setEditingPerson] = useState(null);
   const [editingHousehold, setEditingHousehold] = useState(null);
   const [selectedHousehold, setSelectedHousehold] = useState(null);
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'constellation'
   
   const queryClient = useQueryClient();
 
@@ -53,6 +56,11 @@ export default function Family() {
   const { data: households = [], isLoading: loadingHouseholds } = useQuery({
     queryKey: ['households'],
     queryFn: () => base44.entities.Household.list(),
+  });
+
+  const { data: relationships = [] } = useQuery({
+    queryKey: ['relationships'],
+    queryFn: () => base44.entities.Relationship.list(),
   });
 
   const deletePerson = useMutation({
@@ -133,6 +141,14 @@ export default function Family() {
         
         <div className="flex gap-2">
           <Button 
+            onClick={() => setViewMode(viewMode === 'list' ? 'constellation' : 'list')}
+            variant="outline" 
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+          >
+            <Network className="w-4 h-4 mr-2" />
+            {viewMode === 'list' ? 'Constellation View' : 'List View'}
+          </Button>
+          <Button 
             onClick={() => setShowHouseholdForm(true)}
             variant="outline" 
             className="border-slate-700 text-slate-300 hover:bg-slate-800"
@@ -150,19 +166,28 @@ export default function Family() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-        <Input
-          placeholder="Search family members..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10 bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500"
+      {/* Constellation View */}
+      {viewMode === 'constellation' ? (
+        <FamilyConstellation 
+          people={people}
+          households={households}
+          relationships={relationships}
         />
-      </div>
+      ) : (
+        <>
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Input
+              placeholder="Search family members..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500"
+            />
+          </div>
 
-      {/* Households */}
-      <div className="space-y-6">
+          {/* Households */}
+          <div className="space-y-6">
         {households.map((household, index) => {
           const householdPeople = getPeopleInHousehold(household.id);
           
