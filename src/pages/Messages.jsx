@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MessageCircle, Send, Search, User, Image as ImageIcon, Plus } from "lucide-react";
+import { MessageCircle, Send, Search, User, Image as ImageIcon, Plus, X, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { format, isToday, isYesterday } from "date-fns";
 
@@ -13,8 +14,9 @@ export default function Messages() {
   const [userProfile, setUserProfile] = useState(null);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messageText, setMessageText] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showNewChat, setShowNewChat] = useState(false);
+  const [showNewChatDialog, setShowNewChatDialog] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState([]);
+  const [groupName, setGroupName] = useState("");
   const messagesEndRef = useRef(null);
   const queryClient = useQueryClient();
 
@@ -36,6 +38,11 @@ export default function Messages() {
     queryFn: () => base44.entities.Person.list(),
   });
 
+  const { data: conversations = [] } = useQuery({
+    queryKey: ['conversations'],
+    queryFn: () => base44.entities.Conversation.list('-created_date'),
+  });
+
   const { data: messages = [] } = useQuery({
     queryKey: ['messages'],
     queryFn: () => base44.entities.Message.list('-created_date'),
@@ -48,6 +55,17 @@ export default function Messages() {
       setUserProfile(profile);
     }
   }, [user, people]);
+
+  const createConversation = useMutation({
+    mutationFn: (data) => base44.entities.Conversation.create(data),
+    onSuccess: (newConv) => {
+      queryClient.invalidateQueries(['conversations']);
+      setSelectedConversation(newConv);
+      setSelectedMembers([]);
+      setGroupName("");
+      setShowNewChatDialog(false);
+    },
+  });
 
   const sendMessage = useMutation({
     mutationFn: (data) => base44.entities.Message.create(data),
@@ -85,58 +103,63 @@ export default function Messages() {
     }
   }, [selectedConversation, messages, userProfile]);
 
-  // Group messages into conversations
-  const conversations = React.useMemo(() => {
+  // Get conversations with last message and unread count
+  const conversationList = React.useMemo(() => {
     if (!userProfile) return [];
 
-    const conversationMap = new Map();
+    return conversations
+      .filter(conv => conv.participant_ids.includes(userProfile.id))
+      .map(conv => {
+        const convMessages = messages.filter(m => m.conversation_id === conv.id);
+        const sortedMsgs = convMessages.sort((a, b) => new Date(a.created_date) - new Date(b.created_date));
+        const lastMessage = sortedMsgs[sortedMsgs.length - 1];
+        const unreadCount = convMessages.filter(m => !m.is_read && m.from_person_id !== userProfile.id).length;
 
-    messages.forEach(msg => {
-      const otherPersonId = msg.from_person_id === userProfile.id 
-        ? msg.to_person_id 
-        : msg.from_person_id;
+        let displayName = conv.name;
+        if (conv.type === 'direct') {
+          const otherPersonId = conv.participant_ids.find(id => id !== userProfile.id);
+          const otherPerson = people.find(p => p.id === otherPersonId);
+          displayName = otherPerson?.name || "Unknown";
+        }
 
-      if (!otherPersonId) return;
-
-      if (!conversationMap.has(otherPersonId)) {
-        conversationMap.set(otherPersonId, []);
-      }
-      conversationMap.get(otherPersonId).push(msg);
-    });
-
-    return Array.from(conversationMap.entries()).map(([personId, msgs]) => {
-      const person = people.find(p => p.id === personId);
-      const sortedMsgs = msgs.sort((a, b) => new Date(a.created_date) - new Date(b.created_date));
-      const lastMessage = sortedMsgs[sortedMsgs.length - 1];
-      const unreadCount = msgs.filter(m => m.to_person_id === userProfile.id && !m.is_read).length;
-
-      return {
-        person,
-        messages: sortedMsgs,
-        lastMessage,
-        unreadCount,
-      };
-    }).sort((a, b) => new Date(b.lastMessage.created_date) - new Date(a.lastMessage.created_date));
-  }, [messages, people, userProfile]);
+        return {
+          conversation: conv,
+          displayName,
+          lastMessage,
+          unreadCount,
+        };
+      })
+      .filter(c => c.lastMessage) // Only show conversations with messages
+      .sort((a, b) => new Date(b.lastMessage.created_date) - new Date(a.lastMessage.created_date));
+  }, [conversations, messages, people, userProfile]);
 
   const filteredPeople = people.filter(p => 
-    p.id !== userProfile?.id &&
-    p.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    p.id !== userProfile?.id
   );
 
   const selectedMessages = selectedConversation 
-    ? messages.filter(m => 
-        (m.from_person_id === userProfile?.id && m.to_person_id === selectedConversation.id) ||
-        (m.from_person_id === selectedConversation.id && m.to_person_id === userProfile?.id)
-      ).sort((a, b) => new Date(a.created_date) - new Date(b.created_date))
+    ? messages.filter(m => m.conversation_id === selectedConversation.id)
+      .sort((a, b) => new Date(a.created_date) - new Date(b.created_date))
     : [];
+
+  const handleCreateConversation = () => {
+    if (selectedMembers.length === 0) return;
+
+    const isGroup = selectedMembers.length > 1;
+    createConversation.mutate({
+      type: isGroup ? 'group' : 'direct',
+      name: isGroup ? groupName : undefined,
+      participant_ids: [...selectedMembers, userProfile.id],
+      created_by_person_id: userProfile.id,
+    });
+  };
 
   const handleSend = () => {
     if (!messageText.trim() || !selectedConversation || !userProfile) return;
 
     sendMessage.mutate({
       from_person_id: userProfile.id,
-      to_person_id: selectedConversation.id,
+      conversation_id: selectedConversation.id,
       content: messageText.trim(),
     });
   };
@@ -168,24 +191,12 @@ export default function Messages() {
                 Messages
               </h1>
               <Button
-                onClick={() => {
-                  setShowNewChat(!showNewChat);
-                  setSearchQuery("");
-                }}
+                onClick={() => setShowNewChatDialog(true)}
                 size="icon"
                 className="bg-amber-500 hover:bg-amber-600 text-slate-900"
               >
                 <Plus className="w-4 h-4" />
               </Button>
-            </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input
-                placeholder={showNewChat ? "Select a person..." : "Search people..."}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-slate-800 border-slate-700 text-slate-100"
-              />
             </div>
           </div>
 
@@ -280,16 +291,22 @@ export default function Messages() {
               {/* Chat Header */}
               <div className="p-4 border-b border-slate-700/50 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden">
-                  {selectedConversation.photo_url ? (
-                    <img src={selectedConversation.photo_url} alt="" className="w-full h-full object-cover" />
+                  {selectedConversation.type === 'group' ? (
+                    <Users className="w-5 h-5 text-amber-400" />
                   ) : (
-                    <span className="text-sm font-medium text-slate-400">{selectedConversation.name?.charAt(0)}</span>
+                    <span className="text-sm font-medium text-slate-400">
+                      {people.find(p => p.id === selectedConversation.participant_ids.find(id => id !== userProfile?.id))?.name?.charAt(0)}
+                    </span>
                   )}
                 </div>
                 <div>
-                  <h2 className="font-semibold text-slate-100">{selectedConversation.name}</h2>
-                  {selectedConversation.nickname && (
-                    <p className="text-xs text-slate-400">"{selectedConversation.nickname}"</p>
+                  <h2 className="font-semibold text-slate-100">
+                    {selectedConversation.type === 'group' 
+                      ? selectedConversation.name 
+                      : people.find(p => p.id === selectedConversation.participant_ids.find(id => id !== userProfile?.id))?.name}
+                  </h2>
+                  {selectedConversation.type === 'group' && (
+                    <p className="text-xs text-slate-400">{selectedConversation.participant_ids.length} members</p>
                   )}
                 </div>
               </div>
@@ -353,6 +370,85 @@ export default function Messages() {
           )}
         </div>
       </div>
+
+      {/* New Conversation Dialog */}
+      <Dialog open={showNewChatDialog} onOpenChange={setShowNewChatDialog}>
+        <DialogContent className="bg-slate-900 border-slate-700 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-slate-100">Start a Conversation</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Person Selection */}
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {filteredPeople.map(person => (
+                <button
+                  key={person.id}
+                  onClick={() => {
+                    if (selectedMembers.includes(person.id)) {
+                      setSelectedMembers(selectedMembers.filter(id => id !== person.id));
+                    } else {
+                      setSelectedMembers([...selectedMembers, person.id]);
+                    }
+                  }}
+                  className="w-full p-3 rounded-lg hover:bg-slate-800 transition-colors text-left flex items-center gap-3 border border-transparent hover:border-slate-700"
+                >
+                  <Checkbox 
+                    checked={selectedMembers.includes(person.id)}
+                    className="bg-slate-800"
+                  />
+                  <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {person.photo_url ? (
+                      <img src={person.photo_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-xs font-medium text-slate-400">{person.name?.charAt(0)}</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-slate-100 text-sm">{person.name}</h3>
+                    {person.nickname && <p className="text-xs text-slate-400">"{person.nickname}"</p>}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Group Name Input */}
+            {selectedMembers.length > 1 && (
+              <div>
+                <label className="text-sm text-slate-300 block mb-2">Group Name</label>
+                <Input
+                  value={groupName}
+                  onChange={(e) => setGroupName(e.target.value)}
+                  placeholder="e.g., Cousins Chat"
+                  className="bg-slate-800 border-slate-700 text-slate-100"
+                />
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-4">
+              <Button
+                onClick={() => {
+                  setShowNewChatDialog(false);
+                  setSelectedMembers([]);
+                  setGroupName("");
+                }}
+                variant="outline"
+                className="flex-1 border-slate-700"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateConversation}
+                disabled={selectedMembers.length === 0 || (selectedMembers.length > 1 && !groupName.trim())}
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-900"
+              >
+                Start Chat
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
