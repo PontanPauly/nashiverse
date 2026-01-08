@@ -7,6 +7,8 @@ import Rituals from './pages/Rituals';
 import Settings from './pages/Settings';
 import TripDetail from './pages/TripDetail';
 import Trips from './pages/Trips';
+import Birthdays from './pages/Birthdays';
+import FamilyStories from './pages/FamilyStories';
 import __Layout from './Layout.jsx';
 
 
@@ -20,6 +22,8 @@ export const PAGES = {
     "Settings": Settings,
     "TripDetail": TripDetail,
     "Trips": Trips,
+    "Birthdays": Birthdays,
+    "FamilyStories": FamilyStories,
 }
 
 export const pagesConfig = {
