@@ -201,15 +201,15 @@ export default function FamilyConstellation({ people, households, relationships 
   const activeStar = stars.find(s => s.id === activeStarId);
 
   return (
-    <div className="nashiverse" style={{ position: 'relative', minHeight: '600px', width: '100%' }}>
+    <div className="nashiverse">
       {/* Deep space background */}
-      <div className="nashiverse__background" style={{ position: 'absolute', inset: 0 }} />
+      <div className="nashiverse__background" />
       
       {/* Distant stars */}
-      <div className="nashiverse__distant-stars" style={{ position: 'absolute', inset: 0 }} />
+      <div className="nashiverse__distant-stars" />
       
       {/* Nebula clouds */}
-      <div className="nashiverse__nebula" style={{ position: 'absolute', inset: 0 }}>
+      <div className="nashiverse__nebula">
         <div className="nashiverse__nebula-cloud nashiverse__nebula-cloud--1" />
         <div className="nashiverse__nebula-cloud nashiverse__nebula-cloud--2" />
         <div className="nashiverse__nebula-cloud nashiverse__nebula-cloud--3" />

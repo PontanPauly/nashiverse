@@ -29,10 +29,12 @@
 
 /* Nashiverse Star System Styles */
 .nashiverse {
-  position: fixed;
-  inset: 0;
+  position: relative;
+  width: 100%;
+  min-height: 600px;
+  height: calc(100vh - 200px);
   overflow: hidden;
-  z-index: 0;
+  border-radius: 16px;
 }
 
 .nashiverse__background {
