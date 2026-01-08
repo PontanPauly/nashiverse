@@ -1,16 +1,15 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-// Star Component from Nashiverse v2.1 reference
+// Star Component - Static by default, event-driven only
 const Star = ({ 
-  id,
+  person,
   x, 
   y, 
-  size = 1, 
-  colorTemp = 6000,
-  intensity = 1,
-  label,
+  size,
+  colorTemp,
+  intensity,
   isActive,
   isConnected,
   onHover,
@@ -19,19 +18,20 @@ const Star = ({
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 
+  // Color temperature mapping (telescope view)
   const getStarColor = (temp) => {
-    if (temp < 4000) return { r: 255, g: 200, b: 150 };
-    if (temp < 6000) return { r: 255, g: 240, b: 220 };
-    if (temp < 8000) return { r: 240, g: 245, b: 255 };
-    return { r: 200, g: 220, b: 255 };
+    if (temp < 4000) return { r: 255, g: 200, b: 150 }; // Warm
+    if (temp < 6000) return { r: 255, g: 240, b: 220 }; // Yellow-white
+    if (temp < 8000) return { r: 240, g: 245, b: 255 }; // White
+    return { r: 200, g: 220, b: 255 }; // Blue-white
   };
 
-  // Static optical imperfections (calculated once per star)
+  // Static optical imperfections per star
   const optics = useMemo(() => ({
     driftX: (Math.random() - 0.5) * 2,
     driftY: (Math.random() - 0.5) * 2,
     blur: (Math.random() * 0.4 + 0.3).toFixed(2)
-  }), [id]);
+  }), [person.id]);
 
   const color = getStarColor(colorTemp);
   const baseSize = 8 + (size * 12);
@@ -53,16 +53,12 @@ const Star = ({
 
   const handleMouseEnter = () => {
     setIsHovered(true);
-    onHover?.(id);
+    onHover?.(person.id);
   };
 
   const handleMouseLeave = () => {
     setIsHovered(false);
     onLeave?.();
-  };
-
-  const handleClick = () => {
-    onClick?.(id);
   };
 
   return (
@@ -71,21 +67,28 @@ const Star = ({
       style={starStyle}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onClick={handleClick}
+      onClick={() => onClick?.(person.id)}
     >
       <div className="star__core" />
       <div className="star__aberration star__aberration--red" />
       <div className="star__aberration star__aberration--blue" />
       <div className="star__glow" />
       
-      {label && isHovered && (
-        <div className="star__label">{label}</div>
+      {person.is_deceased && (
+        <div className="star__halo" />
+      )}
+      
+      {isHovered && (
+        <div className="star__label">
+          {person.name}
+          {person.nickname && <span className="star__label-nickname"> "{person.nickname}"</span>}
+        </div>
       )}
     </div>
   );
 };
 
-// Constellation Lines from Nashiverse v2.1 reference
+// Constellation Lines - Only shown on interaction
 const ConstellationLines = ({ connections, stars }) => {
   if (!connections || connections.length === 0) return null;
 
@@ -96,11 +99,12 @@ const ConstellationLines = ({ connections, stars }) => {
       left: 0, 
       width: '100%', 
       height: '100%',
-      pointerEvents: 'none'
+      pointerEvents: 'none',
+      zIndex: 5
     }}>
       {connections.map(({ from, to }, idx) => {
-        const starFrom = stars.find(s => s.id === from);
-        const starTo = stars.find(s => s.id === to);
+        const starFrom = stars.find(s => s.person.id === from);
+        const starTo = stars.find(s => s.person.id === to);
         
         if (!starFrom || !starTo) return null;
 
@@ -124,88 +128,98 @@ export default function FamilyConstellation({ people, households, relationships 
   const [activeStarId, setActiveStarId] = useState(null);
   const [hoveredStarId, setHoveredStarId] = useState(null);
 
-  // Transform people into stars with simple scattered positioning
+  // Create stars with natural scattered positioning
   const stars = useMemo(() => {
-    return people.map((person, index) => {
-      // Simple scattered positioning across the sky
-      const angle = (index / people.length) * Math.PI * 2;
-      const radius = 20 + (Math.random() * 30);
-      const x = 50 + Math.cos(angle) * radius + (Math.random() - 0.5) * 10;
-      const y = 50 + Math.sin(angle) * radius + (Math.random() - 0.5) * 10;
-      
-      // Size based on role
-      const sizeMap = { 'adult': 1, 'teen': 0.85, 'child': 0.7, 'ancestor': 1.2 };
+    // Separate deceased (ancestors) from living
+    const deceased = people.filter(p => p.is_deceased);
+    const living = people.filter(p => !p.is_deceased);
+
+    const starsArray = [];
+
+    // Place ancestors in center area
+    deceased.forEach((person, index) => {
+      const angle = (index / deceased.length) * Math.PI * 2;
+      const radius = 8 + Math.random() * 12; // Tighter center cluster
+      const x = 50 + Math.cos(angle) * radius;
+      const y = 50 + Math.sin(angle) * radius;
+
+      starsArray.push({
+        person,
+        x: x + (Math.random() - 0.5) * 3,
+        y: y + (Math.random() - 0.5) * 3,
+        size: 1.2, // Ancestors slightly larger
+        colorTemp: 7500, // Cooler, bluer
+        intensity: 0.9
+      });
+    });
+
+    // Scatter living family across the sky
+    living.forEach((person, index) => {
+      const angle = (index / living.length) * Math.PI * 2 + Math.random() * 0.5;
+      const radius = 25 + Math.random() * 35; // Spread across sky
+      const x = 50 + Math.cos(angle) * radius;
+      const y = 50 + Math.sin(angle) * radius;
+
+      const sizeMap = { adult: 1, teen: 0.85, child: 0.7 };
       const size = sizeMap[person.role_type] || 1;
-      
-      // Color temp based on household for variety
-      const tempMap = [5500, 6000, 5800, 6200, 7000, 6500];
-      const hash = (person.household_id || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      const colorTemp = tempMap[hash % tempMap.length];
-      
+
+      // Color temperature based on household for subtle variety
+      const hash = (person.household_id || '').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+      const tempOptions = [5500, 6000, 5800, 6200, 6500];
+      const colorTemp = tempOptions[hash % tempOptions.length];
+
       const intensity = (person.star_intensity || 5) / 10;
-      
-      return {
-        id: person.id,
-        x: Math.max(10, Math.min(90, x)),
-        y: Math.max(10, Math.min(90, y)),
+
+      starsArray.push({
+        person,
+        x: Math.max(5, Math.min(95, x)),
+        y: Math.max(5, Math.min(95, y)),
         size,
         colorTemp,
-        intensity,
-        label: person.name + (person.nickname ? ` "${person.nickname}"` : ''),
-        data: person
-      };
+        intensity
+      });
     });
+
+    return starsArray;
   }, [people]);
 
-  // Only show connections for active/hovered star
+  // Build connections only for active/hovered star
   const activeConnections = useMemo(() => {
-    const starId = activeStarId || hoveredStarId;
-    if (!starId) return [];
-    
+    const targetId = activeStarId || hoveredStarId;
+    if (!targetId) return [];
+
     const conns = [];
-    
-    // Find household members
-    const activePerson = people.find(p => p.id === starId);
+    const activePerson = people.find(p => p.id === targetId);
+
+    // Household connections
     if (activePerson?.household_id) {
-      people.forEach(person => {
-        if (person.household_id === activePerson.household_id && person.id !== starId) {
-          conns.push({ from: starId, to: person.id });
+      people.forEach(p => {
+        if (p.household_id === activePerson.household_id && p.id !== targetId) {
+          conns.push({ from: targetId, to: p.id });
         }
       });
     }
-    
-    // Find relationships
+
+    // Relationship connections
     relationships.forEach(rel => {
-      if (rel.person_id === starId) {
-        conns.push({ from: starId, to: rel.related_person_id });
-      } else if (rel.related_person_id === starId) {
-        conns.push({ from: starId, to: rel.person_id });
+      if (rel.person_id === targetId) {
+        conns.push({ from: targetId, to: rel.related_person_id });
+      } else if (rel.related_person_id === targetId) {
+        conns.push({ from: targetId, to: rel.person_id });
       }
     });
-    
+
     return conns;
   }, [activeStarId, hoveredStarId, people, relationships]);
 
-  const handleStarClick = useCallback((starId) => {
-    setActiveStarId(starId === activeStarId ? null : starId);
-  }, [activeStarId]);
-
-  const handleStarHover = useCallback((starId) => {
-    setHoveredStarId(starId);
-  }, []);
-
-  const handleStarLeave = useCallback(() => {
-    setHoveredStarId(null);
-  }, []);
-
-  const activeStar = stars.find(s => s.id === activeStarId);
+  const activeStar = stars.find(s => s.person.id === activeStarId);
 
   return (
     <div className="nashiverse">
       {/* Deep space background */}
       <div className="nashiverse__background" />
       
-      {/* Distant stars */}
+      {/* Distant stars backdrop */}
       <div className="nashiverse__distant-stars" />
       
       {/* Nebula clouds */}
@@ -215,43 +229,42 @@ export default function FamilyConstellation({ people, households, relationships 
         <div className="nashiverse__nebula-cloud nashiverse__nebula-cloud--3" />
       </div>
 
-      <ConstellationLines 
-        connections={activeConnections} 
-        stars={stars}
-      />
-      
-      {stars.map(star => (
+      {/* Constellation lines - only on interaction */}
+      <ConstellationLines connections={activeConnections} stars={stars} />
+
+      {/* Stars - people */}
+      {stars.map((star) => (
         <Star
-          key={star.id}
-          id={star.id}
+          key={star.person.id}
+          person={star.person}
           x={star.x}
           y={star.y}
           size={star.size}
           colorTemp={star.colorTemp}
           intensity={star.intensity}
-          label={star.label}
-          isActive={star.id === activeStarId}
-          isConnected={activeConnections.some(c => c.from === star.id || c.to === star.id)}
-          onHover={handleStarHover}
-          onLeave={handleStarLeave}
-          onClick={handleStarClick}
+          isActive={star.person.id === activeStarId}
+          isConnected={activeConnections.some(c => c.from === star.person.id || c.to === star.person.id)}
+          onHover={setHoveredStarId}
+          onLeave={() => setHoveredStarId(null)}
+          onClick={setActiveStarId}
         />
       ))}
 
+      {/* Context Panel */}
       {activeStar && (
         <div className="context-panel">
           <div className="context-panel__header">
             <div className="context-panel__avatar">
-              {activeStar.data.photo_url ? (
-                <img src={activeStar.data.photo_url} alt="" />
+              {activeStar.person.photo_url ? (
+                <img src={activeStar.person.photo_url} alt="" />
               ) : (
-                <span>{activeStar.data.name?.charAt(0)}</span>
+                <span>{activeStar.person.name?.charAt(0)}</span>
               )}
             </div>
-            <div>
-              <h3>{activeStar.data.name}</h3>
-              {activeStar.data.nickname && (
-                <p className="context-panel__nickname">"{activeStar.data.nickname}"</p>
+            <div className="flex-1">
+              <h3>{activeStar.person.name}</h3>
+              {activeStar.person.nickname && (
+                <p className="context-panel__nickname">"{activeStar.person.nickname}"</p>
               )}
             </div>
             <Button
@@ -267,26 +280,48 @@ export default function FamilyConstellation({ people, households, relationships 
           <div className="context-panel__content">
             <div className="context-panel__field">
               <span>Role:</span>
-              <span className="capitalize">{activeStar.data.role_type}</span>
+              <span className="capitalize">{activeStar.person.role_type}</span>
             </div>
+
+            {activeStar.person.household_id && households && (
+              <div className="context-panel__field">
+                <span>Household:</span>
+                <span>{households.find(h => h.id === activeStar.person.household_id)?.name || 'Unknown'}</span>
+              </div>
+            )}
             
-            {activeStar.data.birth_date && (
+            {activeStar.person.birth_date && (
               <div className="context-panel__field">
                 <span>Birth Date:</span>
-                <span>{activeStar.data.birth_date}</span>
+                <span>{activeStar.person.birth_date}</span>
               </div>
             )}
 
-            {activeStar.data.about && (
+            {activeStar.person.allergies?.length > 0 && (
+              <div className="context-panel__field context-panel__field--full">
+                <p className="context-panel__label">Allergies:</p>
+                <p className="text-red-400">{activeStar.person.allergies.join(', ')}</p>
+              </div>
+            )}
+
+            {activeStar.person.dietary_preferences?.length > 0 && (
+              <div className="context-panel__field context-panel__field--full">
+                <p className="context-panel__label">Dietary:</p>
+                <p>{activeStar.person.dietary_preferences.join(', ')}</p>
+              </div>
+            )}
+
+            {activeStar.person.about && (
               <div className="context-panel__field context-panel__field--full">
                 <p className="context-panel__label">About:</p>
-                <p>{activeStar.data.about}</p>
+                <p>{activeStar.person.about}</p>
               </div>
             )}
 
-            {activeStar.data.is_deceased && (
+            {activeStar.person.is_deceased && (
               <div className="context-panel__memorial">
-                In loving memory
+                ⭐ In loving memory
+                {activeStar.person.death_date && ` • ${activeStar.person.death_date}`}
               </div>
             )}
           </div>
