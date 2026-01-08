@@ -293,6 +293,29 @@ export default function FamilyConstellation({ people, households, relationships 
 
   return (
     <div className="fixed inset-0 z-0">
+      {/* Deep space background */}
+      <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950" />
+      
+      {/* Distant stars */}
+      <div className="absolute inset-0" style={{
+        backgroundImage: `
+          radial-gradient(1px 1px at 20% 30%, white, transparent),
+          radial-gradient(1px 1px at 60% 70%, white, transparent),
+          radial-gradient(0.5px 0.5px at 50% 50%, white, transparent),
+          radial-gradient(0.5px 0.5px at 80% 10%, white, transparent),
+          radial-gradient(1px 1px at 90% 60%, white, transparent),
+          radial-gradient(0.5px 0.5px at 33% 90%, white, transparent)`,
+        backgroundSize: '200% 200%',
+        opacity: 0.4,
+      }} />
+      
+      {/* Nebula clouds */}
+      <div className="absolute inset-0 opacity-20">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600 rounded-full blur-[120px]" />
+        <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-blue-600 rounded-full blur-[100px]" />
+        <div className="absolute top-1/2 right-1/3 w-64 h-64 bg-indigo-500 rounded-full blur-[80px]" />
+      </div>
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -316,10 +339,10 @@ export default function FamilyConstellation({ people, households, relationships 
         panOnDrag={true}
       >
         <Background 
-          color="#475569" 
-          gap={60} 
-          size={0.5}
-          style={{ opacity: 0.05 }}
+          color="#94a3b8" 
+          gap={80} 
+          size={0.3}
+          style={{ opacity: 0.03 }}
         />
       </ReactFlow>
 

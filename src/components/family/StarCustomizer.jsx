@@ -33,6 +33,12 @@ export default function StarCustomizer({ person, onSave, onCancel }) {
     onSave(config);
   };
 
+  const getStarColors = () => {
+    return { core: '#ffffff', glow: '#a5b4fc' };
+  };
+
+  const colors = getStarColors();
+
   return (
     <div className="space-y-6">
       <div className="text-center">
@@ -41,6 +47,58 @@ export default function StarCustomizer({ person, onSave, onCancel }) {
           <span className="text-sm font-medium text-amber-300">Customize Your Star</span>
         </div>
         <p className="text-sm text-slate-400">Make your constellation presence unique</p>
+      </div>
+
+      {/* Live Preview */}
+      <div className="relative h-32 rounded-xl bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 border border-slate-700 overflow-hidden">
+        <div className="absolute inset-0" style={{
+          backgroundImage: `
+            radial-gradient(1px 1px at 20% 30%, white, transparent),
+            radial-gradient(0.5px 0.5px at 60% 70%, white, transparent),
+            radial-gradient(0.5px 0.5px at 80% 20%, white, transparent)`,
+          backgroundSize: '100% 100%',
+          opacity: 0.3,
+        }} />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="relative" style={{ width: 60, height: 60 }}>
+            {/* Glow */}
+            <div 
+              className="absolute rounded-full animate-pulse"
+              style={{ 
+                width: 60,
+                height: 60,
+                background: `radial-gradient(circle, ${colors.glow}60 0%, ${colors.glow}30 40%, transparent 70%)`,
+                filter: 'blur(12px)',
+              }}
+            />
+            {/* Core */}
+            <div 
+              className="absolute rounded-full"
+              style={{ 
+                width: 40,
+                height: 40,
+                left: 10,
+                top: 10,
+                background: `radial-gradient(circle, ${colors.core} 0%, ${colors.glow} 70%, transparent 100%)`,
+                boxShadow: `0 0 20px ${colors.glow}`,
+              }}
+            />
+            {/* Center */}
+            <div 
+              className="absolute rounded-full bg-white"
+              style={{ 
+                width: 16 + config.star_intensity * 1.5,
+                height: 16 + config.star_intensity * 1.5,
+                left: 30 - (8 + config.star_intensity * 0.75),
+                top: 30 - (8 + config.star_intensity * 0.75),
+                boxShadow: '0 0 30px white',
+              }}
+            />
+          </div>
+        </div>
+        <p className="absolute bottom-2 left-0 right-0 text-center text-xs text-slate-500">
+          Preview
+        </p>
       </div>
 
       {/* Pattern Selection */}
