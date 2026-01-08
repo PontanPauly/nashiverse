@@ -38,7 +38,7 @@ const PersonNode = ({ data, selected }) => {
   const starColor = getHouseholdColor(data.household_id);
   const starSize = getStarSize(data.role_type);
   const depth = data.depth || 1;
-  const opacity = depth === 0.6 ? 0.4 : depth === 0.8 ? 0.6 : 1;
+  const opacity = depth === 0.6 ? 0.7 : depth === 0.8 ? 0.85 : 1;
 
   // Unique drift animation per star
   const driftVariants = {
