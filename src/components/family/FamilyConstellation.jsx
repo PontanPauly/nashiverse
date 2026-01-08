@@ -10,27 +10,82 @@ const seededRandom = (seed) => {
   return x - Math.floor(x);
 };
 
-// Generate organic cluster position based on generation/age
-const generateOrganicPosition = (person, index, householdSeed, generationLevel = 0) => {
-  // Create natural clustering using golden angle
-  const goldenAngle = 137.5;
-  const angle = (index * goldenAngle + householdSeed * 30) * (Math.PI / 180);
+// Position couples close together and their children branching from them
+const positionFamily = (people, relationships, generations) => {
+  const positions = new Map();
+  const processed = new Set();
   
-  // Base radius on generation: ancestors/oldest in center, youngest outside
-  let baseRadius = 8 + (generationLevel * 18);
+  // Find all couples (spouse relationships)
+  const couples = new Map(); // person_id -> spouse_id
+  relationships.forEach(rel => {
+    if (rel.relationship_type === 'spouse') {
+      couples.set(rel.person_id, rel.related_person_id);
+    }
+  });
   
-  // Add variation within generation ring
-  const radiusVariation = (seededRandom(householdSeed + index) - 0.5) * 10;
-  const radius = baseRadius + radiusVariation;
+  // Group by generation
+  const byGeneration = new Map();
+  people.forEach(p => {
+    const gen = generations.get(p.id) || 0;
+    if (!byGeneration.has(gen)) byGeneration.set(gen, []);
+    byGeneration.get(gen).push(p);
+  });
   
-  // Add organic jitter for natural feel
-  const jitterX = (seededRandom(householdSeed * 2 + index) - 0.5) * 8;
-  const jitterY = (seededRandom(householdSeed * 3 + index) - 0.5) * 8;
+  const maxGen = Math.max(...Array.from(byGeneration.keys()));
   
-  const x = 50 + radius * Math.cos(angle) + jitterX;
-  const y = 50 + radius * Math.sin(angle) + jitterY;
+  // Process generation by generation, starting from oldest (generation 0)
+  byGeneration.forEach((members, gen) => {
+    const radius = gen === 0 ? 5 : 15 + (gen * 20); // Gen 0 in center
+    const goldenAngle = 137.5;
+    
+    // Group into family units (couples + singles)
+    const familyUnits = [];
+    const usedIds = new Set();
+    
+    members.forEach(person => {
+      if (usedIds.has(person.id)) return;
+      
+      const spouseId = couples.get(person.id);
+      const spouse = spouseId ? people.find(p => p.id === spouseId) : null;
+      
+      if (spouse && members.includes(spouse)) {
+        familyUnits.push([person, spouse]);
+        usedIds.add(person.id);
+        usedIds.add(spouse.id);
+      } else if (!usedIds.has(person.id)) {
+        familyUnits.push([person]);
+        usedIds.add(person.id);
+      }
+    });
+    
+    // Position each family unit
+    familyUnits.forEach((unit, unitIndex) => {
+      const angle = (unitIndex * goldenAngle + gen * 30) * (Math.PI / 180);
+      const centerX = 50 + radius * Math.cos(angle);
+      const centerY = 50 + radius * Math.sin(angle);
+      
+      if (unit.length === 2) {
+        // Couple - position close together
+        const offset = 2;
+        positions.set(unit[0].id, {
+          x: Math.max(5, Math.min(95, centerX - offset)),
+          y: Math.max(5, Math.min(95, centerY))
+        });
+        positions.set(unit[1].id, {
+          x: Math.max(5, Math.min(95, centerX + offset)),
+          y: Math.max(5, Math.min(95, centerY))
+        });
+      } else {
+        // Single person
+        positions.set(unit[0].id, {
+          x: Math.max(5, Math.min(95, centerX)),
+          y: Math.max(5, Math.min(95, centerY))
+        });
+      }
+    });
+  });
   
-  return { x: Math.max(10, Math.min(90, x)), y: Math.max(10, Math.min(90, y)) };
+  return positions;
 };
 
 export default function FamilyConstellation({ people, households, relationships }) {
@@ -97,39 +152,17 @@ export default function FamilyConstellation({ people, households, relationships 
     return genMap;
   }, [people, relationships]);
 
-  // Generate organic positions based on generation
+  // Generate positions with couples clustered together
   const positions = useMemo(() => {
-    if (!people) return new Map();
-    
-    const pos = new Map();
+    if (!people || !relationships) return new Map();
     
     if (filterMode === 'household' && selectedHouseholdId) {
       const household = people.filter(p => p.household_id === selectedHouseholdId);
-      const seed = household[0]?.household_id?.charCodeAt(0) || 1;
-      
-      household.forEach((person, i) => {
-        const gen = generations.get(person.id) || 0;
-        pos.set(person.id, generateOrganicPosition(person, i, seed, gen));
-      });
-    } else {
-      // Group by generation then household for natural clustering
-      const byGeneration = new Map();
-      people.forEach(p => {
-        const gen = generations.get(p.id) || 0;
-        if (!byGeneration.has(gen)) byGeneration.set(gen, []);
-        byGeneration.get(gen).push(p);
-      });
-      
-      byGeneration.forEach((members, gen) => {
-        members.forEach((person, i) => {
-          const householdSeed = person.household_id?.charCodeAt(0) || (person.id.charCodeAt(0) + 999);
-          pos.set(person.id, generateOrganicPosition(person, i, householdSeed, gen));
-        });
-      });
+      return positionFamily(household, relationships, generations);
     }
     
-    return pos;
-  }, [people, generations, filterMode, selectedHouseholdId]);
+    return positionFamily(people, relationships, generations);
+  }, [people, relationships, generations, filterMode, selectedHouseholdId]);
 
   // Visible people
   const visiblePeople = useMemo(() => {
