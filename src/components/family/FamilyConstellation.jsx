@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import './Nashiverse.css';
 
 // Star Component - Performance-disciplined, static by default
 const Star = ({ 
