@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 
 export default function LineageView({ people, relationships, onPersonClick }) {
   const [expanded, setExpanded] = useState(new Set());
+  const [expandAll, setExpandAll] = useState(false);
 
   const toggleExpand = (personId) => {
     const newExpanded = new Set(expanded);
@@ -14,6 +15,18 @@ export default function LineageView({ people, relationships, onPersonClick }) {
       newExpanded.add(personId);
     }
     setExpanded(newExpanded);
+  };
+
+  const handleExpandAll = () => {
+    if (expandAll) {
+      setExpanded(new Set());
+    } else {
+      const allWithChildren = people.filter(p => 
+        (relationshipMap.children.get(p.id) || []).length > 0
+      ).map(p => p.id);
+      setExpanded(new Set(allWithChildren));
+    }
+    setExpandAll(!expandAll);
   };
 
   // Build relationship map
@@ -55,7 +68,7 @@ export default function LineageView({ people, relationships, onPersonClick }) {
       });
   }, [people, relationshipMap]);
 
-  const PersonNode = ({ person, level = 0 }) => {
+  const PersonNode = ({ person, level = 0, generation = 1 }) => {
     const children = relationshipMap.children.get(person.id) || [];
     const partnerId = relationshipMap.partners.get(person.id);
     const partner = partnerId ? people.find(p => p.id === partnerId) : null;
@@ -137,6 +150,9 @@ export default function LineageView({ people, relationships, onPersonClick }) {
         {/* Children */}
         {hasChildren && isExpanded && (
           <div className="mt-1">
+            <div className="text-xs text-slate-600 ml-8 mb-1" style={{ marginLeft: `${(level + 1) * 2}rem` }}>
+              Generation {generation + 1}
+            </div>
             {children.map(childId => {
               const child = people.find(p => p.id === childId);
               if (!child) return null;
@@ -145,6 +161,7 @@ export default function LineageView({ people, relationships, onPersonClick }) {
                   key={child.id}
                   person={child}
                   level={level + 1}
+                  generation={generation + 1}
                 />
               );
             })}
@@ -168,9 +185,22 @@ export default function LineageView({ people, relationships, onPersonClick }) {
 
   return (
     <div className="glass-card rounded-2xl p-6">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-semibold text-slate-100">Family Tree</h2>
+        <button
+          onClick={handleExpandAll}
+          className="text-sm text-amber-400 hover:text-amber-300"
+        >
+          {expandAll ? 'Collapse All' : 'Expand All'}
+        </button>
+      </div>
       <div className="space-y-2">
-        {roots.map(person => (
-          <PersonNode key={person.id} person={person} level={0} />
+        {roots.map((person, idx) => (
+          <div key={person.id}>
+            {idx > 0 && <div className="my-4 border-t border-slate-800" />}
+            <div className="text-xs text-slate-500 mb-2">Generation 1</div>
+            <PersonNode person={person} level={0} generation={1} />
+          </div>
         ))}
       </div>
     </div>

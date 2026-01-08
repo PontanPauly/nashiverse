@@ -14,14 +14,17 @@ import {
   LogOut,
   Star,
   Image,
-  Flame
+  Flame,
+  Search
 } from "lucide-react";
+import GlobalSearch from "@/components/search/GlobalSearch";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export default function Layout({ children, currentPageName }) {
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -196,14 +199,24 @@ export default function Layout({ children, currentPageName }) {
           </div>
           <span className="text-lg font-semibold bg-gradient-to-r from-amber-200 via-amber-100 to-purple-200 bg-clip-text text-transparent">Nashiverse</span>
           </Link>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-slate-400 hover:text-slate-100"
-          >
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSearchOpen(true)}
+              className="text-slate-400 hover:text-slate-100"
+            >
+              <Search className="w-5 h-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="text-slate-400 hover:text-slate-100"
+            >
+              {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -234,6 +247,14 @@ export default function Layout({ children, currentPageName }) {
                 <p className="text-xs text-purple-300/60">Your Family Universe</p>
               </div>
             </Link>
+            <Button
+              variant="ghost"
+              onClick={() => setSearchOpen(true)}
+              className="w-full mt-3 justify-start text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+            >
+              <Search className="w-4 h-4 mr-2" />
+              Search...
+            </Button>
           </div>
 
           {/* Navigation */}
@@ -328,6 +349,9 @@ export default function Layout({ children, currentPageName }) {
           {children}
         </div>
       </main>
-    </div>
-  );
-}
+
+      {/* Global Search */}
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+      </div>
+      );
+      }

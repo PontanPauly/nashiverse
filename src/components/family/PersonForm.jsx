@@ -112,6 +112,14 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
     const existing2 = await base44.entities.Relationship.filter({ related_person_id: personId });
     const allExisting = [...existing, ...existing2];
 
+    // Validate no circular parents
+    for (const parentId of parentIds) {
+      if (parentId === personId) {
+        alert('A person cannot be their own parent');
+        return;
+      }
+    }
+
     // Handle parents - create parent->child relationships
     const existingParents = allExisting.filter(r => r.relationship_type === 'parent' && r.related_person_id === personId);
     const existingParentIds = existingParents.map(r => r.person_id);
@@ -124,7 +132,7 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
       }
     }
 
-    // Add new parents
+    // Add new parents (no duplicates)
     for (const parentId of parentIds) {
       if (!existingParentIds.includes(parentId)) {
         await base44.entities.Relationship.create({
@@ -135,18 +143,39 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
       }
     }
 
-    // Handle partner
+    // Handle partner - bidirectional sync
     const existingPartner = allExisting.find(r => r.relationship_type === 'partner' && 
       (r.person_id === personId || r.related_person_id === personId));
 
     if (existingPartner && !partnerId) {
+      // Remove both directions
       await base44.entities.Relationship.delete(existingPartner.id);
+      const reverseRel = await base44.entities.Relationship.filter({ 
+        person_id: existingPartner.related_person_id === personId ? existingPartner.person_id : existingPartner.related_person_id,
+        related_person_id: personId,
+        relationship_type: 'partner'
+      });
+      if (reverseRel[0]) await base44.entities.Relationship.delete(reverseRel[0].id);
     } else if (partnerId && (!existingPartner || 
       (existingPartner.person_id !== partnerId && existingPartner.related_person_id !== partnerId))) {
-      if (existingPartner) await base44.entities.Relationship.delete(existingPartner.id);
+      if (existingPartner) {
+        await base44.entities.Relationship.delete(existingPartner.id);
+        const reverseRel = await base44.entities.Relationship.filter({ 
+          person_id: existingPartner.related_person_id === personId ? existingPartner.person_id : existingPartner.related_person_id,
+          related_person_id: personId,
+          relationship_type: 'partner'
+        });
+        if (reverseRel[0]) await base44.entities.Relationship.delete(reverseRel[0].id);
+      }
+      // Create bidirectional partner relationship
       await base44.entities.Relationship.create({
         person_id: personId,
         related_person_id: partnerId,
+        relationship_type: 'partner'
+      });
+      await base44.entities.Relationship.create({
+        person_id: partnerId,
+        related_person_id: personId,
         relationship_type: 'partner'
       });
     }
