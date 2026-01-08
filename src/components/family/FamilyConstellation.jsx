@@ -280,7 +280,8 @@ export default function FamilyConstellation({ people, households, relationships 
           background: 'transparent',
         }}
         proOptions={{ hideAttribution: true }}
-        panOnScroll={true}
+        panOnScroll={false}
+        zoomOnScroll={true}
         zoomOnDoubleClick={true}
         panOnDrag={true}
       >
