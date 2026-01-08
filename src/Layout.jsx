@@ -120,6 +120,26 @@ export default function Layout({ children, currentPageName }) {
           100% { opacity: 0.7; }
         }
 
+        @keyframes binaryOrbit {
+          0%   { transform: translate(1.5px, 0px); }
+          25%  { transform: translate(0px, 1.5px); }
+          50%  { transform: translate(-1.5px, 0px); }
+          75%  { transform: translate(0px, -1.5px); }
+          100% { transform: translate(1.5px, 0px); }
+        }
+
+        .binary-orbit {
+          animation: binaryOrbit var(--orbit-dur, 16s) ease-in-out infinite;
+        }
+
+        .binary-orbit.reverse {
+          animation-direction: reverse;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .binary-orbit { animation: none !important; }
+        }
+
         .nebula-glow {
           position: fixed;
           top: -50%;
