@@ -232,6 +232,18 @@ export default function Settings() {
             )}
           </div>
 
+          {/* Cleanup Data */}
+          <div className="glass-card rounded-xl p-6 border-red-900/30">
+            <h3 className="font-medium text-red-400 mb-4">Danger Zone</h3>
+            <p className="text-sm text-slate-400 mb-4">Delete all test data and reset the app</p>
+            <Button 
+              onClick={handleCleanupData}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete All Test Data
+            </Button>
+          </div>
+
           {/* Admin Management */}
           <div className="glass-card rounded-xl p-6">
             <h3 className="font-medium text-slate-200 mb-4">Family Admins</h3>
