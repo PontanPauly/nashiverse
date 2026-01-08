@@ -44,7 +44,7 @@ export default function Family() {
   const [editingPerson, setEditingPerson] = useState(null);
   const [editingHousehold, setEditingHousehold] = useState(null);
   const [selectedHousehold, setSelectedHousehold] = useState(null);
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'constellation'
+  const [viewMode, setViewMode] = useState('constellation'); // 'list' or 'constellation'
   
   const queryClient = useQueryClient();
 

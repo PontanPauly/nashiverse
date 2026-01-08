@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ export default function FamilyConstellation({ people, households, relationships 
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const containerRef = useRef(null);
 
   // Hash function for deterministic randomness
   const hash = (input) => {
@@ -130,32 +131,127 @@ export default function FamilyConstellation({ people, households, relationships 
     return person.household_id === selectedConstellationId;
   };
 
+  // Detect couples (co-parents) for barycenter approach
+  const couples = useMemo(() => {
+    if (!relationships || !people) return [];
+    
+    const coParentMap = new Map(); // key: sorted parent IDs, value: [parent1, parent2, children]
+    
+    const parentRels = relationships.filter(r => r.relationship_type === 'parent');
+    
+    // Group children by their parents
+    const childToParents = new Map();
+    parentRels.forEach(rel => {
+      const child = rel.related_person_id;
+      if (!childToParents.has(child)) {
+        childToParents.set(child, []);
+      }
+      childToParents.get(child).push(rel.person_id);
+    });
+    
+    // Find parent pairs that share children
+    childToParents.forEach((parents, child) => {
+      if (parents.length === 2) {
+        const key = [...parents].sort().join('-');
+        if (!coParentMap.has(key)) {
+          coParentMap.set(key, {
+            parent1: people.find(p => p.id === parents[0]),
+            parent2: people.find(p => p.id === parents[1]),
+            children: []
+          });
+        }
+        coParentMap.get(key).children.push(child);
+      }
+    });
+    
+    return Array.from(coParentMap.values()).filter(c => c.parent1 && c.parent2);
+  }, [relationships, people]);
+
   // Get constellation lines for active selection
   const constellationLines = useMemo(() => {
     const lines = [];
 
-    // For "all" view, draw parent-child lineage lines only
+    // For "all" view, use barycenter approach for couples
     if (!selectedConstellationId || selectedConstellationId === 'all') {
       if (relationships && relationships.length > 0) {
-        // Only show parent-child relationships to create ancestry tree
-        const parentChildRels = relationships.filter(
-          rel => rel.relationship_type === 'parent' || rel.relationship_type === 'child'
-        );
+        const processedChildren = new Set();
         
-        parentChildRels.forEach((rel) => {
-          const person1 = people.find(p => p.id === rel.person_id);
-          const person2 = people.find(p => p.id === rel.related_person_id);
+        // Draw couple systems with barycenters
+        couples.forEach((couple, idx) => {
+          const p1Pos = getStarPosition(couple.parent1);
+          const p2Pos = getStarPosition(couple.parent2);
           
-          if (person1 && person2) {
-            const start = getStarPosition(person1);
-            const end = getStarPosition(person2);
+          // Barycenter between parents (slightly offset for visual interest)
+          const hubX = (p1Pos.x + p2Pos.x) / 2 + (idx % 2 === 0 ? 0.5 : -0.5);
+          const hubY = (p1Pos.y + p2Pos.y) / 2 + (idx % 3 === 0 ? 0.5 : -0.5);
+          
+          // Binary link between parents (gentle arc)
+          lines.push({
+            id: `couple-${couple.parent1.id}-${couple.parent2.id}`,
+            type: 'couple',
+            x1: p1Pos.x,
+            y1: p1Pos.y,
+            x2: p2Pos.x,
+            y2: p2Pos.y,
+            hubX,
+            hubY,
+          });
+          
+          // Parent to hub
+          lines.push({
+            id: `p1-hub-${couple.parent1.id}`,
+            type: 'parent-hub',
+            x1: p1Pos.x,
+            y1: p1Pos.y,
+            x2: hubX,
+            y2: hubY,
+          });
+          
+          lines.push({
+            id: `p2-hub-${couple.parent2.id}`,
+            type: 'parent-hub',
+            x1: p2Pos.x,
+            y1: p2Pos.y,
+            x2: hubX,
+            y2: hubY,
+          });
+          
+          // Hub to children
+          couple.children.forEach(childId => {
+            const child = people.find(p => p.id === childId);
+            if (child) {
+              const childPos = getStarPosition(child);
+              lines.push({
+                id: `hub-child-${childId}`,
+                type: 'hub-child',
+                x1: hubX,
+                y1: hubY,
+                x2: childPos.x,
+                y2: childPos.y,
+              });
+              processedChildren.add(childId);
+            }
+          });
+        });
+        
+        // Draw remaining parent-child lines for single parents
+        const parentRels = relationships.filter(r => r.relationship_type === 'parent');
+        parentRels.forEach(rel => {
+          if (processedChildren.has(rel.related_person_id)) return;
+          
+          const parent = people.find(p => p.id === rel.person_id);
+          const child = people.find(p => p.id === rel.related_person_id);
+          
+          if (parent && child) {
+            const pPos = getStarPosition(parent);
+            const cPos = getStarPosition(child);
             lines.push({
-              id: `${rel.person_id}-${rel.related_person_id}`,
-              x1: start.x,
-              y1: start.y,
-              x2: end.x,
-              y2: end.y,
-              type: rel.relationship_type,
+              id: `single-${rel.person_id}-${rel.related_person_id}`,
+              type: 'parent-child',
+              x1: pPos.x,
+              y1: pPos.y,
+              x2: cPos.x,
+              y2: cPos.y,
             });
           }
         });
@@ -197,6 +293,75 @@ export default function FamilyConstellation({ people, households, relationships 
     [people, selectedPersonId]
   );
 
+  // Get visible people for fit calculation
+  const getVisiblePeople = () => {
+    if (selectedConstellationId === 'ancestors') {
+      return people.filter(p => p.is_deceased || p.role_type === 'ancestor');
+    }
+    if (selectedConstellationId && selectedConstellationId !== 'all') {
+      return people.filter(p => p.household_id === selectedConstellationId);
+    }
+    return people;
+  };
+
+  // Fit universe to screen
+  const fitToUniverse = (targetPeople = getVisiblePeople()) => {
+    const el = containerRef.current;
+    if (!el || !targetPeople?.length) return;
+
+    const rect = el.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+
+    // Convert % positions to px
+    const pts = targetPeople.map(p => {
+      const pos = getStarPosition(p);
+      return { x: (pos.x / 100) * w, y: (pos.y / 100) * h };
+    });
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of pts) {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    }
+
+    const padding = 100;
+    const boxW = Math.max(1, (maxX - minX) + padding * 2);
+    const boxH = Math.max(1, (maxY - minY) + padding * 2);
+
+    const rawZoom = Math.min(w / boxW, h / boxH);
+    const newZoom = Math.min(Math.max(rawZoom, 0.5), 3);
+
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    const desiredShiftX = (w / 2) - centerX;
+    const desiredShiftY = (h / 2) - centerY;
+
+    setZoom(newZoom);
+    setPan({ x: desiredShiftX / newZoom, y: desiredShiftY / newZoom });
+  };
+
+  // Auto-fit on load
+  useEffect(() => {
+    const t = setTimeout(() => fitToUniverse(people), 100);
+    return () => clearTimeout(t);
+  }, [people?.length]);
+
+  // Check if person is part of a couple
+  const isInCouple = (personId) => {
+    return couples.some(c => c.parent1.id === personId || c.parent2.id === personId);
+  };
+
+  // Get couple partner ID
+  const getCouplePartnerId = (personId) => {
+    const couple = couples.find(c => c.parent1.id === personId || c.parent2.id === personId);
+    if (!couple) return null;
+    return couple.parent1.id === personId ? couple.parent2.id : couple.parent1.id;
+  };
+
   const householdOptions = useMemo(() => {
     return households
       .filter(h => livingByHousehold.has(h.id))
@@ -218,7 +383,7 @@ export default function FamilyConstellation({ people, households, relationships 
   }
 
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div ref={containerRef} className="absolute inset-0 overflow-hidden">
       {/* Deep Space Background */}
       <div className="absolute inset-0">
         {/* Base gradient */}
@@ -328,6 +493,23 @@ export default function FamilyConstellation({ people, households, relationships 
             ))}
           </select>
         </div>
+        <div className="flex items-center gap-2 mt-3">
+          <button
+            onClick={() => fitToUniverse()}
+            className="px-3 py-1.5 rounded-lg text-xs border border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800/70 transition-colors"
+          >
+            Fit View
+          </button>
+          <button
+            onClick={() => {
+              setZoom(1);
+              setPan({ x: 0, y: 0 });
+            }}
+            className="px-3 py-1.5 rounded-lg text-xs border border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800/70 transition-colors"
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
       {/* Universe canvas */}
@@ -360,23 +542,76 @@ export default function FamilyConstellation({ people, households, relationships 
             transformOrigin: 'center center',
           }}
         >
-          {constellationLines.map((line, index) => (
-            <line
-              key={line.id}
-              x1={`${line.x1}%`}
-              y1={`${line.y1}%`}
-              x2={`${line.x2}%`}
-              y2={`${line.y2}%`}
-              stroke="rgba(251,191,36,0.4)"
-              strokeWidth="1.5"
-              style={{
-                filter: 'drop-shadow(0 0 4px rgba(251,191,36,0.5))',
-                strokeDasharray: '1000',
-                strokeDashoffset: '1000',
-                animation: `drawLine 0.8s ease forwards ${index * 0.08}s`,
-              }}
-            />
-          ))}
+          {constellationLines.map((line, index) => {
+            if (line.type === 'couple') {
+              // Gentle arc between couple
+              const midX = (line.x1 + line.x2) / 2;
+              const midY = (line.y1 + line.y2) / 2;
+              const dx = line.x2 - line.x1;
+              const dy = line.y2 - line.y1;
+              const controlX = midX - dy * 0.1;
+              const controlY = midY + dx * 0.1;
+
+              return (
+                <path
+                  key={line.id}
+                  d={`M ${line.x1} ${line.y1} Q ${controlX} ${controlY} ${line.x2} ${line.y2}`}
+                  stroke="rgba(251,191,36,0.5)"
+                  strokeWidth="2"
+                  fill="none"
+                  style={{
+                    filter: 'drop-shadow(0 0 6px rgba(251,191,36,0.6))',
+                    strokeDasharray: '1000',
+                    strokeDashoffset: '1000',
+                    animation: `drawLine 0.8s ease forwards ${index * 0.08}s`,
+                  }}
+                />
+              );
+            } else if (line.type === 'parent-hub' || line.type === 'hub-child') {
+              // Curved path through hub
+              const midX = (line.x1 + line.x2) / 2;
+              const midY = (line.y1 + line.y2) / 2;
+              const dx = line.x2 - line.x1;
+              const dy = line.y2 - line.y1;
+              const controlX = midX + dy * 0.15;
+              const controlY = midY - dx * 0.15;
+
+              return (
+                <path
+                  key={line.id}
+                  d={`M ${line.x1} ${line.y1} Q ${controlX} ${controlY} ${line.x2} ${line.y2}`}
+                  stroke="rgba(251,191,36,0.35)"
+                  strokeWidth="1.5"
+                  fill="none"
+                  style={{
+                    filter: 'drop-shadow(0 0 4px rgba(251,191,36,0.4))',
+                    strokeDasharray: '1000',
+                    strokeDashoffset: '1000',
+                    animation: `drawLine 0.8s ease forwards ${index * 0.08}s`,
+                  }}
+                />
+              );
+            } else {
+              // Regular lines for other connections
+              return (
+                <line
+                  key={line.id}
+                  x1={`${line.x1}%`}
+                  y1={`${line.y1}%`}
+                  x2={`${line.x2}%`}
+                  y2={`${line.y2}%`}
+                  stroke="rgba(251,191,36,0.3)"
+                  strokeWidth="1.5"
+                  style={{
+                    filter: 'drop-shadow(0 0 4px rgba(251,191,36,0.4))',
+                    strokeDasharray: '1000',
+                    strokeDashoffset: '1000',
+                    animation: `drawLine 0.8s ease forwards ${index * 0.08}s`,
+                  }}
+                />
+              );
+            }
+          })}
         </svg>
 
         {/* Family stars */}
@@ -423,9 +658,13 @@ export default function FamilyConstellation({ people, households, relationships 
                 className="relative transition-all duration-300"
                 style={{ width: finalSize, height: finalSize }}
               >
-                {/* Star core */}
+                {/* Star core with optional orbital motion */}
                 <div
-                  className="absolute inset-0 rounded-full transition-all duration-300"
+                  className={`absolute inset-0 rounded-full transition-all duration-300 ${
+                    isInCouple(person.id) ? 'binary-orbit' : ''
+                  } ${
+                    isInCouple(person.id) && getCouplePartnerId(person.id) > person.id ? 'reverse' : ''
+                  }`}
                   style={{
                     background: `radial-gradient(circle at 45% 40%, ${baseColor}, transparent 70%)`,
                     filter: `blur(${blur}px)`,
@@ -433,6 +672,7 @@ export default function FamilyConstellation({ people, households, relationships 
                     boxShadow: isSelected || isHovered
                       ? `0 0 ${finalSize * 2}px ${glowColor}, 0 0 ${finalSize * 3}px ${glowColor}40`
                       : `0 0 ${finalSize}px ${glowColor}30`,
+                    '--orbit-dur': `${16 + (person.id.charCodeAt(0) % 8)}s`,
                   }}
                 />
                 
