@@ -132,8 +132,33 @@ export default function FamilyConstellation({ people, households, relationships 
 
   // Get constellation lines for active selection
   const constellationLines = useMemo(() => {
-    if (!selectedConstellationId || selectedConstellationId === 'all') return [];
+    const lines = [];
 
+    // For "all" view, draw relationship-based lines across entire universe
+    if (!selectedConstellationId || selectedConstellationId === 'all') {
+      if (relationships && relationships.length > 0) {
+        relationships.forEach((rel) => {
+          const person1 = people.find(p => p.id === rel.person_id);
+          const person2 = people.find(p => p.id === rel.related_person_id);
+          
+          if (person1 && person2) {
+            const start = getStarPosition(person1);
+            const end = getStarPosition(person2);
+            lines.push({
+              id: `${rel.person_id}-${rel.related_person_id}`,
+              x1: start.x,
+              y1: start.y,
+              x2: end.x,
+              y2: end.y,
+              type: rel.relationship_type,
+            });
+          }
+        });
+      }
+      return lines;
+    }
+
+    // For specific constellation views
     let members = [];
     if (selectedConstellationId === 'ancestors') {
       members = ancestors;
@@ -143,10 +168,9 @@ export default function FamilyConstellation({ people, households, relationships 
       );
     }
 
-    if (members.length < 2) return [];
+    if (members.length < 2) return lines;
 
     const sorted = [...members].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    const lines = [];
 
     for (let i = 0; i < sorted.length - 1; i++) {
       const start = getStarPosition(sorted[i]);
@@ -161,7 +185,7 @@ export default function FamilyConstellation({ people, households, relationships 
     }
 
     return lines;
-  }, [selectedConstellationId, ancestors, people]);
+  }, [selectedConstellationId, ancestors, people, relationships]);
 
   const selectedPerson = useMemo(
     () => people.find(p => p.id === selectedPersonId) || null,
