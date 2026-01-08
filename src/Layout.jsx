@@ -48,6 +48,8 @@ export default function Layout({ children, currentPageName }) {
     { name: "Traditions", href: createPageUrl("Rituals"), icon: Flame },
     { name: "Moments", href: createPageUrl("Moments"), icon: Image },
     { name: "Love Notes", href: createPageUrl("LoveNotes"), icon: Heart },
+    { name: "Stories", href: createPageUrl("FamilyStories"), icon: Package },
+    { name: "Birthdays", href: createPageUrl("Birthdays"), icon: Calendar },
   ];
 
   const profileNav = user ? [

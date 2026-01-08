@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
-import { format, isAfter, isBefore, addDays } from "date-fns";
+import { format, isAfter, isBefore, addDays, differenceInYears } from "date-fns";
 import { 
   MapPin, 
   Calendar, 
@@ -12,9 +12,14 @@ import {
   Heart,
   ChevronRight,
   Star,
-  Plus
+  Plus,
+  Cake,
+  BookOpen,
+  Download,
+  Lightbulb
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export default function Home() {
@@ -59,6 +64,14 @@ export default function Home() {
     queryFn: () => base44.entities.FamilySettings.list(),
   });
 
+  const { data: stories = [] } = useQuery({
+    queryKey: ['stories'],
+    queryFn: () => base44.entities.FamilyStory.list('-created_date', 3),
+  });
+
+  const [aiInsight, setAiInsight] = useState(null);
+  const [loadingInsight, setLoadingInsight] = useState(false);
+
   useEffect(() => {
     if (user && people.length > 0) {
       const profile = people.find(p => p.linked_user_email === user.email);
@@ -77,6 +90,51 @@ export default function Home() {
   const getPersonName = (personId) => {
     const person = people.find(p => p.id === personId);
     return person?.name || "Someone";
+  };
+
+  // Calculate next birthday
+  const upcomingBirthdays = people
+    .filter(p => p.birth_date)
+    .map(person => {
+      const birthDate = new Date(person.birth_date);
+      const thisYear = today.getFullYear();
+      const nextBirthday = new Date(thisYear, birthDate.getMonth(), birthDate.getDate());
+      if (isBefore(nextBirthday, today)) {
+        nextBirthday.setFullYear(thisYear + 1);
+      }
+      const daysUntil = Math.ceil((nextBirthday - today) / (1000 * 60 * 60 * 24));
+      return { person, daysUntil, nextBirthday };
+    })
+    .filter(b => b.daysUntil >= 0 && b.daysUntil <= 14)
+    .sort((a, b) => a.daysUntil - b.daysUntil)
+    .slice(0, 3);
+
+  const loadAIInsight = async () => {
+    setLoadingInsight(true);
+    try {
+      const { data } = await base44.functions.invoke('getFamilyInsights');
+      setAiInsight(data.insight);
+    } catch (error) {
+      console.error('Failed to load AI insight:', error);
+    }
+    setLoadingInsight(false);
+  };
+
+  const handleExportData = async () => {
+    try {
+      const { data } = await base44.functions.invoke('exportFamilyData');
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `family-data-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (error) {
+      alert('Export failed: ' + error.message);
+    }
   };
 
   if (!user) {
@@ -149,6 +207,109 @@ export default function Home() {
           </div>
         ))}
       </div>
+
+      {/* AI Insight & Quick Actions */}
+      <div className="grid lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 glass-card rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center">
+                <Lightbulb className="w-5 h-5 text-purple-400" />
+              </div>
+              <h2 className="text-lg font-semibold text-slate-100">Family Insight</h2>
+            </div>
+            {!aiInsight && (
+              <Button 
+                onClick={loadAIInsight} 
+                disabled={loadingInsight}
+                size="sm"
+                variant="outline"
+                className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+              >
+                {loadingInsight ? "Thinking..." : "Generate"}
+              </Button>
+            )}
+          </div>
+          {aiInsight ? (
+            <p className="text-slate-300 leading-relaxed">{aiInsight}</p>
+          ) : (
+            <p className="text-slate-500 text-sm">Click "Generate" to get AI-powered insights about your family universe.</p>
+          )}
+        </div>
+
+        <div className="glass-card rounded-2xl p-6">
+          <h3 className="text-sm font-semibold text-slate-300 mb-4">Quick Actions</h3>
+          <div className="space-y-2">
+            <Button 
+              onClick={handleExportData}
+              variant="outline" 
+              className="w-full justify-start border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export Data
+            </Button>
+            <Link to={createPageUrl("Birthdays")} className="block">
+              <Button variant="outline" className="w-full justify-start border-slate-700 text-slate-300 hover:bg-slate-800">
+                <Cake className="w-4 h-4 mr-2" />
+                Birthdays
+              </Button>
+            </Link>
+            <Link to={createPageUrl("FamilyStories")} className="block">
+              <Button variant="outline" className="w-full justify-start border-slate-700 text-slate-300 hover:bg-slate-800">
+                <BookOpen className="w-4 h-4 mr-2" />
+                Stories
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Upcoming Birthdays */}
+      {upcomingBirthdays.length > 0 && (
+        <section className="glass-card rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center">
+                <Cake className="w-5 h-5 text-amber-400" />
+              </div>
+              <h2 className="text-lg font-semibold text-slate-100">Upcoming Birthdays</h2>
+            </div>
+            <Link to={createPageUrl("Birthdays")} className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center">
+              View all
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-3">
+            {upcomingBirthdays.map(({ person, daysUntil, nextBirthday }) => {
+              const age = differenceInYears(nextBirthday, new Date(person.birth_date));
+              return (
+                <div key={person.id} className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden">
+                      {person.photo_url ? (
+                        <img src={person.photo_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-sm font-medium text-slate-400">{person.name?.charAt(0)}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-slate-100 text-sm truncate">{person.name}</h3>
+                      <p className="text-xs text-slate-400">Turning {age}</p>
+                    </div>
+                  </div>
+                  <Badge className={
+                    daysUntil === 0 ? "bg-amber-500 text-white" :
+                    daysUntil <= 7 ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
+                    "bg-slate-700 text-slate-300"
+                  }>
+                    {daysUntil === 0 ? "Today!" : daysUntil === 1 ? "Tomorrow" : `In ${daysUntil} days`}
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Main Grid */}
       <div className="grid lg:grid-cols-2 gap-6">
@@ -249,47 +410,77 @@ export default function Home() {
         </section>
       </div>
 
-      {/* Recent Memories */}
-      {moments.length > 0 && (
-        <section className="glass-card rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center">
-                <Star className="w-5 h-5 text-purple-400" />
+      {/* Recent Memories & Stories */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        {moments.length > 0 && (
+          <section className="glass-card rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center">
+                  <Star className="w-5 h-5 text-purple-400" />
+                </div>
+                <h2 className="text-lg font-semibold text-slate-100">Recent Memories</h2>
               </div>
-              <h2 className="text-lg font-semibold bg-gradient-to-r from-purple-200 to-slate-100 bg-clip-text text-transparent">
-                Recent Memories
-              </h2>
+              <Link to={createPageUrl("Moments")} className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center">
+                View all
+                <ChevronRight className="w-4 h-4" />
+              </Link>
             </div>
-            <Link to={createPageUrl("Moments")} className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center">
-              View all
-              <ChevronRight className="w-4 h-4" />
-            </Link>
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {moments.slice(0, 5).map((moment) => (
-              <div 
-                key={moment.id}
-                className="aspect-square rounded-xl bg-slate-800/50 overflow-hidden relative group"
-              >
-                {moment.media_urls?.[0] ? (
-                  <img 
-                    src={moment.media_urls[0]} 
-                    alt="" 
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center p-3">
-                    <p className="text-slate-400 text-xs text-center line-clamp-4">{moment.content}</p>
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            
+            <div className="grid grid-cols-3 gap-3">
+              {moments.slice(0, 3).map((moment) => (
+                <div 
+                  key={moment.id}
+                  className="aspect-square rounded-xl bg-slate-800/50 overflow-hidden relative group"
+                >
+                  {moment.media_urls?.[0] ? (
+                    <img 
+                      src={moment.media_urls[0]} 
+                      alt="" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center p-2">
+                      <p className="text-slate-400 text-xs text-center line-clamp-3">{moment.content}</p>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {stories.length > 0 && (
+          <section className="glass-card rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                  <BookOpen className="w-5 h-5 text-blue-400" />
+                </div>
+                <h2 className="text-lg font-semibold text-slate-100">Family Stories</h2>
               </div>
-            ))}
-          </div>
-        </section>
-      )}
+              <Link to={createPageUrl("FamilyStories")} className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center">
+                View all
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+            
+            <div className="space-y-3">
+              {stories.map((story) => (
+                <Link
+                  key={story.id}
+                  to={createPageUrl("FamilyStories")}
+                  className="block p-3 rounded-xl bg-slate-800/40 hover:bg-slate-800/60 transition-colors border border-slate-700/50"
+                >
+                  <h3 className="font-medium text-slate-100 text-sm mb-1 line-clamp-1">{story.title}</h3>
+                  <p className="text-xs text-slate-400 line-clamp-2">{story.content}</p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   );
 }
