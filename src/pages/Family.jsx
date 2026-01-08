@@ -1,0 +1,413 @@
+import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { 
+  Users, 
+  Plus, 
+  Search,
+  Home as HomeIcon,
+  User,
+  Baby,
+  UserCheck,
+  Star,
+  MoreHorizontal,
+  Edit,
+  Trash2,
+  ChevronRight,
+  AlertCircle
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import PersonForm from "@/components/family/PersonForm";
+import HouseholdForm from "@/components/family/HouseholdForm";
+
+export default function Family() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showPersonForm, setShowPersonForm] = useState(false);
+  const [showHouseholdForm, setShowHouseholdForm] = useState(false);
+  const [editingPerson, setEditingPerson] = useState(null);
+  const [editingHousehold, setEditingHousehold] = useState(null);
+  const [selectedHousehold, setSelectedHousehold] = useState(null);
+  
+  const queryClient = useQueryClient();
+
+  const { data: people = [], isLoading: loadingPeople } = useQuery({
+    queryKey: ['people'],
+    queryFn: () => base44.entities.Person.list(),
+  });
+
+  const { data: households = [], isLoading: loadingHouseholds } = useQuery({
+    queryKey: ['households'],
+    queryFn: () => base44.entities.Household.list(),
+  });
+
+  const deletePerson = useMutation({
+    mutationFn: (id) => base44.entities.Person.delete(id),
+    onSuccess: () => queryClient.invalidateQueries(['people']),
+  });
+
+  const deleteHousehold = useMutation({
+    mutationFn: (id) => base44.entities.Household.delete(id),
+    onSuccess: () => queryClient.invalidateQueries(['households']),
+  });
+
+  const filteredPeople = people.filter(person => 
+    person.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    person.nickname?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getPeopleInHousehold = (householdId) => {
+    return filteredPeople.filter(p => p.household_id === householdId);
+  };
+
+  const getPeopleWithoutHousehold = () => {
+    return filteredPeople.filter(p => !p.household_id);
+  };
+
+  const getRoleIcon = (roleType) => {
+    switch(roleType) {
+      case 'adult': return User;
+      case 'teen': return UserCheck;
+      case 'child': return Baby;
+      case 'ancestor': return Star;
+      default: return User;
+    }
+  };
+
+  const getRoleBadgeColor = (roleType) => {
+    switch(roleType) {
+      case 'adult': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'teen': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+      case 'child': return 'bg-green-500/20 text-green-400 border-green-500/30';
+      case 'ancestor': return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+      default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+    }
+  };
+
+  const householdColors = [
+    'from-blue-500 to-cyan-500',
+    'from-purple-500 to-pink-500',
+    'from-amber-500 to-orange-500',
+    'from-green-500 to-emerald-500',
+    'from-rose-500 to-red-500',
+    'from-indigo-500 to-violet-500',
+  ];
+
+  const getHouseholdColor = (index) => {
+    return householdColors[index % householdColors.length];
+  };
+
+  if (loadingPeople || loadingHouseholds) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+            <Users className="w-6 h-6 text-amber-400" />
+            Family
+          </h1>
+          <p className="text-slate-500 mt-1">{people.length} members across {households.length} households</p>
+        </div>
+        
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => setShowHouseholdForm(true)}
+            variant="outline" 
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+          >
+            <HomeIcon className="w-4 h-4 mr-2" />
+            Add Household
+          </Button>
+          <Button 
+            onClick={() => setShowPersonForm(true)}
+            className="bg-amber-500 hover:bg-amber-600 text-slate-900"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Person
+          </Button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+        <Input
+          placeholder="Search family members..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10 bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500"
+        />
+      </div>
+
+      {/* Households */}
+      <div className="space-y-6">
+        {households.map((household, index) => {
+          const householdPeople = getPeopleInHousehold(household.id);
+          
+          return (
+            <div key={household.id} className="glass-card rounded-2xl overflow-hidden">
+              {/* Household Header */}
+              <div className={cn(
+                "p-4 bg-gradient-to-r",
+                getHouseholdColor(index)
+              )}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                      <HomeIcon className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-white">{household.name}</h2>
+                      <p className="text-sm text-white/70">{householdPeople.length} members</p>
+                    </div>
+                  </div>
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="text-white/80 hover:text-white hover:bg-white/20">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-slate-800 border-slate-700">
+                      <DropdownMenuItem 
+                        onClick={() => {
+                          setEditingHousehold(household);
+                          setShowHouseholdForm(true);
+                        }}
+                        className="text-slate-200 focus:bg-slate-700"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => deleteHousehold.mutate(household.id)}
+                        className="text-red-400 focus:bg-slate-700 focus:text-red-400"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+              
+              {/* Members */}
+              <div className="p-4">
+                {householdPeople.length > 0 ? (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {householdPeople.map((person) => {
+                      const RoleIcon = getRoleIcon(person.role_type);
+                      return (
+                        <div 
+                          key={person.id}
+                          className="p-4 rounded-xl bg-slate-800/50 hover:bg-slate-800 transition-colors border border-slate-700/50 cursor-pointer group"
+                          onClick={() => setEditingPerson(person)}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden">
+                              {person.photo_url ? (
+                                <img src={person.photo_url} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-lg font-medium text-slate-400">
+                                  {person.name?.charAt(0)}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-medium text-slate-100 truncate">{person.name}</h3>
+                                {person.is_deceased && (
+                                  <Star className="w-3 h-3 text-amber-400" />
+                                )}
+                              </div>
+                              {person.nickname && (
+                                <p className="text-sm text-slate-500">"{person.nickname}"</p>
+                              )}
+                              <Badge className={cn("mt-2 border", getRoleBadgeColor(person.role_type))}>
+                                <RoleIcon className="w-3 h-3 mr-1" />
+                                {person.role_type}
+                              </Badge>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-colors" />
+                          </div>
+                          
+                          {(person.allergies?.length > 0 || person.dietary_preferences?.length > 0) && (
+                            <div className="mt-3 flex flex-wrap gap-1">
+                              {person.allergies?.map((allergy, i) => (
+                                <Badge key={i} variant="outline" className="text-xs border-red-500/30 text-red-400">
+                                  <AlertCircle className="w-2.5 h-2.5 mr-1" />
+                                  {allergy}
+                                </Badge>
+                              ))}
+                              {person.dietary_preferences?.map((pref, i) => (
+                                <Badge key={i} variant="outline" className="text-xs border-slate-600 text-slate-400">
+                                  {pref}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-slate-500">
+                    <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p>No members in this household yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* People without household */}
+        {getPeopleWithoutHousehold().length > 0 && (
+          <div className="glass-card rounded-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-700/50">
+              <h2 className="text-lg font-semibold text-slate-100">Unassigned Members</h2>
+              <p className="text-sm text-slate-500">Not yet assigned to a household</p>
+            </div>
+            <div className="p-4">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {getPeopleWithoutHousehold().map((person) => {
+                  const RoleIcon = getRoleIcon(person.role_type);
+                  return (
+                    <div 
+                      key={person.id}
+                      className="p-4 rounded-xl bg-slate-800/50 hover:bg-slate-800 transition-colors border border-slate-700/50 cursor-pointer"
+                      onClick={() => setEditingPerson(person)}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center">
+                          <span className="text-lg font-medium text-slate-400">
+                            {person.name?.charAt(0)}
+                          </span>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-medium text-slate-100">{person.name}</h3>
+                          <Badge className={cn("mt-1 border", getRoleBadgeColor(person.role_type))}>
+                            <RoleIcon className="w-3 h-3 mr-1" />
+                            {person.role_type}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Empty State */}
+      {people.length === 0 && households.length === 0 && (
+        <div className="glass-card rounded-2xl p-12 text-center">
+          <Users className="w-16 h-16 text-slate-700 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-slate-200 mb-2">Start Building Your Family</h2>
+          <p className="text-slate-500 mb-6 max-w-md mx-auto">
+            Add households and family members to begin creating your family universe.
+          </p>
+          <div className="flex justify-center gap-3">
+            <Button 
+              onClick={() => setShowHouseholdForm(true)}
+              variant="outline"
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              <HomeIcon className="w-4 h-4 mr-2" />
+              Create Household
+            </Button>
+            <Button 
+              onClick={() => setShowPersonForm(true)}
+              className="bg-amber-500 hover:bg-amber-600 text-slate-900"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Person
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Person Form Dialog */}
+      <Dialog open={showPersonForm || !!editingPerson} onOpenChange={(open) => {
+        if (!open) {
+          setShowPersonForm(false);
+          setEditingPerson(null);
+        }
+      }}>
+        <DialogContent className="bg-slate-900 border-slate-700 max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-slate-100">
+              {editingPerson ? 'Edit Person' : 'Add New Person'}
+            </DialogTitle>
+          </DialogHeader>
+          <PersonForm 
+            person={editingPerson}
+            households={households}
+            people={people}
+            onSuccess={() => {
+              setShowPersonForm(false);
+              setEditingPerson(null);
+              queryClient.invalidateQueries(['people']);
+            }}
+            onCancel={() => {
+              setShowPersonForm(false);
+              setEditingPerson(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Household Form Dialog */}
+      <Dialog open={showHouseholdForm || !!editingHousehold} onOpenChange={(open) => {
+        if (!open) {
+          setShowHouseholdForm(false);
+          setEditingHousehold(null);
+        }
+      }}>
+        <DialogContent className="bg-slate-900 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-slate-100">
+              {editingHousehold ? 'Edit Household' : 'Add New Household'}
+            </DialogTitle>
+          </DialogHeader>
+          <HouseholdForm 
+            household={editingHousehold}
+            onSuccess={() => {
+              setShowHouseholdForm(false);
+              setEditingHousehold(null);
+              queryClient.invalidateQueries(['households']);
+            }}
+            onCancel={() => {
+              setShowHouseholdForm(false);
+              setEditingHousehold(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
