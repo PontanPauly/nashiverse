@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import PersonForm from "@/components/family/PersonForm";
 import HouseholdForm from "@/components/family/HouseholdForm";
 import FamilyConstellation from "@/components/family/FamilyConstellation";
+import LineageView from "@/components/family/LineageView";
 
 export default function Family() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -44,7 +45,7 @@ export default function Family() {
   const [editingPerson, setEditingPerson] = useState(null);
   const [editingHousehold, setEditingHousehold] = useState(null);
   const [selectedHousehold, setSelectedHousehold] = useState(null);
-  const [viewMode, setViewMode] = useState('constellation'); // 'list' or 'constellation'
+  const [viewMode, setViewMode] = useState('constellation'); // 'list', 'constellation', or 'connections'
   
   const queryClient = useQueryClient();
 
@@ -152,8 +153,15 @@ export default function Family() {
                 onClick={() => setViewMode('list')}
                 className="bg-slate-700/90 hover:bg-slate-600 text-white border border-slate-500 backdrop-blur-md"
               >
-                <Network className="w-4 h-4 mr-2" />
+                <Users className="w-4 h-4 mr-2" />
                 List View
+              </Button>
+              <Button 
+                onClick={() => setViewMode('connections')}
+                className="bg-slate-700/90 hover:bg-slate-600 text-white border border-slate-500 backdrop-blur-md"
+              >
+                <Network className="w-4 h-4 mr-2" />
+                Connections
               </Button>
               <Button 
                 onClick={() => setShowHouseholdForm(true)}
@@ -172,6 +180,43 @@ export default function Family() {
             </div>
           </div>
         </div>
+      ) : viewMode === 'connections' ? (
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+                <Network className="w-6 h-6 text-amber-400" />
+                Family Connections
+              </h1>
+              <p className="text-slate-500 mt-1">Lineage and relationships across generations</p>
+            </div>
+
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => setViewMode('constellation')}
+                className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
+              >
+                <Star className="w-4 h-4 mr-2" />
+                Universe View
+              </Button>
+              <Button 
+                onClick={() => setViewMode('list')}
+                className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                List View
+              </Button>
+            </div>
+          </div>
+
+          {/* Lineage Tree */}
+          <LineageView 
+            people={people}
+            relationships={relationships}
+            onPersonClick={(person) => setEditingPerson(person)}
+          />
+        </div>
       ) : (
         <div className="max-w-6xl mx-auto space-y-6">
           {/* Header */}
@@ -189,8 +234,15 @@ export default function Family() {
                 onClick={() => setViewMode('constellation')}
                 className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
               >
+                <Star className="w-4 h-4 mr-2" />
+                Universe View
+              </Button>
+              <Button 
+                onClick={() => setViewMode('connections')}
+                className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
+              >
                 <Network className="w-4 h-4 mr-2" />
-                Constellation View
+                Connections
               </Button>
               <Button 
                 onClick={() => setShowHouseholdForm(true)}
@@ -278,6 +330,20 @@ export default function Family() {
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {householdPeople.map((person) => {
                       const RoleIcon = getRoleIcon(person.role_type);
+
+                      // Get relationship summary
+                      const personParents = relationships.filter(r => 
+                        r.relationship_type === 'parent' && r.related_person_id === person.id
+                      ).map(r => people.find(p => p.id === r.person_id)?.name).filter(Boolean);
+
+                      const personPartner = relationships.find(r => 
+                        r.relationship_type === 'partner' && 
+                        (r.person_id === person.id || r.related_person_id === person.id)
+                      );
+                      const partnerName = personPartner ? 
+                        people.find(p => p.id === (personPartner.person_id === person.id ? personPartner.related_person_id : personPartner.person_id))?.name 
+                        : null;
+
                       return (
                         <div 
                           key={person.id}
@@ -308,6 +374,18 @@ export default function Family() {
                                 <RoleIcon className="w-3 h-3 mr-1" />
                                 {person.role_type}
                               </Badge>
+
+                              {/* Relationship summary */}
+                              {(personParents.length > 0 || partnerName) && (
+                                <div className="mt-2 text-xs text-slate-500 space-y-0.5">
+                                  {personParents.length > 0 && (
+                                    <div>Parents: {personParents.join(", ")}</div>
+                                  )}
+                                  {partnerName && (
+                                    <div>Partner: {partnerName}</div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-colors" />
                           </div>

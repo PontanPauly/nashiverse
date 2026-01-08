@@ -49,6 +49,37 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
   const [uploading, setUploading] = useState(false);
   const [showStarCustomizer, setShowStarCustomizer] = useState(false);
 
+  // Relationship state
+  const [parentIds, setParentIds] = useState([]);
+  const [partnerId, setPartnerId] = useState("");
+  const [childrenIds, setChildrenIds] = useState([]);
+  const [relationships, setRelationships] = useState([]);
+
+  // Load relationships when editing
+  React.useEffect(() => {
+    if (person?.id) {
+      loadRelationships();
+    }
+  }, [person?.id]);
+
+  const loadRelationships = async () => {
+    const rels = await base44.entities.Relationship.filter({ person_id: person.id });
+    const rels2 = await base44.entities.Relationship.filter({ related_person_id: person.id });
+    setRelationships([...rels, ...rels2]);
+
+    // Extract parents (where person is child)
+    const parents = rels2.filter(r => r.relationship_type === 'parent').map(r => r.person_id);
+    setParentIds(parents);
+
+    // Extract partner
+    const partner = rels.find(r => r.relationship_type === 'partner');
+    if (partner) setPartnerId(partner.related_person_id);
+
+    // Extract children (where person is parent)
+    const children = rels.filter(r => r.relationship_type === 'parent').map(r => r.related_person_id);
+    setChildrenIds(children);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -58,14 +89,88 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
       birth_year: formData.birth_year ? Number(formData.birth_year) : null,
     };
 
+    let personId = person?.id;
     if (person?.id) {
       await base44.entities.Person.update(person.id, dataToSave);
     } else {
-      await base44.entities.Person.create(dataToSave);
+      const newPerson = await base44.entities.Person.create(dataToSave);
+      personId = newPerson.id;
+    }
+
+    // Save relationships
+    if (personId) {
+      await saveRelationships(personId);
     }
 
     setLoading(false);
     onSuccess();
+  };
+
+  const saveRelationships = async (personId) => {
+    // Get existing relationships
+    const existing = await base44.entities.Relationship.filter({ person_id: personId });
+    const existing2 = await base44.entities.Relationship.filter({ related_person_id: personId });
+    const allExisting = [...existing, ...existing2];
+
+    // Handle parents - create parent->child relationships
+    const existingParents = allExisting.filter(r => r.relationship_type === 'parent' && r.related_person_id === personId);
+    const existingParentIds = existingParents.map(r => r.person_id);
+
+    // Remove old parents
+    for (const parentId of existingParentIds) {
+      if (!parentIds.includes(parentId)) {
+        const rel = existingParents.find(r => r.person_id === parentId);
+        if (rel) await base44.entities.Relationship.delete(rel.id);
+      }
+    }
+
+    // Add new parents
+    for (const parentId of parentIds) {
+      if (!existingParentIds.includes(parentId)) {
+        await base44.entities.Relationship.create({
+          person_id: parentId,
+          related_person_id: personId,
+          relationship_type: 'parent'
+        });
+      }
+    }
+
+    // Handle partner
+    const existingPartner = allExisting.find(r => r.relationship_type === 'partner' && 
+      (r.person_id === personId || r.related_person_id === personId));
+
+    if (existingPartner && !partnerId) {
+      await base44.entities.Relationship.delete(existingPartner.id);
+    } else if (partnerId && (!existingPartner || 
+      (existingPartner.person_id !== partnerId && existingPartner.related_person_id !== partnerId))) {
+      if (existingPartner) await base44.entities.Relationship.delete(existingPartner.id);
+      await base44.entities.Relationship.create({
+        person_id: personId,
+        related_person_id: partnerId,
+        relationship_type: 'partner'
+      });
+    }
+  };
+
+  const addParent = (parentId) => {
+    if (!parentIds.includes(parentId) && parentId !== person?.id) {
+      setParentIds([...parentIds, parentId]);
+    }
+  };
+
+  const removeParent = (parentId) => {
+    setParentIds(parentIds.filter(id => id !== parentId));
+  };
+
+  const addChild = async (childId) => {
+    if (person?.id && childId !== person.id) {
+      await base44.entities.Relationship.create({
+        person_id: person.id,
+        related_person_id: childId,
+        relationship_type: 'parent'
+      });
+      await loadRelationships();
+    }
   };
 
   const handlePhotoUpload = async (e) => {
@@ -357,6 +462,96 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
           placeholder="A few words about this person..."
           rows={3}
         />
+      </div>
+
+      {/* Family Links */}
+      <div className="space-y-4 pt-4 border-t border-slate-700">
+        <Label className="text-slate-300 text-base font-semibold">Family Links</Label>
+
+        {/* Parents */}
+        <div className="space-y-2">
+          <Label className="text-slate-300">Parents</Label>
+          <Select value="" onValueChange={addParent}>
+            <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-100">
+              <SelectValue placeholder="Add parent" />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-800 border-slate-700">
+              {people.filter(p => p.role_type === 'adult' && p.id !== person?.id && !parentIds.includes(p.id)).map(p => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex flex-wrap gap-2">
+            {parentIds.map(pId => {
+              const parent = people.find(p => p.id === pId);
+              return (
+                <Badge key={pId} className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                  {parent?.name || pId}
+                  <button type="button" onClick={() => removeParent(pId)} className="ml-1">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Partner */}
+        {formData.role_type === 'adult' && (
+          <div className="space-y-2">
+            <Label className="text-slate-300">Partner</Label>
+            <Select value={partnerId || "none"} onValueChange={(val) => setPartnerId(val === "none" ? "" : val)}>
+              <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-100">
+                <SelectValue placeholder="Select partner" />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-700">
+                <SelectItem value="none">No partner</SelectItem>
+                {people.filter(p => p.role_type === 'adult' && p.id !== person?.id).map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Children */}
+        {(formData.role_type === 'adult' && person?.id) && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-slate-300">Children</Label>
+              {childrenIds.length > 0 && (
+                <Select value="" onValueChange={addChild}>
+                  <SelectTrigger className="w-32 h-8 text-xs bg-slate-800 border-slate-700 text-slate-100">
+                    <SelectValue placeholder="Add child" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700">
+                    {people.filter(p => 
+                      (p.role_type === 'child' || p.role_type === 'teen') && 
+                      p.id !== person.id && 
+                      !childrenIds.includes(p.id)
+                    ).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            {childrenIds.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {childrenIds.map(cId => {
+                  const child = people.find(p => p.id === cId);
+                  return (
+                    <Badge key={cId} className="bg-green-500/20 text-green-400 border-green-500/30">
+                      {child?.name || cId}
+                    </Badge>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">No children linked yet</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Star Customization */}
