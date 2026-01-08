@@ -3,8 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Calendar, 
-  Plus, 
-  Calendar,
+  Plus,
   Users,
   RotateCcw,
   Edit,
@@ -113,7 +112,7 @@ export default function Rituals() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-amber-400" />
+            <Calendar className="w-6 h-6 text-amber-400" />
             Rituals & Traditions
           </h1>
           <p className="text-slate-500 mt-1">The practices that make your family unique</p>
@@ -150,7 +149,7 @@ export default function Rituals() {
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <Sparkles className="w-16 h-16 text-purple-500/30" />
+                      <Calendar className="w-16 h-16 text-purple-500/30" />
                     </div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 to-transparent" />
