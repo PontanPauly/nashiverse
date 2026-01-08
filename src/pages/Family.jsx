@@ -375,7 +375,7 @@ export default function Family() {
         </div>
       )}
 
-      {/* Person Form Dialog */}
+      {/* Person Form Dialog - Only admins can edit */}
       <Dialog open={showPersonForm || !!editingPerson} onOpenChange={(open) => {
         if (!open) {
           setShowPersonForm(false);
@@ -385,7 +385,7 @@ export default function Family() {
         <DialogContent className="bg-slate-900 border-slate-700 max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-slate-100">
-              {editingPerson ? 'Edit Person' : 'Add New Person'}
+              {editingPerson ? 'View Person' : 'Add New Person'}
             </DialogTitle>
           </DialogHeader>
           <PersonForm 
