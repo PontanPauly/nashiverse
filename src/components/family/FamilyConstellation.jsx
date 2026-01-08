@@ -524,47 +524,87 @@ const PersonNode = ({ data, selected }) => {
       onMouseLeave={() => setIsHovered(false)}
       style={{ width: size * 8, height: size * 8 }}
     >
-      {/* Outer halo with chromatic aberration */}
-      <motion.div 
-        className="absolute rounded-full"
-        style={{ 
-          width: size * 12 * intensity,
-          height: size * 12 * intensity,
-          left: size * (4 - 1.5 * intensity),
-          top: size * (4 - 1.5 * intensity),
-          background: `radial-gradient(circle, ${colors.glow}20 0%, ${colors.tertiary}15 40%, transparent 70%)`,
-          filter: 'blur(20px)',
-        }}
-        animate={{ 
-          opacity: [0.2, 0.5, 0.2],
-          scale: [0.95, 1.15, 0.95]
-        }}
-        transition={{ duration: twinkleDuration * 1.5, repeat: Infinity, delay: pulseDelay }}
-      />
+      {/* Atmospheric water-like refraction layers */}
+      {[...Array(6)].map((_, i) => (
+        <motion.div 
+          key={`refract-${i}`}
+          className="absolute rounded-full"
+          style={{ 
+            width: size * (10 - i * 1) * intensity,
+            height: size * (10 - i * 1) * intensity,
+            left: size * (4 - (5 - i * 0.5) * intensity),
+            top: size * (4 - (5 - i * 0.5) * intensity),
+            background: `radial-gradient(circle at ${40 + i * 5}% ${45 + i * 3}%, 
+              ${colors.glow}${Math.floor((40 - i * 5)).toString(16).padStart(2, '0')} 0%, 
+              ${colors.tertiary}${Math.floor((30 - i * 4)).toString(16).padStart(2, '0')} 50%, 
+              transparent 100%)`,
+            filter: `blur(${15 + i * 3}px)`,
+            transform: `rotate(${i * 15}deg)`,
+          }}
+          animate={{ 
+            opacity: [0.15 + i * 0.05, 0.35 + i * 0.05, 0.15 + i * 0.05],
+            scale: [0.9 + i * 0.02, 1.1 - i * 0.02, 0.9 + i * 0.02],
+            rotate: [`${i * 15}deg`, `${i * 15 + 10}deg`, `${i * 15}deg`],
+            x: [0, (Math.sin(i) * 3), 0],
+            y: [0, (Math.cos(i) * 3), 0],
+          }}
+          transition={{ 
+            duration: twinkleDuration * (1.5 + i * 0.3), 
+            repeat: Infinity, 
+            delay: pulseDelay + i * 0.15,
+            ease: [0.45, 0.05, 0.55, 0.95]
+          }}
+        />
+      ))}
       
-      {/* Secondary glow ring */}
-      <motion.div 
-        className="absolute rounded-full"
-        style={{ 
-          width: size * 9 * intensity,
-          height: size * 9 * intensity,
-          left: size * (4 - 1.125 * intensity),
-          top: size * (4 - 1.125 * intensity),
-          background: `radial-gradient(circle, ${colors.secondary}40 0%, ${colors.tertiary}30 50%, transparent 75%)`,
-          filter: 'blur(12px)',
-          boxShadow: `0 0 ${size * 3}px ${colors.glow}30`,
-        }}
-        animate={{ 
-          opacity: [0.4, 0.8, 0.4],
-          scale: [0.9, 1.1, 0.9]
-        }}
-        transition={{ duration: twinkleDuration, repeat: Infinity, delay: pulseDelay + 0.2 }}
-      />
+      {/* Water-like caustic patterns */}
+      {[...Array(4)].map((_, i) => (
+        <motion.div
+          key={`caustic-${i}`}
+          className="absolute"
+          style={{
+            width: size * 7,
+            height: size * 7,
+            left: size * 0.5,
+            top: size * 0.5,
+            borderRadius: '50%',
+            background: `conic-gradient(from ${i * 90}deg at ${50 + i * 5}% ${50 - i * 3}%, 
+              transparent 0deg,
+              ${colors.secondary}15 30deg,
+              transparent 60deg,
+              ${colors.primary}20 90deg,
+              transparent 120deg)`,
+            filter: 'blur(8px)',
+            mixBlendMode: 'screen',
+          }}
+          animate={{
+            rotate: [i * 90, i * 90 + 360],
+            opacity: [0.3, 0.6, 0.3],
+            scale: [0.95, 1.08, 0.95],
+          }}
+          transition={{
+            rotate: { duration: 20 + i * 5, repeat: Infinity, ease: "linear" },
+            opacity: { duration: twinkleDuration, repeat: Infinity, delay: i * 0.25 },
+            scale: { duration: twinkleDuration * 1.2, repeat: Infinity, delay: i * 0.2 }
+          }}
+        />
+      ))}
       
-      {/* Pattern layer */}
-      {renderStarPattern()}
+      {/* Pattern layer with water distortion */}
+      <motion.div
+        animate={{
+          filter: [
+            `blur(0px) hue-rotate(0deg)`,
+            `blur(0.5px) hue-rotate(5deg)`,
+            `blur(0px) hue-rotate(0deg)`
+          ]
+        }}
+        transition={{ duration: twinkleDuration, repeat: Infinity }}
+      >
+        {renderStarPattern()}
+      </motion.div>
       
-      {/* Inner luminosity */}
+      {/* Phasing inner light - like light through water */}
       <motion.div 
         className="absolute rounded-full"
         style={{ 
@@ -572,67 +612,83 @@ const PersonNode = ({ data, selected }) => {
           height: size * 6,
           left: size,
           top: size,
-          background: `radial-gradient(circle, 
+          background: `radial-gradient(ellipse at ${45 + Math.sin(pulseDelay) * 10}% ${50 + Math.cos(pulseDelay) * 10}%, 
             white 0%,
-            ${colors.primary} 20%,
-            ${colors.secondary} 50%,
-            ${colors.tertiary}60 75%,
+            ${colors.primary}80 25%,
+            ${colors.secondary}60 55%,
+            ${colors.tertiary}40 80%,
             transparent 100%)`,
-          filter: 'blur(6px)',
-          boxShadow: `0 0 ${size * 4}px ${colors.glow}, inset 0 0 ${size * 2}px white`,
+          filter: 'blur(5px)',
         }}
         animate={{ 
-          opacity: [0.6, 1, 0.6],
-          scale: [0.95, 1.05, 0.95]
+          opacity: [0.5, 0.9, 0.5],
+          scale: [0.92, 1.12, 0.92],
+          x: [0, Math.sin(pulseDelay) * 2, 0],
+          y: [0, Math.cos(pulseDelay) * 2, 0],
         }}
-        transition={{ duration: twinkleDuration * 0.8, repeat: Infinity, delay: pulseDelay + 0.1 }}
+        transition={{ 
+          duration: twinkleDuration * 0.7, 
+          repeat: Infinity, 
+          delay: pulseDelay,
+          ease: [0.43, 0.13, 0.23, 0.96]
+        }}
       />
       
-      {/* Core brilliance */}
+      {/* Bright core with shimmer */}
       <motion.div 
         className="absolute rounded-full"
         style={{ 
-          width: size * 3.5 * intensity,
-          height: size * 3.5 * intensity,
-          left: size * (4 - 0.875 * intensity),
-          top: size * (4 - 0.875 * intensity),
-          background: `radial-gradient(circle, 
+          width: size * 4 * intensity,
+          height: size * 4 * intensity,
+          left: size * (4 - intensity),
+          top: size * (4 - intensity),
+          background: `radial-gradient(circle at 45% 45%, 
             white 0%,
-            white 20%,
-            ${colors.primary} 50%,
-            ${colors.secondary} 80%,
+            ${colors.primary}dd 30%,
+            ${colors.secondary}aa 60%,
             transparent 100%)`,
-          filter: 'blur(3px)',
-          boxShadow: `0 0 ${size * 5 * intensity}px ${colors.primary}, 0 0 ${size * 3 * intensity}px white`,
+          filter: 'blur(2px)',
+          boxShadow: `0 0 ${size * 6 * intensity}px ${colors.primary}cc, 
+                      0 0 ${size * 3 * intensity}px white`,
         }}
         animate={{ 
-          opacity: [0.95, 1, 0.95],
-          scale: isHovered ? [1.4, 1.6, 1.4] : [1, 1.15, 1]
+          opacity: [0.85, 1, 0.85],
+          scale: isHovered ? [1.3, 1.55, 1.3] : [0.98, 1.18, 0.98],
+          rotate: [0, 360],
         }}
-        transition={{ duration: twinkleDuration * 0.5, repeat: Infinity, delay: pulseDelay + 0.3 }}
+        transition={{ 
+          opacity: { duration: twinkleDuration * 0.4, repeat: Infinity, delay: pulseDelay + 0.2 },
+          scale: { duration: twinkleDuration * 0.5, repeat: Infinity, delay: pulseDelay + 0.1 },
+          rotate: { duration: 40, repeat: Infinity, ease: "linear" }
+        }}
       />
 
-      {/* Central white point */}
+      {/* Brilliant white center point with flicker */}
       <motion.div 
         className="absolute rounded-full"
         style={{ 
-          width: size * 1.5,
-          height: size * 1.5,
-          left: size * 3.25,
-          top: size * 3.25,
-          background: 'white',
-          filter: 'blur(0.5px)',
-          boxShadow: `0 0 ${size * 4}px white, 0 0 ${size * 2}px ${colors.primary}`,
+          width: size * 1.8,
+          height: size * 1.8,
+          left: size * 3.1,
+          top: size * 3.1,
+          background: 'radial-gradient(circle, white, white 40%, transparent)',
+          filter: 'blur(0.3px)',
+          boxShadow: `0 0 ${size * 6}px white, 0 0 ${size * 3}px ${colors.primary}, 0 0 ${size}px ${colors.glow}`,
         }}
         animate={{ 
-          opacity: [0.95, 1, 0.95],
-          scale: isHovered ? [1.5, 2, 1.5] : [1, 1.3, 1]
+          opacity: [0.9, 1, 0.95, 1, 0.9],
+          scale: isHovered ? [1.4, 2.2, 1.8, 2.2, 1.4] : [1, 1.4, 1.2, 1.4, 1],
         }}
-        transition={{ duration: twinkleDuration * 0.3, repeat: Infinity, delay: pulseDelay + 0.4 }}
+        transition={{ 
+          duration: twinkleDuration * 0.25, 
+          repeat: Infinity, 
+          delay: pulseDelay + 0.3,
+          ease: "easeInOut"
+        }}
       />
 
       {data.is_deceased && (
-        <div className="absolute inset-0 rounded-full backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.65)' }} />
+        <div className="absolute inset-0 rounded-full backdrop-blur-sm" style={{ background: 'rgba(0,0,0,0.7)' }} />
       )}
 
       <AnimatePresence>
