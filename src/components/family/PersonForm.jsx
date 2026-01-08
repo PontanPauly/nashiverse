@@ -11,9 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, AlertCircle, Upload } from "lucide-react";
+import { X, Plus, AlertCircle, Upload, Sparkles } from "lucide-react";
+import StarCustomizer from "./StarCustomizer";
 
 export default function PersonForm({ person, households, people, onSuccess, onCancel }) {
   const [formData, setFormData] = useState({
@@ -31,12 +38,16 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
     dietary_preferences: person?.dietary_preferences || [],
     medical_notes: person?.medical_notes || "",
     about: person?.about || "",
+    star_pattern: person?.star_pattern || "classic",
+    star_intensity: person?.star_intensity || 5,
+    star_flare_count: person?.star_flare_count || 8,
   });
   
   const [newAllergy, setNewAllergy] = useState("");
   const [newDietPref, setNewDietPref] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showStarCustomizer, setShowStarCustomizer] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -346,6 +357,24 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
           placeholder="A few words about this person..."
           rows={3}
         />
+      </div>
+
+      {/* Star Customization */}
+      <div className="space-y-2 pt-4 border-t border-slate-700">
+        <Label className="text-slate-300">Constellation Appearance</Label>
+        <Button
+          type="button"
+          onClick={() => setShowStarCustomizer(true)}
+          className="w-full bg-slate-700 hover:bg-slate-600 text-white border border-amber-500/30"
+        >
+          <Sparkles className="w-4 h-4 mr-2" />
+          Customize Star
+        </Button>
+        {formData.star_pattern && (
+          <p className="text-xs text-slate-500 text-center">
+            Pattern: {formData.star_pattern} • Brightness: {formData.star_intensity || 5}/10
+          </p>
+        )}
       </div>
 
       {/* Actions */}
