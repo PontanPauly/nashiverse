@@ -128,10 +128,10 @@ export default function Family() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <>
       {/* Constellation View - Full Background */}
       {viewMode === 'constellation' ? (
-        <div className="fixed inset-0 z-0 -m-8 lg:-m-12">
+        <div className="fixed inset-0 z-0">
           <FamilyConstellation 
             people={people}
             households={households}
@@ -410,7 +410,7 @@ export default function Family() {
         </div>
       )}
 
-            {/* Person Form Dialog - Only admins can edit */}
+      {/* Person Form Dialog - Only admins can edit */}
       <Dialog open={showPersonForm || !!editingPerson} onOpenChange={(open) => {
         if (!open) {
           setShowPersonForm(false);
@@ -467,6 +467,6 @@ export default function Family() {
           />
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
