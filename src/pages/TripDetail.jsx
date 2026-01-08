@@ -22,7 +22,8 @@ import {
   AlertCircle,
   MoreHorizontal,
   DollarSign,
-  Package
+  Package,
+  MessageCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,7 @@ import ActivityManager from "@/components/trips/ActivityManager.jsx";
 import BudgetManager from "@/components/trips/BudgetManager.jsx";
 import SharedItemsManager from "@/components/trips/SharedItemsManager.jsx";
 import MyPackingList from "@/components/trips/MyPackingList.jsx";
+import TripComments from "@/components/trips/TripComments.jsx";
 
 export default function TripDetail() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -256,6 +258,10 @@ export default function TripDetail() {
             <Package className="w-4 h-4 mr-1" />
             Shared Items
           </TabsTrigger>
+          <TabsTrigger value="comments" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
+            <MessageCircle className="w-4 h-4 mr-1" />
+            Comments
+          </TabsTrigger>
           {isAttending && (
             <TabsTrigger value="packing" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
               <Package className="w-4 h-4 mr-1" />
@@ -365,23 +371,32 @@ export default function TripDetail() {
         </TabsContent>
 
         {/* Shared Items Tab */}
-        <TabsContent value="shared">
-          <SharedItemsManager 
-            tripId={tripId}
-            people={getAttendingPeople()}
-          />
-        </TabsContent>
+         <TabsContent value="shared">
+           <SharedItemsManager 
+             tripId={tripId}
+             people={getAttendingPeople()}
+           />
+         </TabsContent>
 
-        {/* My Packing Tab */}
-        {isAttending && (
-          <TabsContent value="packing">
-            <MyPackingList 
-              tripId={tripId}
-              myPerson={myPerson}
-              allPeople={people}
-            />
-          </TabsContent>
-        )}
+         {/* Comments Tab */}
+         <TabsContent value="comments">
+           <TripComments 
+             tripId={tripId}
+             currentUser={user}
+             people={people}
+           />
+         </TabsContent>
+
+         {/* My Packing Tab */}
+         {isAttending && (
+           <TabsContent value="packing">
+             <MyPackingList 
+               tripId={tripId}
+               myPerson={myPerson}
+               allPeople={people}
+             />
+           </TabsContent>
+         )}
       </Tabs>
 
       {/* Edit Trip Dialog */}
