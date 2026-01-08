@@ -47,6 +47,7 @@ import RoomManager from "@/components/trips/RoomManager.jsx";
 import ActivityManager from "@/components/trips/ActivityManager.jsx";
 import BudgetManager from "@/components/trips/BudgetManager.jsx";
 import SharedItemsManager from "@/components/trips/SharedItemsManager.jsx";
+import MyPackingList from "@/components/trips/MyPackingList.jsx";
 
 export default function TripDetail() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -245,6 +246,12 @@ export default function TripDetail() {
             <Package className="w-4 h-4 mr-1" />
             Shared Items
           </TabsTrigger>
+          {isAttending && (
+            <TabsTrigger value="packing" className="data-[state=active]:bg-amber-500 data-[state=active]:text-slate-900">
+              <Package className="w-4 h-4 mr-1" />
+              My Packing
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Overview Tab */}
@@ -354,6 +361,17 @@ export default function TripDetail() {
             people={getAttendingPeople()}
           />
         </TabsContent>
+
+        {/* My Packing Tab */}
+        {isAttending && (
+          <TabsContent value="packing">
+            <MyPackingList 
+              tripId={tripId}
+              myPerson={myPerson}
+              allPeople={people}
+            />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Edit Trip Dialog */}
