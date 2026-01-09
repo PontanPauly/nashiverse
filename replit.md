@@ -94,3 +94,10 @@ Key tables:
   - Reduced shader complexity (ray steps/octaves) to prevent WebGL context loss
   - Unified galaxy and household view backdrops for visual consistency
   - Smooth camera fly-through animation when clicking household nebulas (zooms to actual position)
+- **Focus/Blur State Management** (Jan 2026):
+  - CameraController uses consistent 1.6s easeInOutCubic for both zoom-in and zoom-out transitions
+  - Added `effectiveFocusProgress` that computes 0→1 for zoom-in, 1→0 for zoom-out, and static values for idle state
+  - Added `effectiveFocusedId` that preserves focus target during zoom-out transition for smooth fade restoration
+  - CameraController fires `onProgressUpdate(1, 'idle')` when animation completes to properly reset state
+  - Households now smoothly fade during zoom-in and fully restore brightness during zoom-out
+  - Enlarged hitbox (12x scale) for easier household hover detection

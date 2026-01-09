@@ -967,12 +967,10 @@ function CameraController({
     if (isAnimating.current) {
       elapsedTime.current += delta;
       
-      const duration = animationPhase.current === 'zoom-in' ? 1.6 : 1.2;
+      const duration = 1.6;
       const progress = Math.min(elapsedTime.current / duration, 1);
       
-      const eased = animationPhase.current === 'zoom-in' 
-        ? easeInOutCubic(progress) 
-        : easeOutQuart(progress);
+      const eased = easeInOutCubic(progress);
       
       onProgressUpdate?.(eased, animationPhase.current);
       
@@ -992,6 +990,8 @@ function CameraController({
       if (progress >= 1) {
         isAnimating.current = false;
         gl.setPixelRatio(originalDpr.current);
+        
+        onProgressUpdate?.(1, 'idle');
         animationPhase.current = 'idle';
         
         camera.position.copy(targetCamPos.current);
@@ -1120,7 +1120,7 @@ function TransitionController({
   onProgress 
 }) {
   const startTime = useRef(null);
-  const duration = transitionDirection === 'zoom-in' ? 1.4 : 1.2;
+  const duration = 1.6;
   
   useFrame((state) => {
     if (!isTransitioning) {
@@ -1134,9 +1134,9 @@ function TransitionController({
     
     const elapsed = state.clock.elapsedTime - startTime.current;
     const progress = Math.min(elapsed / duration, 1);
-    const eased = transitionDirection === 'zoom-in'
-      ? (progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2)
-      : 1 - Math.pow(1 - progress, 4);
+    const eased = progress < 0.5 
+      ? 4 * progress * progress * progress 
+      : 1 - Math.pow(-2 * progress + 2, 3) / 2;
     
     onProgress(eased, progress >= 1);
   });
@@ -1252,8 +1252,10 @@ function AnimatedHouseholdGroup({
   const { camera } = useThree();
   const currentState = useRef({
     offsetX: 0, offsetY: 0, offsetZ: 0,
-    scale: 1, opacity: 0.5
+    scale: 1, opacity: 0.8, starOpacity: 1
   });
+  const [renderOpacity, setRenderOpacity] = useState(0.8);
+  const [starRenderOpacity, setStarRenderOpacity] = useState(1);
   
   const localStars = useMemo(() => {
     return stars.map(star => ({
@@ -1278,20 +1280,26 @@ function AnimatedHouseholdGroup({
     
     let targetOffsetX = 0, targetOffsetY = 0, targetOffsetZ = 0;
     let targetScale = 1;
-    let targetOpacity = 0.5;
+    let targetOpacity = 0.8;
+    let targetStarOpacity = 1;
     
     if (isFocused) {
       targetScale = 1 + focusProgress * 0.5;
-      targetOpacity = Math.max(0.1, 1 - focusProgress);
+      targetOpacity = Math.max(0.05, 1 - focusProgress * 1.2);
+      targetStarOpacity = 1;
     } else if (focusedHouseholdId) {
-      targetOpacity = 0.25;
+      const fadeAmount = Math.min(1, focusProgress * 2);
+      targetOpacity = 0.8 - fadeAmount * 0.7;
+      targetStarOpacity = 1 - fadeAmount * 0.85;
+      targetScale = 1 - fadeAmount * 0.15;
     } else if (isHovered) {
       const towardCamera = cameraForward.clone().multiplyScalar(-6);
       targetOffsetX = towardCamera.x;
       targetOffsetY = towardCamera.y;
       targetOffsetZ = towardCamera.z;
       targetScale = 1.5;
-      targetOpacity = 0.9;
+      targetOpacity = 1;
+      targetStarOpacity = 1;
     } else if (hoveredPos) {
       const dx = basePosition.x - hoveredPos.x;
       const dy = basePosition.y - hoveredPos.y;
@@ -1308,8 +1316,9 @@ function AnimatedHouseholdGroup({
         targetOffsetX = worldPush.x * pushStrength;
         targetOffsetY = worldPush.y * pushStrength;
         targetOffsetZ = worldPush.z * pushStrength;
-        targetOpacity = 0.35;
-        targetScale = 0.9;
+        targetOpacity = 0.6;
+        targetStarOpacity = 0.8;
+        targetScale = 0.95;
       }
     }
     
@@ -1320,6 +1329,7 @@ function AnimatedHouseholdGroup({
     curr.offsetZ += (targetOffsetZ - curr.offsetZ) * lerpSpeed;
     curr.scale += (targetScale - curr.scale) * lerpSpeed;
     curr.opacity += (targetOpacity - curr.opacity) * lerpSpeed;
+    curr.starOpacity += (targetStarOpacity - curr.starOpacity) * lerpSpeed;
     
     groupRef.current.position.set(
       basePosition.x + curr.offsetX,
@@ -1327,6 +1337,13 @@ function AnimatedHouseholdGroup({
       basePosition.z + curr.offsetZ
     );
     groupRef.current.scale.setScalar(curr.scale);
+    
+    if (Math.abs(curr.opacity - renderOpacity) > 0.01) {
+      setRenderOpacity(curr.opacity);
+    }
+    if (Math.abs(curr.starOpacity - starRenderOpacity) > 0.01) {
+      setStarRenderOpacity(curr.starOpacity);
+    }
   });
   
   return (
@@ -1334,10 +1351,11 @@ function AnimatedHouseholdGroup({
       <HouseholdAtmosphere
         position={[0, 0, 0]}
         colorIndex={colorIndex}
-        opacity={0.5}
+        opacity={renderOpacity}
         scale={1}
         isHovered={isHovered && !focusedHouseholdId}
         householdName={household.name}
+        isFocusedView={!!focusedHouseholdId}
         onClick={onClick}
         onPointerOver={onPointerOver}
         onPointerOut={onPointerOut}
@@ -1348,7 +1366,7 @@ function AnimatedHouseholdGroup({
         onStarHover={focusedHouseholdId ? onStarHover : () => {}}
         hoveredId={focusedHouseholdId ? hoveredStarId : null}
         focusedId={focusedHouseholdId ? focusedStarId : null}
-        globalOpacity={1}
+        globalOpacity={starRenderOpacity}
         globalScale={1}
         animated={false}
       />
@@ -1552,7 +1570,7 @@ function HouseholdLabel({ name, isVisible, color }) {
   );
 }
 
-function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, isHovered = false, householdName = '', onClick, onPointerOver, onPointerOut }) {
+function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, isHovered = false, householdName = '', onClick, onPointerOver, onPointerOut, isFocusedView = false }) {
   const colors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
   
   const textures = useMemo(() => ({
@@ -1566,21 +1584,29 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, isHover
   const stretch2 = 0.8 + (colorIndex % 4) * 0.15;
   const baseRotation = (colorIndex * 0.7) % (Math.PI * 2);
   
+  const hitboxSize = scale * 12;
+  
   return (
     <group position={position}>
       <HouseholdLabel name={householdName} isVisible={isHovered} color={colors.primary} />
       
-      <sprite 
-        scale={[scale * 6 * stretch1, scale * 5, 1]}
-        rotation={[0, 0, baseRotation]}
+      <sprite
+        scale={[hitboxSize, hitboxSize, 1]}
         onClick={onClick}
         onPointerOver={onPointerOver}
         onPointerOut={onPointerOut}
       >
+        <spriteMaterial transparent opacity={0} depthWrite={false} />
+      </sprite>
+      
+      <sprite 
+        scale={[scale * 6 * stretch1, scale * 5, 1]}
+        rotation={[0, 0, baseRotation]}
+      >
         <spriteMaterial
           map={textures.core}
           transparent
-          opacity={opacity * 0.45}
+          opacity={opacity * 0.55}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
@@ -1592,7 +1618,7 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, isHover
         <spriteMaterial
           map={textures.cloud}
           transparent
-          opacity={opacity * 0.3}
+          opacity={opacity * 0.38}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
@@ -1604,7 +1630,7 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, isHover
         <spriteMaterial
           map={textures.wispy}
           transparent
-          opacity={opacity * 0.2}
+          opacity={opacity * 0.25}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
@@ -1616,15 +1642,15 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, isHover
         <spriteMaterial
           map={textures.outer}
           transparent
-          opacity={opacity * 0.1}
+          opacity={opacity * 0.15}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
       <pointLight 
         color={colors.primary} 
-        intensity={opacity * (isHovered ? 0.25 : 0.15)} 
-        distance={isHovered ? 10 : 8}
+        intensity={opacity * (isHovered ? 0.3 : 0.18)} 
+        distance={isHovered ? 12 : 9}
         decay={2}
       />
     </group>
@@ -1692,6 +1718,17 @@ function NebulaScene({
     return households.findIndex(h => h.id === selectedHousehold.id);
   }, [selectedHousehold, households]);
   
+  const effectiveFocusProgress = useMemo(() => {
+    if (transitionDirection === 'zoom-in') {
+      return transitionProgress;
+    } else if (transitionDirection === 'zoom-out') {
+      return 1 - transitionProgress;
+    } else if (transitionDirection === 'idle' || transitionDirection === null) {
+      return level === 'system' ? 1 : 0;
+    }
+    return 0;
+  }, [transitionProgress, transitionDirection, level]);
+  
   const nebulaOpacity = useMemo(() => {
     if (transitionDirection === 'zoom-in') {
       return Math.max(0, 1 - transitionProgress * 1.2);
@@ -1706,6 +1743,15 @@ function NebulaScene({
     }
     return 1;
   }, [transitionProgress, transitionDirection]);
+  
+  const effectiveFocusedId = useMemo(() => {
+    if (transitionDirection === 'zoom-out') {
+      return transitioningHousehold?.id;
+    } else if (transitionDirection === 'idle' || transitionDirection === null) {
+      return selectedHousehold?.id || null;
+    }
+    return selectedHousehold?.id || transitioningHousehold?.id;
+  }, [selectedHousehold, transitioningHousehold, transitionDirection]);
   
   return (
     <>
@@ -1735,7 +1781,7 @@ function NebulaScene({
         households={households}
         householdPositions={householdPositions}
         people={people}
-        focusedHouseholdId={selectedHousehold?.id || transitioningHousehold?.id}
+        focusedHouseholdId={effectiveFocusedId}
         hoveredHouseholdId={hoveredHouseholdId}
         hoveredStarId={hoveredStarId}
         focusedStarId={focusedStarId}
@@ -1743,7 +1789,7 @@ function NebulaScene({
         onHouseholdHover={onHouseholdHover}
         onStarClick={onStarClick}
         onStarHover={onStarHover}
-        focusProgress={transitionProgress}
+        focusProgress={effectiveFocusProgress}
       />
       
       <mesh visible={false} onClick={onBackgroundClick}>
