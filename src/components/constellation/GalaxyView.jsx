@@ -188,7 +188,6 @@ function ImmersiveNebulaVolume({ qualityTier }) {
         varying vec3 vWorldPos;
         varying vec3 vRayOrigin;
         varying vec3 vRayDir;
-        uniform vec3 cameraPosition;
         
         void main() {
           vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
