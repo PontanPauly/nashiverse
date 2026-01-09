@@ -1236,6 +1236,8 @@ function GalaxyLevelScene({
   hoveredHouseholdId,
   onHouseholdClick,
   onHouseholdHover,
+  fadingHouseholdId = null,
+  fadeOpacity = 1,
 }) {
   return (
     <group>
@@ -1243,18 +1245,25 @@ function GalaxyLevelScene({
         const pos = householdPositions.get(household.id);
         if (!pos) return null;
         
+        const isFading = household.id === fadingHouseholdId;
+        const opacity = isFading ? fadeOpacity : 1;
+        
+        if (isFading && fadeOpacity <= 0) return null;
+        
         return (
-          <HouseholdCluster
-            key={household.id}
-            position={[pos.x, pos.y, pos.z]}
-            household={household}
-            memberCount={pos.memberCount}
-            colorIndex={index}
-            isHovered={hoveredHouseholdId === household.id}
-            onClick={() => onHouseholdClick(household)}
-            onPointerOver={() => onHouseholdHover(household.id)}
-            onPointerOut={() => onHouseholdHover(null)}
-          />
+          <group key={household.id} visible={opacity > 0}>
+            <HouseholdCluster
+              position={[pos.x, pos.y, pos.z]}
+              household={household}
+              memberCount={pos.memberCount}
+              colorIndex={index}
+              isHovered={hoveredHouseholdId === household.id}
+              onClick={() => onHouseholdClick(household)}
+              onPointerOver={() => onHouseholdHover(household.id)}
+              onPointerOut={() => onHouseholdHover(null)}
+              opacity={opacity}
+            />
+          </group>
         );
       })}
     </group>
@@ -1310,6 +1319,13 @@ function NebulaScene({
     return householdPositions.get(selectedHousehold.id);
   }, [selectedHousehold, householdPositions]);
   
+  const transitioningHouseholdPosition = useMemo(() => {
+    if (!transitioningHousehold) return null;
+    return householdPositions.get(transitioningHousehold.id);
+  }, [transitioningHousehold, householdPositions]);
+  
+  const cameraTargetPosition = transitioningHouseholdPosition || selectedHouseholdPosition;
+  
   const selectedColorIndex = useMemo(() => {
     if (!selectedHousehold) return 0;
     return households.findIndex(h => h.id === selectedHousehold.id);
@@ -1333,10 +1349,10 @@ function NebulaScene({
   return (
     <>
       <CameraController
-        level={level}
-        targetPosition={selectedHouseholdPosition}
+        level={isTransitioning ? 'system' : level}
+        targetPosition={cameraTargetPosition}
         controlsRef={controlsRef}
-        onTransitionComplete={() => {}}
+        onTransitionComplete={onTransitionComplete}
         setAutoRotateEnabled={setAutoRotateEnabled}
         onProgressUpdate={handleProgressUpdate}
       />
@@ -1352,7 +1368,7 @@ function NebulaScene({
       <NebulaBackground />
       <DenseStarField count={qualityTier.starCount} />
       
-      {level === 'galaxy' && (
+      {(level === 'galaxy' || isTransitioning) && (
         <>
           <NebulaGasCloud count={qualityTier.gasCount} />
           <GalaxyLevelScene
@@ -1361,35 +1377,42 @@ function NebulaScene({
             hoveredHouseholdId={hoveredHouseholdId}
             onHouseholdClick={onHouseholdClick}
             onHouseholdHover={onHouseholdHover}
+            fadingHouseholdId={transitioningHousehold?.id}
+            fadeOpacity={nebulaOpacity}
           />
         </>
       )}
       
-      {level === 'system' && selectedHousehold && (
-        <>
-          {transitioningHousehold && nebulaOpacity > 0 && (
-            <TransitioningNebula
-              household={transitioningHousehold}
-              householdPositions={householdPositions}
-              households={households}
-              opacity={nebulaOpacity}
-              onFadeComplete={onTransitionComplete}
-            />
-          )}
-          <SystemLevelScene
-            household={selectedHousehold}
-            people={people}
-            relationships={relationships}
-            hoveredStarId={hoveredStarId}
-            focusedStarId={focusedStarId}
-            onStarClick={onStarClick}
-            onStarHover={onStarHover}
-            colorIndex={selectedColorIndex}
-            householdPosition={selectedHouseholdPosition}
-            bloomScale={starBloom}
-            fadeOpacity={starBloom}
-          />
-        </>
+      {isTransitioning && transitioningHousehold && (
+        <SystemLevelScene
+          household={transitioningHousehold}
+          people={people}
+          relationships={relationships}
+          hoveredStarId={null}
+          focusedStarId={null}
+          onStarClick={() => {}}
+          onStarHover={() => {}}
+          colorIndex={households.findIndex(h => h.id === transitioningHousehold.id)}
+          householdPosition={householdPositions.get(transitioningHousehold.id)}
+          bloomScale={starBloom}
+          fadeOpacity={starBloom}
+        />
+      )}
+      
+      {level === 'system' && selectedHousehold && !isTransitioning && (
+        <SystemLevelScene
+          household={selectedHousehold}
+          people={people}
+          relationships={relationships}
+          hoveredStarId={hoveredStarId}
+          focusedStarId={focusedStarId}
+          onStarClick={onStarClick}
+          onStarHover={onStarHover}
+          colorIndex={selectedColorIndex}
+          householdPosition={selectedHouseholdPosition}
+          bloomScale={1}
+          fadeOpacity={1}
+        />
       )}
       
       <mesh visible={false} onClick={onBackgroundClick}>
@@ -1567,11 +1590,9 @@ export default function GalaxyView({ people = [], relationships = [], households
   }, []);
   
   const handleHouseholdClick = useCallback((household) => {
-    setSelectedHousehold(household);
     setTransitioningHousehold(household);
     setIsTransitioning(true);
     setTransitionProgress(0);
-    setLevel('system');
     setFocusedStarId(null);
     setAutoRotateEnabled(false);
   }, []);
@@ -1591,8 +1612,12 @@ export default function GalaxyView({ people = [], relationships = [], households
   
   const handleTransitionComplete = useCallback(() => {
     setIsTransitioning(false);
+    if (transitioningHousehold) {
+      setSelectedHousehold(transitioningHousehold);
+      setLevel('system');
+    }
     setTransitioningHousehold(null);
-  }, []);
+  }, [transitioningHousehold]);
   
   const handleStarClick = useCallback((star) => {
     if (focusedStarId === star.id) {
