@@ -174,48 +174,52 @@ function NebulaModel({ url, position, scale, rotation, opacity = 0.4 }) {
   );
 }
 
-function VolumetricNebula({ qualityTier }) {
-  const meshRef = useRef();
+function ImmersiveNebulaVolume({ qualityTier }) {
+  const { camera } = useThree();
   
-  const nebulaMaterial = useMemo(() => {
-    const isHigh = qualityTier.tier === 'high';
-    const isMedium = qualityTier.tier === 'medium';
-    const octaves = isHigh ? 6 : (isMedium ? 4 : 3);
-    const raySteps = isHigh ? 24 : (isMedium ? 16 : 10);
-    
+  const isHigh = qualityTier.tier === 'high';
+  const isMedium = qualityTier.tier === 'medium';
+  const raySteps = isHigh ? 48 : (isMedium ? 32 : 20);
+  const octaves = isHigh ? 5 : (isMedium ? 4 : 3);
+  
+  const volumeMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
       vertexShader: `
-        varying vec3 vWorldPosition;
-        varying vec3 vLocalPosition;
+        varying vec3 vWorldPos;
+        varying vec3 vRayOrigin;
+        varying vec3 vRayDir;
+        uniform vec3 cameraPosition;
         
         void main() {
-          vLocalPosition = position;
-          vec4 worldPos = modelMatrix * vec4(position, 1.0);
-          vWorldPosition = worldPos.xyz;
-          gl_Position = projectionMatrix * viewMatrix * worldPos;
+          vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+          vRayOrigin = cameraPosition;
+          vRayDir = normalize(vWorldPos - cameraPosition);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
         uniform float time;
-        uniform vec3 cameraPos;
+        uniform float volumeRadius;
         
-        varying vec3 vWorldPosition;
-        varying vec3 vLocalPosition;
+        varying vec3 vWorldPos;
+        varying vec3 vRayOrigin;
+        varying vec3 vRayDir;
         
-        const int OCTAVES = ${octaves};
         const int RAY_STEPS = ${raySteps};
+        const int OCTAVES = ${octaves};
         
-        vec3 deepPurple = vec3(0.118, 0.106, 0.294);
-        vec3 vibrantPurple = vec3(0.486, 0.227, 0.929);
-        vec3 teal = vec3(0.035, 0.569, 0.698);
-        vec3 cyan = vec3(0.133, 0.827, 0.847);
-        vec3 warmPink = vec3(0.925, 0.282, 0.6);
-        vec3 deepBlue = vec3(0.118, 0.251, 0.424);
+        vec3 deepPurple = vec3(0.12, 0.08, 0.25);
+        vec3 vibrantPurple = vec3(0.5, 0.2, 0.85);
+        vec3 teal = vec3(0.04, 0.55, 0.68);
+        vec3 cyan = vec3(0.15, 0.82, 0.85);
+        vec3 warmPink = vec3(0.9, 0.3, 0.55);
+        vec3 deepBlue = vec3(0.1, 0.2, 0.45);
+        vec3 warmOrange = vec3(0.95, 0.55, 0.15);
         
         float hash(vec3 p) {
-          p = fract(p * 0.3183099 + 0.1);
-          p *= 17.0;
-          return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+          p = fract(p * vec3(443.897, 441.423, 437.195));
+          p += dot(p, p.yxz + 19.19);
+          return fract((p.x + p.y) * p.z);
         }
         
         float noise(vec3 p) {
@@ -223,299 +227,294 @@ function VolumetricNebula({ qualityTier }) {
           vec3 f = fract(p);
           f = f * f * (3.0 - 2.0 * f);
           
-          return mix(
-            mix(
-              mix(hash(i + vec3(0,0,0)), hash(i + vec3(1,0,0)), f.x),
-              mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x),
-              f.y
-            ),
-            mix(
-              mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x),
-              mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x),
-              f.y
-            ),
+          float n = mix(
+            mix(mix(hash(i), hash(i + vec3(1,0,0)), f.x),
+                mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
+            mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x),
+                mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y),
             f.z
           );
+          return n;
         }
         
         float fbm(vec3 p) {
           float value = 0.0;
-          float amplitude = 0.5;
-          float frequency = 1.0;
+          float amp = 0.5;
+          float freq = 1.0;
           for (int i = 0; i < OCTAVES; i++) {
-            value += amplitude * noise(p * frequency);
-            frequency *= 2.0;
-            amplitude *= 0.5;
+            value += amp * noise(p * freq);
+            freq *= 2.0;
+            amp *= 0.5;
           }
           return value;
         }
         
-        float turbulence(vec3 p) {
-          float t = -0.5;
-          float scale = 1.0;
-          for (int i = 0; i < 4; i++) {
-            t += abs(noise(p * scale)) / scale;
-            scale *= 2.0;
-          }
-          return t;
+        float ridgedNoise(vec3 p) {
+          return 1.0 - abs(noise(p) * 2.0 - 1.0);
         }
         
-        float nebulaField(vec3 p, float t) {
-          vec3 q = p + t * 0.008;
+        float ridgedFbm(vec3 p, float t) {
+          float value = 0.0;
+          float amp = 0.5;
+          float freq = 1.0;
+          float weight = 1.0;
           
-          float f = fbm(q * 0.15);
-          float turb = turbulence(q * 0.08);
+          for (int i = 0; i < 4; i++) {
+            float n = ridgedNoise(p * freq + t * 0.01);
+            n = pow(n, 2.0);
+            n *= weight;
+            weight = clamp(n * 2.0, 0.0, 1.0);
+            value += n * amp;
+            freq *= 2.0;
+            amp *= 0.5;
+          }
+          return value;
+        }
+        
+        vec2 raySphereIntersect(vec3 ro, vec3 rd, float radius) {
+          float b = dot(ro, rd);
+          float c = dot(ro, ro) - radius * radius;
+          float h = b * b - c;
+          if (h < 0.0) return vec2(-1.0);
+          h = sqrt(h);
+          return vec2(-b - h, -b + h);
+        }
+        
+        float nebulaStructure(vec3 p, float t) {
+          vec3 stretched = p * vec3(1.0, 0.6, 1.0);
           
-          f = f * 0.7 + turb * 0.3;
+          float largeClouds = fbm(stretched * 0.03 + t * 0.002);
+          float mediumDetail = ridgedFbm(stretched * 0.08, t);
+          float fineDetail = fbm(p * 0.2 + t * 0.005);
+          
+          float filaments = ridgedFbm(p * 0.05 + vec3(0.0, t * 0.003, 0.0), t * 0.5);
+          filaments = pow(filaments, 1.5);
+          
+          float combined = largeClouds * 0.5 + mediumDetail * 0.3 + filaments * 0.4;
+          combined += fineDetail * 0.15;
           
           float dist = length(p);
-          float falloff = 1.0 - smoothstep(20.0, 80.0, dist);
+          float coreFalloff = smoothstep(0.0, 40.0, dist);
+          float edgeFalloff = 1.0 - smoothstep(60.0, 120.0, dist);
           
-          float density = f * falloff;
-          density = pow(max(density - 0.25, 0.0), 1.5);
+          float density = combined * edgeFalloff;
+          density *= mix(1.0, 0.3, coreFalloff * 0.5);
           
-          return density;
+          density = pow(max(density - 0.15, 0.0), 1.2);
+          
+          return density * 0.8;
         }
         
         vec3 nebulaColor(vec3 p, float density, float t) {
-          float n1 = fbm(p * 0.1 + t * 0.003);
-          float n2 = fbm(p * 0.15 - t * 0.002);
-          float n3 = fbm(p * 0.2 + vec3(t * 0.001, 0.0, t * 0.002));
+          float n1 = fbm(p * 0.04 + t * 0.001);
+          float n2 = fbm(p * 0.06 - t * 0.002);
+          float n3 = fbm(p * 0.08 + vec3(t * 0.001));
           
-          vec3 color = deepPurple;
+          float dist = length(p);
+          float distFactor = smoothstep(0.0, 80.0, dist);
           
-          color = mix(color, vibrantPurple, smoothstep(0.3, 0.7, n1));
-          color = mix(color, teal, smoothstep(0.4, 0.8, n2) * 0.6);
-          color = mix(color, cyan, smoothstep(0.5, 0.9, n3) * 0.4);
-          color = mix(color, warmPink, smoothstep(0.6, 0.95, n1 * n2) * 0.3);
-          color = mix(color, deepBlue, smoothstep(0.2, 0.5, 1.0 - n3) * 0.4);
+          vec3 coreColor = mix(warmOrange, warmPink, n1);
+          vec3 midColor = mix(vibrantPurple, teal, n2);
+          vec3 edgeColor = mix(deepBlue, cyan, n3);
           
-          float brightness = 0.8 + density * 2.0;
+          vec3 color = mix(coreColor, midColor, smoothstep(0.0, 0.5, distFactor));
+          color = mix(color, edgeColor, smoothstep(0.4, 0.9, distFactor));
           
-          return color * brightness;
+          color = mix(color, vibrantPurple, smoothstep(0.6, 0.9, n1) * 0.4);
+          color = mix(color, cyan, smoothstep(0.5, 0.85, n2 * n3) * 0.3);
+          
+          float emissive = pow(density, 0.5) * 1.5;
+          
+          return color * (0.6 + emissive);
         }
         
         void main() {
-          vec3 rayDir = normalize(vWorldPosition - cameraPos);
-          vec3 rayPos = vLocalPosition;
+          vec3 ro = vRayOrigin;
+          vec3 rd = normalize(vRayDir);
           
-          float stepSize = 8.0 / float(RAY_STEPS);
+          vec2 t = raySphereIntersect(ro, rd, volumeRadius);
+          
+          if (t.y < 0.0) {
+            discard;
+          }
+          
+          float tNear = max(t.x, 0.0);
+          float tFar = t.y;
+          float rayLen = tFar - tNear;
+          float stepSize = rayLen / float(RAY_STEPS);
+          
+          float jitter = hash(vWorldPos + time * 0.1) * stepSize * 0.5;
+          
           vec3 totalColor = vec3(0.0);
           float totalAlpha = 0.0;
           
           for (int i = 0; i < RAY_STEPS; i++) {
-            float density = nebulaField(rayPos, time);
+            float tCurrent = tNear + stepSize * float(i) + jitter;
+            vec3 samplePos = ro + rd * tCurrent;
+            
+            float density = nebulaStructure(samplePos, time);
             
             if (density > 0.001) {
-              vec3 sampleColor = nebulaColor(rayPos, density, time);
-              float sampleAlpha = density * stepSize * 0.8;
+              vec3 sampleColor = nebulaColor(samplePos, density, time);
+              
+              float sampleAlpha = density * stepSize * 0.15;
+              sampleAlpha = 1.0 - exp(-sampleAlpha * 3.0);
               
               totalColor += sampleColor * sampleAlpha * (1.0 - totalAlpha);
               totalAlpha += sampleAlpha * (1.0 - totalAlpha);
               
               if (totalAlpha > 0.95) break;
             }
-            
-            rayPos += rayDir * stepSize;
           }
           
-          totalColor = pow(totalColor, vec3(0.9));
+          totalColor = pow(totalColor, vec3(0.85));
           
-          gl_FragColor = vec4(totalColor, totalAlpha * 0.85);
+          gl_FragColor = vec4(totalColor, totalAlpha * 0.9);
         }
       `,
       uniforms: {
         time: { value: 0 },
-        cameraPos: { value: new THREE.Vector3() },
+        volumeRadius: { value: 120.0 },
       },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
+      side: THREE.BackSide,
     });
-  }, [qualityTier.tier]);
+  }, [raySteps, octaves]);
   
   useFrame((state) => {
-    nebulaMaterial.uniforms.time.value = state.clock.elapsedTime;
-    nebulaMaterial.uniforms.cameraPos.value.copy(state.camera.position);
+    volumeMaterial.uniforms.time.value = state.clock.elapsedTime;
   });
   
   return (
-    <mesh ref={meshRef} scale={[1.8, 1.8, 1.8]}>
-      <boxGeometry args={[100, 100, 100]} />
-      <primitive object={nebulaMaterial} attach="material" />
+    <mesh>
+      <sphereGeometry args={[120, 64, 64]} />
+      <primitive object={volumeMaterial} attach="material" />
     </mesh>
   );
 }
 
-function BillboardNebulaLayers({ count = 10 }) {
-  const groupRef = useRef();
+function NebulaFilaments({ count = 2000, qualityTier }) {
+  const pointsRef = useRef();
   
-  const layers = useMemo(() => {
-    const result = [];
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
-      const radius = 15 + Math.random() * 40;
-      const yOffset = (Math.random() - 0.5) * 30;
+  const isHigh = qualityTier.tier === 'high';
+  const isMedium = qualityTier.tier === 'medium';
+  const particleCount = isHigh ? 3000 : (isMedium ? 2000 : 1000);
+  
+  const { positions, colors, sizes, phases } = useMemo(() => {
+    const pos = new Float32Array(particleCount * 3);
+    const col = new Float32Array(particleCount * 3);
+    const siz = new Float32Array(particleCount);
+    const pha = new Float32Array(particleCount);
+    
+    const nebulaColors = [
+      new THREE.Color(0x7c3aed),
+      new THREE.Color(0x0891b2),
+      new THREE.Color(0x22d3d8),
+      new THREE.Color(0xec4899),
+      new THREE.Color(0x1e40af),
+      new THREE.Color(0xf97316),
+    ];
+    
+    for (let i = 0; i < particleCount; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = 10 + Math.pow(Math.random(), 0.4) * 90;
       
-      result.push({
-        position: [
-          Math.cos(angle) * radius + (Math.random() - 0.5) * 20,
-          yOffset,
-          Math.sin(angle) * radius + (Math.random() - 0.5) * 20
-        ],
-        rotation: [
-          Math.random() * Math.PI,
-          Math.random() * Math.PI,
-          Math.random() * Math.PI
-        ],
-        scale: 25 + Math.random() * 35,
-        colorIndex: Math.floor(Math.random() * 5),
-        phase: Math.random() * Math.PI * 2,
-      });
+      const wispOffset = Math.sin(theta * 3 + phi * 2) * 15;
+      const finalR = r + wispOffset;
+      
+      pos[i * 3] = finalR * Math.sin(phi) * Math.cos(theta);
+      pos[i * 3 + 1] = finalR * Math.sin(phi) * Math.sin(theta) * 0.6;
+      pos[i * 3 + 2] = finalR * Math.cos(phi);
+      
+      const colorIdx = Math.floor(Math.random() * nebulaColors.length);
+      const c = nebulaColors[colorIdx];
+      const brightness = 0.4 + Math.random() * 0.6;
+      col[i * 3] = c.r * brightness;
+      col[i * 3 + 1] = c.g * brightness;
+      col[i * 3 + 2] = c.b * brightness;
+      
+      siz[i] = 3 + Math.random() * 8;
+      pha[i] = Math.random() * Math.PI * 2;
     }
-    return result;
-  }, [count]);
+    
+    return { positions: pos, colors: col, sizes: siz, phases: pha };
+  }, [particleCount]);
   
-  const cloudMaterial = useMemo(() => {
+  const material = useMemo(() => {
     return new THREE.ShaderMaterial({
       vertexShader: `
-        varying vec2 vUv;
+        attribute vec3 particleColor;
+        attribute float size;
+        attribute float phase;
+        uniform float time;
+        varying vec3 vColor;
+        varying float vAlpha;
+        
         void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          vColor = particleColor;
+          
+          float drift = sin(time * 0.15 + phase) * 0.2 + 0.8;
+          vAlpha = 0.15 * drift;
+          
+          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = size * (150.0 / -mvPos.z);
+          gl_PointSize = clamp(gl_PointSize, 2.0, 40.0);
+          gl_Position = projectionMatrix * mvPos;
         }
       `,
       fragmentShader: `
-        uniform float time;
-        uniform float colorIndex;
-        uniform float phase;
-        varying vec2 vUv;
-        
-        vec3 colors[5];
-        
-        float hash(vec2 p) {
-          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-        }
-        
-        float noise(vec2 p) {
-          vec2 i = floor(p);
-          vec2 f = fract(p);
-          f = f * f * (3.0 - 2.0 * f);
-          
-          float a = hash(i);
-          float b = hash(i + vec2(1.0, 0.0));
-          float c = hash(i + vec2(0.0, 1.0));
-          float d = hash(i + vec2(1.0, 1.0));
-          
-          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-        }
-        
-        float fbm(vec2 p) {
-          float value = 0.0;
-          float amplitude = 0.5;
-          for (int i = 0; i < 5; i++) {
-            value += amplitude * noise(p);
-            p *= 2.0;
-            amplitude *= 0.5;
-          }
-          return value;
-        }
+        varying vec3 vColor;
+        varying float vAlpha;
         
         void main() {
-          colors[0] = vec3(0.486, 0.227, 0.929);
-          colors[1] = vec3(0.035, 0.569, 0.698);
-          colors[2] = vec3(0.133, 0.827, 0.847);
-          colors[3] = vec3(0.925, 0.282, 0.6);
-          colors[4] = vec3(0.118, 0.251, 0.424);
-          
-          vec2 center = vUv - 0.5;
+          vec2 center = gl_PointCoord - 0.5;
           float dist = length(center);
           
-          vec2 animated = vUv * 3.0 + time * 0.02 + phase;
-          float n = fbm(animated);
-          n += fbm(animated * 2.0 + time * 0.01) * 0.5;
+          float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
+          alpha = pow(alpha, 2.5);
+          alpha *= vAlpha;
           
-          float cloudShape = 1.0 - smoothstep(0.0, 0.5, dist);
-          cloudShape *= n;
-          cloudShape = pow(max(cloudShape - 0.2, 0.0), 1.5);
+          if (alpha < 0.005) discard;
           
-          int idx = int(mod(colorIndex, 5.0));
-          vec3 color = colors[idx];
-          
-          int idx2 = int(mod(colorIndex + 1.0, 5.0));
-          color = mix(color, colors[idx2], n * 0.4);
-          
-          float alpha = cloudShape * 0.4;
-          
-          if (alpha < 0.01) discard;
-          
-          gl_FragColor = vec4(color, alpha);
+          gl_FragColor = vec4(vColor, alpha);
         }
       `,
       uniforms: {
         time: { value: 0 },
-        colorIndex: { value: 0 },
-        phase: { value: 0 },
       },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
     });
   }, []);
   
   useFrame((state) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += 0.0001;
+    material.uniforms.time.value = state.clock.elapsedTime;
+    if (pointsRef.current) {
+      pointsRef.current.rotation.y += 0.00008;
     }
-    cloudMaterial.uniforms.time.value = state.clock.elapsedTime;
   });
   
   return (
-    <group ref={groupRef}>
-      {layers.map((layer, i) => {
-        const mat = cloudMaterial.clone();
-        mat.uniforms.colorIndex.value = layer.colorIndex;
-        mat.uniforms.phase.value = layer.phase;
-        
-        return (
-          <mesh
-            key={i}
-            position={layer.position}
-            rotation={layer.rotation}
-          >
-            <planeGeometry args={[layer.scale, layer.scale]} />
-            <primitive object={mat} attach="material" />
-          </mesh>
-        );
-      })}
-    </group>
+    <points ref={pointsRef} material={material}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={particleCount} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-particleColor" count={particleCount} array={colors} itemSize={3} />
+        <bufferAttribute attach="attributes-size" count={particleCount} array={sizes} itemSize={1} />
+        <bufferAttribute attach="attributes-phase" count={particleCount} array={phases} itemSize={1} />
+      </bufferGeometry>
+    </points>
   );
 }
 
 function TieredNebulaBackdrop({ qualityTier }) {
-  const isHigh = qualityTier.tier === 'high';
-  const isMedium = qualityTier.tier === 'medium';
-  const isLow = qualityTier.tier === 'low';
-  
   return (
     <group>
-      <VolumetricNebula qualityTier={qualityTier} />
-      
-      {(isHigh || isMedium) && (
-        <BillboardNebulaLayers count={isHigh ? 12 : 8} />
-      )}
-      
-      {isLow && qualityTier.useGlb && (
-        <NebulaModel
-          url="/attached_assets/gjptsjoamukljk6vxhg5_1767941334938.glb"
-          position={[0, 0, -15]}
-          scale={[65, 65, 65]}
-          rotation={[0, 0, 0]}
-          opacity={0.4}
-        />
-      )}
+      <ImmersiveNebulaVolume qualityTier={qualityTier} />
+      <NebulaFilaments qualityTier={qualityTier} />
     </group>
   );
 }

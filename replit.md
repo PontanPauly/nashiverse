@@ -74,12 +74,15 @@ Key tables:
 - Created star customization system with 8,640+ unique combinations
 - Added StarEditor component for personalized star profiles
 - Seeded database with 58-member Nash-Martinez extended family across 5 generations
-- **Galaxy Visual Enhancements** (Jan 2026):
-  - Added 25,000-particle spiral arm structure with 4 logarithmic arms
-  - Implemented warm-to-cool color gradient (golden core → blue edges)
-  - Enhanced starfield with diffraction spikes for 10% of stars
-  - Added FogExp2 for atmospheric depth
-  - Added gentle rotation animation to spiral arms
-  - Simplified household nebulas to 2-layer design with hover effects and labels
-  - **Billboard Nebula Clouds**: 10 overlapping translucent planes with FBM noise shader, gentle rotation and pulsing
-  - **Colored Point Lights**: 3 lights per household (orange/pink/blue) with intensity pulsing for atmospheric illumination
+- **Immersive 3D Nebula Volume** (Jan 2026):
+  - **ImmersiveNebulaVolume**: True volumetric raymarching through a 120-radius sphere
+  - Camera positioned INSIDE the volume for immersive experience
+  - Ray-sphere intersection for proper depth sampling
+  - Multi-scale noise: large clouds + ridged FBM for filaments + fine detail
+  - Anisotropic stretching (0.6 Y-axis) for elongated cloud structures
+  - Beer-Lambert attenuation for realistic light absorption
+  - Warm core (orange/pink) → cool edges (blue/cyan/teal) color gradient
+  - Jittered ray steps to reduce banding artifacts
+  - **NebulaFilaments**: 2000-3000 soft glowing particles throughout volume
+  - Tier-aware quality: High=48 steps, Medium=32, Low=20
+  - Removed flat billboard layers in favor of true 3D volumetrics
