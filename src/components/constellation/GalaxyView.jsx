@@ -707,17 +707,6 @@ function NavigationUI({
         </div>
       </div>
       
-      {level === 'system' && (
-        <div className="absolute top-4 right-4 z-50">
-          <button
-            onClick={onBackToGalaxy}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/90 border border-purple-500/30 backdrop-blur-md text-white hover:bg-slate-700/90 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Galaxy
-          </button>
-        </div>
-      )}
       
       <div className="absolute bottom-6 right-6 z-50 flex flex-col gap-2">
         <button
