@@ -386,16 +386,24 @@ function CameraController({
   }, [level, targetPosition]);
   
   useFrame(() => {
+    if (controlsRef.current) {
+      controlsRef.current.update();
+    }
+    
     if (isAnimating.current) {
-      camera.position.lerp(targetCamPos.current, 0.04);
+      camera.position.lerp(targetCamPos.current, 0.06);
       
       if (controlsRef.current) {
-        controlsRef.current.target.lerp(targetLookAt.current, 0.04);
+        controlsRef.current.target.lerp(targetLookAt.current, 0.06);
       }
       
       const distance = camera.position.distanceTo(targetCamPos.current);
       if (distance < 0.1) {
         isAnimating.current = false;
+        if (controlsRef.current) {
+          controlsRef.current.target.copy(targetLookAt.current);
+          controlsRef.current.update();
+        }
         onTransitionComplete?.();
       }
     }
