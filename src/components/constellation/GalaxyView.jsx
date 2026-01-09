@@ -510,52 +510,9 @@ function NebulaFilaments({ count = 2000, qualityTier }) {
   );
 }
 
-function NebulaGLBModel({ scale = 50 }) {
-  const groupRef = useRef();
-  const { scene } = useGLTF('/models/nebula.glb');
-  
-  const clonedScene = useMemo(() => {
-    const clone = scene.clone(true);
-    clone.traverse((child) => {
-      if (child.isMesh) {
-        const originalMat = child.material;
-        child.material = new THREE.MeshBasicMaterial({
-          map: originalMat.map || null,
-          color: originalMat.color || new THREE.Color(0xffffff),
-          transparent: true,
-          opacity: 0.85,
-          depthWrite: false,
-          side: THREE.DoubleSide,
-          blending: THREE.AdditiveBlending,
-        });
-        if (originalMat.emissiveMap) {
-          child.material.map = originalMat.emissiveMap;
-        }
-      }
-    });
-    return clone;
-  }, [scene]);
-  
-  useFrame((state) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += 0.00015;
-      groupRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.05) * 0.02;
-    }
-  });
-  
-  return (
-    <group ref={groupRef} scale={[scale, scale, scale]}>
-      <primitive object={clonedScene} />
-    </group>
-  );
-}
-
 function TieredNebulaBackdrop({ qualityTier }) {
   return (
     <group>
-      <Suspense fallback={null}>
-        <NebulaGLBModel scale={300} />
-      </Suspense>
       <ImmersiveNebulaVolume qualityTier={qualityTier} />
       <NebulaFilaments qualityTier={qualityTier} />
     </group>
