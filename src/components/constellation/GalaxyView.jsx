@@ -1028,6 +1028,41 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0) {
   });
 }
 
+function FadeInGroup({ children, duration = 1.4, delay = 0.3 }) {
+  const groupRef = useRef();
+  const startTime = useRef(null);
+  const [opacity, setOpacity] = useState(0);
+  
+  useFrame((state) => {
+    if (startTime.current === null) {
+      startTime.current = state.clock.elapsedTime;
+    }
+    
+    const elapsed = state.clock.elapsedTime - startTime.current;
+    const delayedElapsed = Math.max(0, elapsed - delay);
+    const progress = Math.min(delayedElapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    
+    if (groupRef.current) {
+      groupRef.current.traverse((child) => {
+        if (child.material) {
+          child.material.opacity = eased;
+          child.material.transparent = true;
+        }
+      });
+    }
+    setOpacity(eased);
+  });
+  
+  return (
+    <group ref={groupRef}>
+      {React.Children.map(children, child => 
+        React.cloneElement(child, { fadeOpacity: opacity })
+      )}
+    </group>
+  );
+}
+
 function SystemLevelScene({
   household,
   people,
@@ -1038,6 +1073,7 @@ function SystemLevelScene({
   onStarHover,
   colorIndex = 0,
   householdPosition,
+  fadeOpacity = 1,
 }) {
   const householdPeople = useMemo(() => {
     return people.filter(p => p.household_id === household.id);
@@ -1070,6 +1106,7 @@ function SystemLevelScene({
         onStarHover={onStarHover}
         hoveredId={hoveredStarId}
         focusedId={focusedStarId}
+        globalOpacity={fadeOpacity}
       />
     </group>
   );
@@ -1184,17 +1221,19 @@ function NebulaScene({
       )}
       
       {level === 'system' && selectedHousehold && (
-        <SystemLevelScene
-          household={selectedHousehold}
-          people={people}
-          relationships={relationships}
-          hoveredStarId={hoveredStarId}
-          focusedStarId={focusedStarId}
-          onStarClick={onStarClick}
-          onStarHover={onStarHover}
-          colorIndex={selectedColorIndex}
-          householdPosition={selectedHouseholdPosition}
-        />
+        <FadeInGroup duration={1.2} delay={0.2}>
+          <SystemLevelScene
+            household={selectedHousehold}
+            people={people}
+            relationships={relationships}
+            hoveredStarId={hoveredStarId}
+            focusedStarId={focusedStarId}
+            onStarClick={onStarClick}
+            onStarHover={onStarHover}
+            colorIndex={selectedColorIndex}
+            householdPosition={selectedHouseholdPosition}
+          />
+        </FadeInGroup>
       )}
       
       <mesh visible={false} onClick={onBackgroundClick}>

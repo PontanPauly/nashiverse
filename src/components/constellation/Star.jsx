@@ -71,6 +71,7 @@ const nebulaShader = `
   uniform float brightness;
   uniform float uniqueOffset;
   uniform float styleVariant;
+  uniform float globalOpacity;
   varying vec2 vUv;
   
   ${noiseLib}
@@ -169,7 +170,7 @@ const nebulaShader = `
     float alpha = (structure * 0.4 + filamentGlow * 0.85 + coreGlow * 1.1 + tendrils * 0.6) * edgeFade;
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.6);
     
-    gl_FragColor = vec4(finalColor, alpha);
+    gl_FragColor = vec4(finalColor * globalOpacity, alpha * globalOpacity);
   }
 `;
 
@@ -182,6 +183,7 @@ const classicShader = `
   uniform float uniqueOffset;
   uniform float styleVariant;
   uniform float rayCount;
+  uniform float globalOpacity;
   varying vec2 vUv;
   
   ${noiseLib}
@@ -254,7 +256,7 @@ const classicShader = `
     
     if (alpha < 0.01) discard;
     
-    gl_FragColor = vec4(finalColor, alpha);
+    gl_FragColor = vec4(finalColor * globalOpacity, alpha * globalOpacity);
   }
 `;
 
@@ -267,6 +269,7 @@ const plasmaShader = `
   uniform float brightness;
   uniform float uniqueOffset;
   uniform float styleVariant;
+  uniform float globalOpacity;
   varying vec2 vUv;
   
   ${noiseLib}
@@ -337,7 +340,7 @@ const plasmaShader = `
     float alpha = (intensity * 0.65 + core * 0.8 + plasmaTendrils * 0.5) * edgeFade;
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.65);
     
-    gl_FragColor = vec4(finalColor, alpha);
+    gl_FragColor = vec4(finalColor * globalOpacity, alpha * globalOpacity);
   }
 `;
 
@@ -350,6 +353,7 @@ const crystalShader = `
   uniform float brightness;
   uniform float uniqueOffset;
   uniform float styleVariant;
+  uniform float globalOpacity;
   varying vec2 vUv;
   
   ${noiseLib}
@@ -428,7 +432,7 @@ const crystalShader = `
     
     if (alpha < 0.01) discard;
     
-    gl_FragColor = vec4(finalColor, alpha);
+    gl_FragColor = vec4(finalColor * globalOpacity, alpha * globalOpacity);
   }
 `;
 
@@ -440,6 +444,7 @@ const pulseShader = `
   uniform float brightness;
   uniform float uniqueOffset;
   uniform float styleVariant;
+  uniform float globalOpacity;
   varying vec2 vUv;
   
   ${noiseLib}
@@ -507,7 +512,7 @@ const pulseShader = `
     float alpha = (core * 1.1 + innerGlow * 0.6 + halo * 0.35 + rings * 0.7) * edgeFade;
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.65);
     
-    gl_FragColor = vec4(finalColor, alpha);
+    gl_FragColor = vec4(finalColor * globalOpacity, alpha * globalOpacity);
   }
 `;
 
@@ -520,6 +525,7 @@ const novaShader = `
   uniform float brightness;
   uniform float uniqueOffset;
   uniform float styleVariant;
+  uniform float globalOpacity;
   varying vec2 vUv;
   
   ${noiseLib}
@@ -612,7 +618,7 @@ const novaShader = `
     
     if (alpha < 0.01) discard;
     
-    gl_FragColor = vec4(finalColor, alpha);
+    gl_FragColor = vec4(finalColor * globalOpacity, alpha * globalOpacity);
   }
 `;
 
@@ -644,7 +650,7 @@ const SHAPE_TO_STYLE = {
   cluster: 'nebula',
 };
 
-function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId }) {
+function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOpacity = 1 }) {
   const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
   
@@ -667,6 +673,7 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId }) {
         uniqueOffset: { value: uniqueOffset },
         styleVariant: { value: styleVariant },
         rayCount: { value: rayCount },
+        globalOpacity: { value: 1.0 },
       },
       transparent: true,
       depthWrite: false,
@@ -678,6 +685,7 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId }) {
   useFrame((state, delta) => {
     timeRef.current += delta;
     material.uniforms.time.value = timeRef.current;
+    material.uniforms.globalOpacity.value = globalOpacity;
     
     if (meshRef.current) {
       meshRef.current.lookAt(state.camera.position);
@@ -694,7 +702,7 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId }) {
   );
 }
 
-function OuterGlow({ colors, scale, intensity, uniqueOffset }) {
+function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1 }) {
   const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
   
@@ -707,6 +715,7 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset }) {
         uniform float time;
         uniform float intensity;
         uniform float uniqueOffset;
+        uniform float globalOpacity;
         varying vec2 vUv;
         
         ${noiseLib}
@@ -732,9 +741,9 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset }) {
           
           vec3 color = mix(glowColor, secondaryColor, dist * 1.8);
           
-          float alpha = glow * intensity * breath * 0.45;
+          float alpha = glow * intensity * breath * 0.45 * globalOpacity;
           
-          gl_FragColor = vec4(color * 1.15, alpha);
+          gl_FragColor = vec4(color * 1.15 * globalOpacity, alpha);
         }
       `,
       uniforms: {
@@ -743,6 +752,7 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset }) {
         time: { value: 0 },
         intensity: { value: intensity },
         uniqueOffset: { value: uniqueOffset },
+        globalOpacity: { value: 1.0 },
       },
       transparent: true,
       depthWrite: false,
@@ -754,6 +764,7 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset }) {
   useFrame((state, delta) => {
     timeRef.current += delta;
     material.uniforms.time.value = timeRef.current;
+    material.uniforms.globalOpacity.value = globalOpacity;
     
     if (meshRef.current) {
       meshRef.current.lookAt(state.camera.position);
@@ -812,6 +823,7 @@ export default function Star({
   personName = '',
   isHovered = false,
   isFocused = false,
+  globalOpacity = 1,
   onClick,
   onPointerOver,
   onPointerOut,
@@ -862,6 +874,7 @@ export default function Star({
         scale={activeScale}
         intensity={activeIntensity * 0.65}
         uniqueOffset={uniqueOffset}
+        globalOpacity={globalOpacity}
       />
       
       <StarSprite
@@ -870,6 +883,7 @@ export default function Star({
         brightness={visuals.brightness}
         uniqueOffset={uniqueOffset}
         shapeId={shapeId}
+        globalOpacity={globalOpacity}
       />
       
       <mesh visible={false}>
@@ -880,7 +894,7 @@ export default function Star({
   );
 }
 
-export function StarInstanced({ stars, onStarClick, onStarHover, hoveredId, focusedId }) {
+export function StarInstanced({ stars, onStarClick, onStarHover, hoveredId, focusedId, globalOpacity = 1 }) {
   return (
     <group>
       {stars.map((star) => (
@@ -892,6 +906,7 @@ export function StarInstanced({ stars, onStarClick, onStarHover, hoveredId, focu
           personName={star.person?.name || star.person?.first_name || ''}
           isHovered={hoveredId === star.id}
           isFocused={focusedId === star.id}
+          globalOpacity={globalOpacity}
           onClick={(e) => {
             e.stopPropagation();
             onStarClick?.(star);
