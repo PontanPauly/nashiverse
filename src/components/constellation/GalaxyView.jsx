@@ -795,11 +795,10 @@ function NebulaGasCloud({ count = 8000 }) {
     const pha = new Float32Array(count);
     
     const nebulaColors = [
-      new THREE.Color(NEBULA_COLORS.vibrantPurple),
-      new THREE.Color(NEBULA_COLORS.teal),
-      new THREE.Color(NEBULA_COLORS.cyan),
-      new THREE.Color(NEBULA_COLORS.deepBlue),
-      new THREE.Color(NEBULA_COLORS.warmPink),
+      new THREE.Color('#1a2a4a'),
+      new THREE.Color('#0f2847'),
+      new THREE.Color('#182540'),
+      new THREE.Color('#1f3555'),
     ];
     
     for (let i = 0; i < count; i++) {
@@ -813,12 +812,12 @@ function NebulaGasCloud({ count = 8000 }) {
       
       const colorIndex = Math.floor(Math.random() * nebulaColors.length);
       const c = nebulaColors[colorIndex];
-      const brightness = 0.3 + Math.random() * 0.4;
+      const brightness = 0.4 + Math.random() * 0.3;
       col[i * 3] = c.r * brightness;
       col[i * 3 + 1] = c.g * brightness;
       col[i * 3 + 2] = c.b * brightness;
       
-      siz[i] = 2 + Math.random() * 4;
+      siz[i] = 1.5 + Math.random() * 3;
       pha[i] = Math.random() * Math.PI * 2;
     }
     
@@ -838,8 +837,8 @@ function NebulaGasCloud({ count = 8000 }) {
         void main() {
           vColor = gasColor;
           
-          float drift = sin(time * 0.1 + phase) * 0.3;
-          vAlpha = 0.15 + drift * 0.1;
+          float drift = sin(time * 0.08 + phase) * 0.2;
+          vAlpha = 0.08 + drift * 0.04;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * (200.0 / -mvPosition.z);
