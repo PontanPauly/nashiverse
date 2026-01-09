@@ -160,8 +160,8 @@ export default function Home() {
             <span className="text-sm font-medium text-amber-300">Welcome Home</span>
           </div>
           
-          <h1 className="text-4xl lg:text-5xl font-bold mb-3 bg-gradient-to-r from-amber-200 via-slate-100 to-purple-200 bg-clip-text text-transparent">
-            {personProfile?.nickname || personProfile?.name || user.full_name || "Family Member"}
+          <h1 className="text-4xl lg:text-5xl font-bold mb-3 bg-gradient-to-r from-amber-200 via-slate-100 to-purple-200 bg-clip-text text-transparent break-words">
+            {personProfile?.nickname || personProfile?.name || user?.full_name || "Family Member"}
           </h1>
           
           <p className="text-xl text-purple-300/80">
