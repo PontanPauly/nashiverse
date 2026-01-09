@@ -1342,7 +1342,7 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, onClick
   
   useFrame((state) => {
     if (meshRef.current && meshRef.current.material) {
-      meshRef.current.material.opacity = opacity * 0.4;
+      meshRef.current.material.opacity = opacity * 0.12;
     }
   });
   
@@ -1353,20 +1353,20 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, onClick
         onClick={onClick}
         onPointerOver={onPointerOver}
         onPointerOut={onPointerOut}
-        scale={[scale * 3, scale * 3, scale * 3]}
+        scale={[scale * 2.5, scale * 2.5, scale * 2.5]}
       >
         <sphereGeometry args={[1.5, 16, 16]} />
         <meshBasicMaterial 
           color={colors.primary}
           transparent
-          opacity={opacity * 0.4}
+          opacity={opacity * 0.12}
           depthWrite={false}
         />
       </mesh>
       <pointLight 
         color={colors.primary} 
-        intensity={opacity * 0.3} 
-        distance={8}
+        intensity={opacity * 0.15} 
+        distance={6}
         decay={2}
       />
     </group>

@@ -872,17 +872,35 @@ export default function Star({
         onPointerOut={onPointerOut}
       >
         <mesh>
-          <sphereGeometry args={[0.15 * activeScale, 8, 8]} />
+          <sphereGeometry args={[0.12 * activeScale, 12, 12]} />
           <meshBasicMaterial 
             color={visuals.colors.primary}
             transparent
-            opacity={globalOpacity * 0.9}
+            opacity={globalOpacity}
           />
         </mesh>
+        <sprite scale={[0.6 * activeScale, 0.6 * activeScale, 1]}>
+          <spriteMaterial
+            color={visuals.colors.glow}
+            transparent
+            opacity={globalOpacity * 0.7}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </sprite>
+        <sprite scale={[1.2 * activeScale, 1.2 * activeScale, 1]}>
+          <spriteMaterial
+            color={visuals.colors.secondary}
+            transparent
+            opacity={globalOpacity * 0.3}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </sprite>
         <pointLight 
           color={visuals.colors.glow} 
-          intensity={globalOpacity * 0.15} 
-          distance={2}
+          intensity={globalOpacity * 0.3} 
+          distance={3}
           decay={2}
         />
       </group>
