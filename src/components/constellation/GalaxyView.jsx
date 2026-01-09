@@ -418,59 +418,6 @@ function SystemConnectionLines({ people, relationships }) {
   );
 }
 
-function HouseholdLabel({ position, name, visible, color }) {
-  const [isHovered, setIsHovered] = useState(false);
-  
-  if (!visible) return null;
-  
-  return (
-    <Html
-      position={[position.x, position.y + 4.5, position.z]}
-      center
-      style={{ pointerEvents: 'auto' }}
-    >
-      <div 
-        className="flex items-center cursor-pointer"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        style={{
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        }}
-      >
-        <div 
-          className="rounded-full flex-shrink-0"
-          style={{
-            width: '7px',
-            height: '7px',
-            backgroundColor: color || '#8B5CF6',
-            boxShadow: `0 0 6px ${color || '#8B5CF6'}, 0 0 12px ${color || '#8B5CF6'}50`,
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          }}
-        />
-        <div 
-          className="overflow-hidden whitespace-nowrap"
-          style={{
-            maxWidth: isHovered ? '200px' : '0px',
-            opacity: isHovered ? 1 : 0,
-            marginLeft: isHovered ? '8px' : '0px',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          }}
-        >
-          <span 
-            className="text-xs font-medium text-white/90 px-2 py-1 rounded-md"
-            style={{
-              backgroundColor: 'rgba(15, 23, 42, 0.85)',
-              backdropFilter: 'blur(8px)',
-              border: `1px solid ${color || '#8B5CF6'}30`,
-            }}
-          >
-            {name}
-          </span>
-        </div>
-      </div>
-    </Html>
-  );
-}
 
 function CameraController({ 
   level, 
@@ -613,25 +560,18 @@ function GalaxyLevelScene({
         if (!pos) return null;
         
         return (
-          <React.Fragment key={household.id}>
-            <HouseholdCluster
-              position={[pos.x, pos.y, pos.z]}
-              household={household}
-              memberCount={pos.memberCount}
-              colorIndex={index}
-              isHovered={hoveredHouseholdId === household.id}
-              uniqueness={pos.uniqueness}
-              onClick={() => onHouseholdClick(household)}
-              onPointerOver={() => onHouseholdHover(household.id)}
-              onPointerOut={() => onHouseholdHover(null)}
-            />
-            <HouseholdLabel
-              position={pos}
-              name={household.name}
-              visible={true}
-              color={HOUSEHOLD_COLORS[index % HOUSEHOLD_COLORS.length].primary}
-            />
-          </React.Fragment>
+          <HouseholdCluster
+            key={household.id}
+            position={[pos.x, pos.y, pos.z]}
+            household={household}
+            memberCount={pos.memberCount}
+            colorIndex={index}
+            isHovered={hoveredHouseholdId === household.id}
+            uniqueness={pos.uniqueness}
+            onClick={() => onHouseholdClick(household)}
+            onPointerOver={() => onHouseholdHover(household.id)}
+            onPointerOut={() => onHouseholdHover(null)}
+          />
         );
       })}
     </group>
@@ -730,22 +670,26 @@ function SystemLevelScene({
   );
 }
 
-function GalaxyDisc() {
-  const discRef = useRef();
-  const coreRef = useRef();
+function VolumetricDustLayer({ yOffset, scale, opacity, rotationSpeed, colorShift }) {
+  const meshRef = useRef();
   
-  const discMaterial = useMemo(() => {
+  const material = useMemo(() => {
     return new THREE.ShaderMaterial({
       vertexShader: `
         varying vec2 vUv;
+        varying vec3 vWorldPos;
         void main() {
           vUv = uv;
+          vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
         uniform float time;
+        uniform float layerOpacity;
+        uniform float colorShift;
         varying vec2 vUv;
+        varying vec3 vWorldPos;
         
         float hash(vec2 p) {
           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -765,7 +709,7 @@ function GalaxyDisc() {
         float fbm(vec2 p) {
           float value = 0.0;
           float amplitude = 0.5;
-          for (int i = 0; i < 4; i++) {
+          for (int i = 0; i < 5; i++) {
             value += amplitude * noise(p);
             p *= 2.0;
             amplitude *= 0.5;
@@ -773,53 +717,133 @@ function GalaxyDisc() {
           return value;
         }
         
-        float spiralArm(vec2 uv, float armOffset, float tightness) {
-          vec2 centered = uv - 0.5;
-          float dist = length(centered);
-          float angle = atan(centered.y, centered.x);
-          
-          float spiralAngle = angle - dist * tightness + armOffset;
-          float arm = sin(spiralAngle * 1.0) * 0.5 + 0.5;
-          arm = pow(arm, 3.0);
-          
-          float falloff = smoothstep(0.5, 0.1, dist) * smoothstep(0.0, 0.08, dist);
-          return arm * falloff;
-        }
-        
         void main() {
           vec2 centered = vUv - 0.5;
           float dist = length(centered);
+          float angle = atan(centered.y, centered.x);
           
-          float arm1 = spiralArm(vUv, 0.0 + time * 0.02, 6.0);
-          float arm2 = spiralArm(vUv, 2.094 + time * 0.02, 6.0);
-          float arm3 = spiralArm(vUv, 4.188 + time * 0.02, 6.0);
-          float arms = max(max(arm1, arm2), arm3);
+          float spiral = sin(angle * 2.0 - dist * 4.0 + time * 0.008) * 0.5 + 0.5;
+          spiral = pow(spiral, 2.5);
           
-          float n = fbm(vUv * 8.0 + time * 0.01);
-          arms *= (0.6 + n * 0.4);
+          float n = fbm(vUv * 6.0 + time * 0.005 + colorShift * 10.0);
+          float n2 = fbm(vUv * 12.0 - time * 0.003);
           
-          float dustAngle = atan(centered.y, centered.x);
-          float dustSpiral = sin(dustAngle * 3.0 - dist * 5.0 + time * 0.015) * 0.5 + 0.5;
-          float dust = dustSpiral * smoothstep(0.45, 0.15, dist) * smoothstep(0.05, 0.12, dist);
-          dust *= fbm(vUv * 12.0 - time * 0.005) * 0.4;
+          float dustDensity = spiral * (0.5 + n * 0.5);
+          dustDensity *= smoothstep(0.5, 0.15, dist);
+          dustDensity *= (0.6 + n2 * 0.4);
           
-          vec3 armColor1 = vec3(0.4, 0.2, 0.8);
-          vec3 armColor2 = vec3(0.2, 0.4, 0.9);
-          vec3 armColor3 = vec3(0.5, 0.3, 0.7);
+          vec3 dustColor1 = vec3(0.25, 0.15, 0.45);
+          vec3 dustColor2 = vec3(0.15, 0.25, 0.5);
+          vec3 dustColor3 = vec3(0.35, 0.2, 0.55);
           
-          vec3 color = mix(armColor1, armColor2, dist * 2.0);
-          color = mix(color, armColor3, n * 0.5);
+          vec3 color = mix(dustColor1, dustColor2, n + colorShift);
+          color = mix(color, dustColor3, n2 * 0.5);
           
-          float glow = smoothstep(0.5, 0.0, dist) * 0.15;
-          color += vec3(0.3, 0.2, 0.5) * glow;
+          float alpha = dustDensity * layerOpacity;
+          alpha *= smoothstep(0.52, 0.35, dist);
           
-          float alpha = arms * 0.35 + glow;
-          alpha -= dust * 0.2;
-          alpha *= smoothstep(0.5, 0.3, dist);
+          gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.25));
+        }
+      `,
+      uniforms: {
+        time: { value: 0 },
+        layerOpacity: { value: opacity },
+        colorShift: { value: colorShift },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+  }, [opacity, colorShift]);
+  
+  useFrame((state) => {
+    material.uniforms.time.value = state.clock.elapsedTime;
+    if (meshRef.current) {
+      meshRef.current.rotation.z += rotationSpeed * 0.0001;
+    }
+  });
+  
+  return (
+    <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, yOffset, 0]}>
+      <planeGeometry args={[scale, scale, 1, 1]} />
+      <primitive object={material} attach="material" />
+    </mesh>
+  );
+}
+
+function AmbientDustParticles({ count = 2000, radius = 30 }) {
+  const pointsRef = useRef();
+  
+  const { positions, colors, sizes, phases } = useMemo(() => {
+    const pos = new Float32Array(count * 3);
+    const col = new Float32Array(count * 3);
+    const siz = new Float32Array(count);
+    const pha = new Float32Array(count);
+    
+    const dustColors = [
+      [0.4, 0.25, 0.6],
+      [0.25, 0.35, 0.55],
+      [0.5, 0.3, 0.65],
+      [0.3, 0.4, 0.6],
+    ];
+    
+    for (let i = 0; i < count; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const r = Math.pow(Math.random(), 0.5) * radius;
+      const heightSpread = 8;
+      const y = (Math.random() - 0.5) * heightSpread * (1 - r / radius * 0.7);
+      
+      pos[i * 3] = Math.cos(theta) * r;
+      pos[i * 3 + 1] = y;
+      pos[i * 3 + 2] = Math.sin(theta) * r;
+      
+      const colorIndex = Math.floor(Math.random() * dustColors.length);
+      const brightness = 0.4 + Math.random() * 0.4;
+      col[i * 3] = dustColors[colorIndex][0] * brightness;
+      col[i * 3 + 1] = dustColors[colorIndex][1] * brightness;
+      col[i * 3 + 2] = dustColors[colorIndex][2] * brightness;
+      
+      siz[i] = 0.8 + Math.random() * 1.5;
+      pha[i] = Math.random() * Math.PI * 2;
+    }
+    
+    return { positions: pos, colors: col, sizes: siz, phases: pha };
+  }, [count, radius]);
+  
+  const material = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        attribute vec3 particleColor;
+        attribute float size;
+        attribute float phase;
+        uniform float time;
+        varying vec3 vColor;
+        varying float vAlpha;
+        
+        void main() {
+          vColor = particleColor;
+          float drift = sin(time * 0.2 + phase) * 0.3;
+          vAlpha = 0.3 + drift * 0.2;
           
-          alpha = clamp(alpha, 0.0, 0.4);
+          vec3 pos = position;
+          pos.y += sin(time * 0.1 + phase) * 0.2;
           
-          gl_FragColor = vec4(color, alpha);
+          vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+          gl_PointSize = size * (150.0 / -mvPosition.z);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        varying float vAlpha;
+        
+        void main() {
+          vec2 center = gl_PointCoord - 0.5;
+          float dist = length(center);
+          float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
+          alpha = pow(alpha, 1.5);
+          gl_FragColor = vec4(vColor, alpha * vAlpha * 0.4);
         }
       `,
       uniforms: {
@@ -828,11 +852,32 @@ function GalaxyDisc() {
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
     });
   }, []);
   
-  const coreMaterial = useMemo(() => {
+  useFrame((state) => {
+    material.uniforms.time.value = state.clock.elapsedTime;
+    if (pointsRef.current) {
+      pointsRef.current.rotation.y += 0.0002;
+    }
+  });
+  
+  return (
+    <points ref={pointsRef} material={material}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-particleColor" count={count} array={colors} itemSize={3} />
+        <bufferAttribute attach="attributes-size" count={count} array={sizes} itemSize={1} />
+        <bufferAttribute attach="attributes-phase" count={count} array={phases} itemSize={1} />
+      </bufferGeometry>
+    </points>
+  );
+}
+
+function GalacticCore() {
+  const coreRef = useRef();
+  
+  const material = useMemo(() => {
     return new THREE.ShaderMaterial({
       vertexShader: `
         varying vec2 vUv;
@@ -850,20 +895,20 @@ function GalaxyDisc() {
           float dist = length(centered);
           
           float core = smoothstep(0.5, 0.0, dist);
-          core = pow(core, 2.0);
+          core = pow(core, 1.8);
           
-          float pulse = sin(time * 0.5) * 0.1 + 0.9;
+          float pulse = sin(time * 0.3) * 0.08 + 0.92;
           core *= pulse;
           
           vec3 coreColor = mix(
-            vec3(0.9, 0.8, 1.0),
-            vec3(0.6, 0.4, 0.9),
-            dist * 2.0
+            vec3(1.0, 0.95, 1.0),
+            vec3(0.7, 0.5, 0.95),
+            pow(dist * 2.0, 0.8)
           );
           
-          float glow = smoothstep(0.5, 0.0, dist) * 0.6;
+          float outerGlow = smoothstep(0.5, 0.0, dist) * 0.4;
           
-          float alpha = core * 0.7 + glow * 0.3;
+          float alpha = core * 0.8 + outerGlow * 0.3;
           
           gl_FragColor = vec4(coreColor, alpha);
         }
@@ -879,21 +924,32 @@ function GalaxyDisc() {
   }, []);
   
   useFrame((state) => {
-    discMaterial.uniforms.time.value = state.clock.elapsedTime;
-    coreMaterial.uniforms.time.value = state.clock.elapsedTime;
+    material.uniforms.time.value = state.clock.elapsedTime;
+    if (coreRef.current) {
+      coreRef.current.lookAt(state.camera.position);
+    }
   });
   
   return (
+    <mesh ref={coreRef} position={[0, 0, 0]}>
+      <planeGeometry args={[12, 12]} />
+      <primitive object={material} attach="material" />
+    </mesh>
+  );
+}
+
+function ImmersiveGalaxy() {
+  return (
     <group>
-      <mesh ref={discRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, 0]}>
-        <planeGeometry args={[40, 40, 1, 1]} />
-        <primitive object={discMaterial} attach="material" />
-      </mesh>
+      <VolumetricDustLayer yOffset={-3} scale={70} opacity={0.3} rotationSpeed={0.3} colorShift={0.0} />
+      <VolumetricDustLayer yOffset={-1.5} scale={60} opacity={0.35} rotationSpeed={0.4} colorShift={0.2} />
+      <VolumetricDustLayer yOffset={0} scale={55} opacity={0.4} rotationSpeed={0.5} colorShift={0.4} />
+      <VolumetricDustLayer yOffset={1.5} scale={60} opacity={0.35} rotationSpeed={0.45} colorShift={0.6} />
+      <VolumetricDustLayer yOffset={3} scale={70} opacity={0.3} rotationSpeed={0.35} colorShift={0.8} />
       
-      <mesh ref={coreRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.3, 0]}>
-        <planeGeometry args={[8, 8, 1, 1]} />
-        <primitive object={coreMaterial} attach="material" />
-      </mesh>
+      <AmbientDustParticles count={2500} radius={35} />
+      
+      <GalacticCore />
     </group>
   );
 }
@@ -944,7 +1000,7 @@ function GalaxyScene({
       <GalaxyBackground />
       <ColorfulStarfield count={3500} />
       
-      {level === 'galaxy' && <GalaxyDisc />}
+      {level === 'galaxy' && <ImmersiveGalaxy />}
       
       {level === 'galaxy' && (
         <GalaxyLevelScene
