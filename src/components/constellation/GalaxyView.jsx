@@ -140,7 +140,8 @@ function useOrganicClusterLayout(households, people) {
 }
 
 function NebulaModel({ url, position, scale, rotation, opacity = 0.4 }) {
-  const { scene } = useGLTF(url);
+  const gltf = useGLTF(url);
+  const scene = gltf.scene;
   const ref = useRef(null);
   
   const clonedScene = useMemo(() => {
@@ -179,8 +180,8 @@ function ImmersiveNebulaVolume({ qualityTier }) {
   
   const isHigh = qualityTier.tier === 'high';
   const isMedium = qualityTier.tier === 'medium';
-  const raySteps = isHigh ? 48 : (isMedium ? 32 : 20);
-  const octaves = isHigh ? 5 : (isMedium ? 4 : 3);
+  const raySteps = isHigh ? 32 : (isMedium ? 24 : 16);
+  const octaves = isHigh ? 4 : (isMedium ? 3 : 2);
   
   const volumeMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -207,13 +208,13 @@ function ImmersiveNebulaVolume({ qualityTier }) {
         const int RAY_STEPS = ${raySteps};
         const int OCTAVES = ${octaves};
         
-        vec3 deepPurple = vec3(0.12, 0.08, 0.25);
-        vec3 vibrantPurple = vec3(0.5, 0.2, 0.85);
-        vec3 teal = vec3(0.04, 0.55, 0.68);
-        vec3 cyan = vec3(0.15, 0.82, 0.85);
-        vec3 warmPink = vec3(0.9, 0.3, 0.55);
-        vec3 deepBlue = vec3(0.1, 0.2, 0.45);
-        vec3 warmOrange = vec3(0.95, 0.55, 0.15);
+        vec3 deepPurple = vec3(0.08, 0.04, 0.18);
+        vec3 vibrantPurple = vec3(0.35, 0.12, 0.65);
+        vec3 teal = vec3(0.02, 0.25, 0.35);
+        vec3 cyan = vec3(0.08, 0.35, 0.45);
+        vec3 warmPink = vec3(0.55, 0.15, 0.35);
+        vec3 deepBlue = vec3(0.05, 0.08, 0.25);
+        vec3 warmOrange = vec3(0.65, 0.35, 0.1);
         
         float hash(vec3 p) {
           p = fract(p * vec3(443.897, 441.423, 437.195));

@@ -44,21 +44,21 @@ const noiseLib = `
   }
   
   // Organic edge function - creates irregular, wispy boundaries
-  // Returns a value clamped to stay within safe bounds (max 0.42 to avoid box edges)
+  // Uses scaled UV space (0.35 max) so content fits within larger plane geometry
   float organicEdge(vec2 center, float baseRadius, float time, float uniqueOffset) {
     float angle = atan(center.y, center.x);
     
-    // Moderate noise layers for natural variation
-    float edgeNoise1 = snoise(vec2(angle * 2.5 + uniqueOffset * 10.0, time * 0.15)) * 0.08;
-    float edgeNoise2 = snoise(vec2(angle * 5.0 - uniqueOffset * 5.0, time * 0.25)) * 0.05;
-    float edgeNoise3 = snoise(vec2(angle * 9.0 + time * 0.08, uniqueOffset * 3.0)) * 0.03;
+    // Noise layers for natural variation (operates in 0-0.35 range)
+    float edgeNoise1 = snoise(vec2(angle * 2.5 + uniqueOffset * 10.0, time * 0.15)) * 0.06;
+    float edgeNoise2 = snoise(vec2(angle * 5.0 - uniqueOffset * 5.0, time * 0.25)) * 0.04;
+    float edgeNoise3 = snoise(vec2(angle * 9.0 + time * 0.08, uniqueOffset * 3.0)) * 0.02;
     
-    // Shape deformation (keep subtle)
-    float shapeWarp = snoise(vec2(angle * 1.5 + uniqueOffset * 8.0, 0.3)) * 0.06;
+    // Shape deformation
+    float shapeWarp = snoise(vec2(angle * 1.5 + uniqueOffset * 8.0, 0.3)) * 0.05;
     
     float irregularRadius = baseRadius + edgeNoise1 + edgeNoise2 + edgeNoise3 + shapeWarp;
-    // Clamp to ensure we stay within plane bounds
-    return min(irregularRadius, 0.42);
+    // Clamp to stay well within plane bounds (leave margin for smooth fade)
+    return min(irregularRadius, 0.35);
   }
 `;
 
@@ -95,7 +95,7 @@ const nebulaShader = `
     float t = time * 0.25 + uniqueOffset * 10.0;
     
     // Organic irregular boundary
-    float edgeRadius = organicEdge(center, 0.38, t, uniqueOffset);
+    float edgeRadius = organicEdge(center, 0.28, t, uniqueOffset);
     
     // Wispy tendrils extending outward
     float tendrils = 0.0;
@@ -248,7 +248,7 @@ const classicShader = `
     float alpha = core * 1.2 + corona * 0.7 + halo * 0.35 + rays * 0.55;
     
     // Soft organic edge fade
-    float edgeRadius = organicEdge(center, 0.4, t, uniqueOffset);
+    float edgeRadius = organicEdge(center, 0.3, t, uniqueOffset);
     alpha *= 1.0 - smoothstep(edgeRadius - 0.15, edgeRadius + 0.1, dist);
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.7);
     
@@ -278,7 +278,7 @@ const plasmaShader = `
     float t = time * (0.7 + styleVariant * 0.4) + uniqueOffset * 10.0;
     
     // Organic boundary
-    float edgeRadius = organicEdge(center, 0.36, t, uniqueOffset);
+    float edgeRadius = organicEdge(center, 0.28, t, uniqueOffset);
     float edgeFade = 1.0 - smoothstep(edgeRadius - 0.12, edgeRadius + 0.12, dist);
     if (edgeFade < 0.01) discard;
     
@@ -361,7 +361,7 @@ const crystalShader = `
     float t = time * 0.4 + uniqueOffset * 10.0;
     
     // Organic outer glow that extends beyond crystal
-    float glowRadius = organicEdge(center, 0.42, t, uniqueOffset);
+    float glowRadius = organicEdge(center, 0.32, t, uniqueOffset);
     float outerGlow = 1.0 - smoothstep(0.0, glowRadius, dist);
     outerGlow = pow(outerGlow, 2.5) * 0.4;
     
@@ -451,7 +451,7 @@ const pulseShader = `
     float t = time * (1.2 + styleVariant * 0.6) + uniqueOffset * 10.0;
     
     // Organic boundary
-    float edgeRadius = organicEdge(center, 0.4, t, uniqueOffset);
+    float edgeRadius = organicEdge(center, 0.3, t, uniqueOffset);
     float edgeFade = 1.0 - smoothstep(edgeRadius - 0.15, edgeRadius + 0.15, dist);
     if (edgeFade < 0.01) discard;
     
@@ -533,7 +533,7 @@ const novaShader = `
     float t = time * 0.4 + uniqueOffset * 10.0;
     
     // Very organic, chaotic boundary
-    float edgeRadius = organicEdge(center, 0.32, t, uniqueOffset);
+    float edgeRadius = organicEdge(center, 0.26, t, uniqueOffset);
     
     // Extra chaos for nova
     float chaos = snoise(vec2(angle * 5.0, t * 0.3)) * 0.08;
@@ -645,7 +645,7 @@ const SHAPE_TO_STYLE = {
 };
 
 function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId }) {
-  const meshRef = useRef();
+  const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
   
   const styleKey = SHAPE_TO_STYLE[shapeId] || 'classic';
@@ -684,7 +684,7 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId }) {
     }
   });
   
-  const spriteSize = 0.65 * scale;
+  const spriteSize = 0.9 * scale;
   
   return (
     <mesh ref={meshRef}>
@@ -695,7 +695,7 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId }) {
 }
 
 function OuterGlow({ colors, scale, intensity, uniqueOffset }) {
-  const meshRef = useRef();
+  const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
   
   const material = useMemo(() => {
@@ -717,7 +717,7 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset }) {
           float angle = atan(center.y, center.x);
           
           // Organic glow boundary
-          float edgeRadius = organicEdge(center, 0.45, time * 0.2, uniqueOffset);
+          float edgeRadius = organicEdge(center, 0.32, time * 0.2, uniqueOffset);
           if (dist > edgeRadius + 0.1) discard;
           
           float glow = 1.0 - smoothstep(0.0, edgeRadius, dist);
@@ -760,7 +760,7 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset }) {
     }
   });
   
-  const glowSize = 1.1 * scale;
+  const glowSize = 1.4 * scale;
   
   return (
     <mesh ref={meshRef}>
@@ -816,7 +816,7 @@ export default function Star({
   onPointerOver,
   onPointerOut,
 }) {
-  const groupRef = useRef();
+  const groupRef = useRef(null);
   
   const visuals = useMemo(() => {
     return getStarVisuals(starProfile, personId);
