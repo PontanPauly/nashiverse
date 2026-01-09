@@ -322,8 +322,8 @@ export default function Home() {
                 <MapPin className="w-5 h-5 text-amber-400" />
               </div>
               <h2 className="text-lg font-semibold bg-gradient-to-r from-amber-200 to-slate-100 bg-clip-text text-transparent">
-                Upcoming Journeys
-              </h2>
+                 Upcoming Trips
+               </h2>
             </div>
             <Link to={createPageUrl("Trips")} className="text-amber-400 hover:text-amber-300 text-sm font-medium flex items-center">
               View all
