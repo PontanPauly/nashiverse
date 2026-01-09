@@ -1015,16 +1015,6 @@ function SystemLevelScene({
   
   return (
     <group>
-      <mesh position={[0, 0, 0]}>
-        <sphereGeometry args={[8, 32, 32]} />
-        <meshBasicMaterial 
-          color={colors.primary} 
-          transparent 
-          opacity={0.03} 
-          side={THREE.BackSide}
-        />
-      </mesh>
-      
       <StarInstanced
         stars={starsWithProfiles}
         onStarClick={onStarClick}
