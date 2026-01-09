@@ -676,9 +676,10 @@ const SHAPE_TO_STYLE = {
   cluster: 'nebula',
 };
 
-function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOpacity = 1 }) {
+function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOpacity = 1, frozen = false }) {
   const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
+  const frozenTime = useMemo(() => uniqueOffset * 50, [uniqueOffset]);
   
   const styleKey = SHAPE_TO_STYLE[shapeId] || 'classic';
   const fragmentShader = STYLE_SHADERS[styleKey];
@@ -694,7 +695,7 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOp
         primaryColor: { value: new THREE.Color(colors.primary) },
         secondaryColor: { value: new THREE.Color(colors.secondary) },
         glowColor: { value: new THREE.Color(colors.glow) },
-        time: { value: 0 },
+        time: { value: frozen ? frozenTime : 0 },
         brightness: { value: brightness * 1.4 },
         uniqueOffset: { value: uniqueOffset },
         styleVariant: { value: styleVariant },
@@ -706,11 +707,13 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOp
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
-  }, [colors, brightness, uniqueOffset, fragmentShader]);
+  }, [colors, brightness, uniqueOffset, fragmentShader, frozen, frozenTime]);
   
   useFrame((state, delta) => {
-    timeRef.current += delta;
-    material.uniforms.time.value = timeRef.current;
+    if (!frozen) {
+      timeRef.current += delta;
+      material.uniforms.time.value = timeRef.current;
+    }
     material.uniforms.globalOpacity.value = globalOpacity;
     
     if (meshRef.current) {
@@ -728,9 +731,10 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOp
   );
 }
 
-function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1 }) {
+function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, frozen = false }) {
   const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
+  const frozenTime = useMemo(() => uniqueOffset * 50, [uniqueOffset]);
   
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -775,7 +779,7 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1 }
       uniforms: {
         glowColor: { value: new THREE.Color(colors.glow) },
         secondaryColor: { value: new THREE.Color(colors.secondary) },
-        time: { value: 0 },
+        time: { value: frozen ? frozenTime : 0 },
         intensity: { value: intensity },
         uniqueOffset: { value: uniqueOffset },
         globalOpacity: { value: 1.0 },
@@ -785,11 +789,13 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1 }
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
-  }, [colors, intensity, uniqueOffset]);
+  }, [colors, intensity, uniqueOffset, frozen, frozenTime]);
   
   useFrame((state, delta) => {
-    timeRef.current += delta;
-    material.uniforms.time.value = timeRef.current;
+    if (!frozen) {
+      timeRef.current += delta;
+      material.uniforms.time.value = timeRef.current;
+    }
     material.uniforms.globalOpacity.value = globalOpacity;
     
     if (meshRef.current) {
@@ -897,42 +903,31 @@ export default function Star({
         onPointerOver={onPointerOver}
         onPointerOut={onPointerOut}
       >
-        <sprite scale={[0.35 * activeScale, 0.35 * activeScale, 1]}>
-          <spriteMaterial
-            map={glowTexture}
-            color={visuals.colors.primary}
-            transparent
-            opacity={globalOpacity}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-          />
-        </sprite>
-        <sprite scale={[0.7 * activeScale, 0.7 * activeScale, 1]}>
-          <spriteMaterial
-            map={glowTexture}
-            color={visuals.colors.glow}
-            transparent
-            opacity={globalOpacity * 0.5}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-          />
-        </sprite>
-        <sprite scale={[1.1 * activeScale, 1.1 * activeScale, 1]}>
-          <spriteMaterial
-            map={glowTexture}
-            color={visuals.colors.secondary}
-            transparent
-            opacity={globalOpacity * 0.25}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-          />
-        </sprite>
-        <pointLight 
-          color={visuals.colors.glow} 
-          intensity={globalOpacity * 0.2} 
-          distance={2.5}
-          decay={2}
+        <StarLabel name={personName} isVisible={isHovered || isFocused} />
+        
+        <OuterGlow
+          colors={visuals.colors}
+          scale={activeScale * 0.8}
+          intensity={activeIntensity * 0.5}
+          uniqueOffset={uniqueOffset}
+          globalOpacity={globalOpacity}
+          frozen={true}
         />
+        
+        <StarSprite
+          colors={visuals.colors}
+          scale={activeScale * 0.8}
+          brightness={visuals.brightness * 0.9}
+          uniqueOffset={uniqueOffset}
+          shapeId={shapeId}
+          globalOpacity={globalOpacity}
+          frozen={true}
+        />
+        
+        <mesh visible={false}>
+          <sphereGeometry args={[0.2 * activeScale, 6, 6]} />
+          <meshBasicMaterial transparent opacity={0} />
+        </mesh>
       </group>
     );
   }
