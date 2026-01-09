@@ -18,7 +18,11 @@ Nashiverse is a family management application with a cosmic/space theme. It help
 - **Routing**: React Router DOM v6
 
 ### Key Features
-1. **Family Constellation** - Interactive family tree visualization
+1. **Family Galaxy** - 3D WebGL-powered family constellation with customizable stars
+   - React Three Fiber + Three.js rendering
+   - Force-directed organic layout using d3-force-3d
+   - 8,640+ unique star combinations (8 shapes × 12 colors × 6 glows × 5 animations × 3 sizes)
+   - Editable star profiles per family member
 2. **Trip Planning** - Full trip management with participants, rooms, meals, activities, budgets
 3. **Love Notes** - Gratitude messages between family members
 4. **Moments** - Photo/memory sharing
@@ -55,3 +59,7 @@ Key tables:
 - Migrated from Base44 backend-as-a-service to self-contained PostgreSQL + Express.js
 - Implemented session-based authentication with login/register pages
 - Created custom API client that preserves Base44 SDK patterns for minimal frontend changes
+- Added 3D Galaxy View for family visualization using React Three Fiber
+- Created star customization system with 8,640+ unique combinations
+- Added StarEditor component for personalized star profiles
+- Seeded database with 58-member Nash-Martinez extended family across 5 generations
