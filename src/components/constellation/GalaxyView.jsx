@@ -904,35 +904,51 @@ function CameraController({
   const targetCamPos = useRef(new THREE.Vector3(25, 20, 50));
   const targetLookAt = useRef(new THREE.Vector3(0, 0, 0));
   const isAnimating = useRef(false);
+  const animationPhase = useRef('idle');
+  const animationProgress = useRef(0);
   
   useEffect(() => {
     if (level === 'galaxy') {
       targetCamPos.current.set(25, 20, 50);
       targetLookAt.current.set(0, 0, 0);
-    } else if (level === 'system') {
-      targetCamPos.current.set(8, 6, 15);
-      targetLookAt.current.set(0, 0, 0);
+      animationPhase.current = 'zoom-out';
+    } else if (level === 'system' && targetPosition) {
+      const hx = targetPosition.x || 0;
+      const hy = targetPosition.y || 0;
+      const hz = targetPosition.z || 0;
+      
+      targetLookAt.current.set(hx, hy, hz);
+      targetCamPos.current.set(hx + 8, hy + 6, hz + 15);
+      animationPhase.current = 'zoom-in';
     }
     isAnimating.current = true;
+    animationProgress.current = 0;
     
     if (controlsRef.current) {
       controlsRef.current.enabled = false;
       controlsRef.current.autoRotate = false;
     }
-  }, [level]);
+  }, [level, targetPosition]);
   
-  useFrame(() => {
+  useFrame((state, delta) => {
     if (isAnimating.current) {
-      camera.position.lerp(targetCamPos.current, 0.035);
+      animationProgress.current += delta;
+      
+      const lerpSpeed = animationPhase.current === 'zoom-in' ? 0.045 : 0.04;
+      
+      camera.position.lerp(targetCamPos.current, lerpSpeed);
       
       if (controlsRef.current) {
-        controlsRef.current.target.lerp(targetLookAt.current, 0.035);
+        controlsRef.current.target.lerp(targetLookAt.current, lerpSpeed);
         controlsRef.current.update();
       }
       
       const distance = camera.position.distanceTo(targetCamPos.current);
-      if (distance < 0.5) {
+      const threshold = animationPhase.current === 'zoom-in' ? 0.3 : 0.5;
+      
+      if (distance < threshold) {
         isAnimating.current = false;
+        animationPhase.current = 'idle';
         
         if (controlsRef.current) {
           controlsRef.current.target.copy(targetLookAt.current);
@@ -993,14 +1009,19 @@ function SystemLevelScene({
   onStarClick,
   onStarHover,
   colorIndex = 0,
+  householdPosition,
 }) {
   const householdPeople = useMemo(() => {
     return people.filter(p => p.household_id === household.id);
   }, [people, household.id]);
   
+  const centerX = householdPosition?.x || 0;
+  const centerY = householdPosition?.y || 0;
+  const centerZ = householdPosition?.z || 0;
+  
   const positionedPeople = useMemo(() => {
-    return arrangeStarsInCluster(householdPeople);
-  }, [householdPeople]);
+    return arrangeStarsInCluster(householdPeople, centerX, centerY, centerZ);
+  }, [householdPeople, centerX, centerY, centerZ]);
   
   const starsWithProfiles = useMemo(() => {
     return positionedPeople.map(person => ({
@@ -1144,6 +1165,7 @@ function NebulaScene({
           onStarClick={onStarClick}
           onStarHover={onStarHover}
           colorIndex={selectedColorIndex}
+          householdPosition={selectedHouseholdPosition}
         />
       )}
       
