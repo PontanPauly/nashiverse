@@ -1430,10 +1430,15 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, onClick
     outer: createNebulaTexture(colors.primary, colorIndex * 17 + 11, 'cloud'),
   }), [colors, colorIndex]);
   
+  const stretch1 = 1.3 + (colorIndex % 3) * 0.2;
+  const stretch2 = 0.8 + (colorIndex % 4) * 0.15;
+  const baseRotation = (colorIndex * 0.7) % (Math.PI * 2);
+  
   return (
     <group position={position}>
       <sprite 
-        scale={[scale * 3.5, scale * 3.5, 1]}
+        scale={[scale * 6 * stretch1, scale * 5, 1]}
+        rotation={[0, 0, baseRotation]}
         onClick={onClick}
         onPointerOver={onPointerOver}
         onPointerOut={onPointerOut}
@@ -1441,42 +1446,51 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, onClick
         <spriteMaterial
           map={textures.core}
           transparent
-          opacity={opacity * 0.5}
+          opacity={opacity * 0.45}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
-      <sprite scale={[scale * 5, scale * 4.5, 1]} rotation={[0, 0, 0.4 + colorIndex * 0.2]}>
+      <sprite 
+        scale={[scale * 9 * stretch2, scale * 7, 1]} 
+        rotation={[0, 0, baseRotation + 0.5]}
+      >
         <spriteMaterial
           map={textures.cloud}
           transparent
-          opacity={opacity * 0.35}
+          opacity={opacity * 0.3}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
-      <sprite scale={[scale * 6, scale * 5, 1]} rotation={[0, 0, -0.3 + colorIndex * 0.15]}>
+      <sprite 
+        scale={[scale * 11, scale * 8 * stretch1, 1]} 
+        rotation={[0, 0, baseRotation - 0.4]}
+      >
         <spriteMaterial
           map={textures.wispy}
           transparent
-          opacity={opacity * 0.25}
+          opacity={opacity * 0.2}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
-      <sprite scale={[scale * 7.5, scale * 7, 1]} rotation={[0, 0, 0.7 - colorIndex * 0.1]}>
+      <sprite 
+        scale={[scale * 14 * stretch2, scale * 12, 1]} 
+        rotation={[0, 0, baseRotation + 0.8]}
+      >
         <spriteMaterial
           map={textures.outer}
           transparent
-          opacity={opacity * 0.12}
+          opacity={opacity * 0.1}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
       <pointLight 
         color={colors.primary} 
-        intensity={opacity * 0.12} 
-        distance={6}
+        intensity={opacity * 0.15} 
+        distance={8}
         decay={2}
       />
     </group>
