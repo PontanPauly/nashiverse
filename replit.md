@@ -20,8 +20,12 @@ Nashiverse is a family management application with a cosmic/space theme. It help
 ### Key Features
 1. **Family Galaxy** - 3D WebGL-powered family constellation with customizable stars
    - React Three Fiber + Three.js rendering
-   - Force-directed organic layout using d3-force-3d
+   - **Hierarchical navigation**: Galaxy level shows households as glowing nebula clusters, click to zoom into a household to see individual family members as stars
+   - Force-directed organic layout using d3-force-3d for household positioning
+   - HouseholdCluster component with particle cloud nebula effects (8 unique color palettes)
    - 8,640+ unique star combinations (8 shapes × 12 colors × 6 glows × 5 animations × 3 sizes)
+   - Smooth camera fly-through animations with OrbitControls
+   - Navigation UI overlay: zoom +/-, reset view, back to galaxy button, breadcrumb navigation
    - Editable star profiles per family member
 2. **Trip Planning** - Full trip management with participants, rooms, meals, activities, budgets
 3. **Love Notes** - Gratitude messages between family members
