@@ -1,11 +1,40 @@
 import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { StarInstanced } from './Star';
 import HouseholdCluster, { HOUSEHOLD_COLORS } from './HouseholdCluster';
-import { generateRandomStarProfile } from '@/lib/starConfig';
 import { ChevronRight, ZoomIn, ZoomOut, RotateCcw, Home } from 'lucide-react';
+import { generateRandomStarProfile } from '@/lib/starConfig';
+import { StarInstanced } from './Star';
+
+function useQualityTier() {
+  return useMemo(() => {
+    const cores = navigator.hardwareConcurrency || 4;
+    const screenPixels = window.innerWidth * window.innerHeight * (window.devicePixelRatio || 1);
+    
+    const isHighEnd = cores >= 8 && screenPixels < 4000000;
+    const isLowEnd = cores <= 4 || screenPixels > 6000000;
+    
+    if (isHighEnd) {
+      return { tier: 'high', starCount: 18000, gasCount: 4000 };
+    } else if (isLowEnd) {
+      return { tier: 'low', starCount: 6000, gasCount: 1000 };
+    } else {
+      return { tier: 'medium', starCount: 10000, gasCount: 2000 };
+    }
+  }, []);
+}
+
+const NEBULA_COLORS = {
+  deepPurple: '#1e1b4b',
+  vibrantPurple: '#7c3aed',
+  teal: '#0891b2',
+  cyan: '#22d3d8',
+  blue: '#3b82f6',
+  deepBlue: '#1e40af',
+  warmOrange: '#f97316',
+  warmPink: '#ec4899',
+};
 
 const seededRandom = (seed) => {
   let hash = 0;
@@ -30,7 +59,7 @@ function generateUniquenessProfile(seed) {
   };
 }
 
-function useSpiralGalaxyLayout(households, people) {
+function useOrganicClusterLayout(households, people) {
   return useMemo(() => {
     if (!households || households.length === 0) return new Map();
     
@@ -47,31 +76,32 @@ function useSpiralGalaxyLayout(households, people) {
     const positions = new Map();
     const placedPositions = [];
     const count = households.length;
-    const galaxyRadius = 18;
-    const spiralTurns = 1.5;
-    const armCount = 2;
-    const minSeparation = 4.5;
+    const minSeparation = 5.0;
+    const nebulaRadius = 25;
     
     households.forEach((household, index) => {
       const seed = household.id;
-      const t = index / Math.max(count - 1, 1);
       
-      const armIndex = index % armCount;
-      const armOffset = (armIndex / armCount) * Math.PI * 2;
+      const clusterIndex = Math.floor(seededRandom(seed + '-cluster') * 5);
+      const clusterCenters = [
+        { x: 0, y: 0, z: 0 },
+        { x: -12, y: 3, z: 8 },
+        { x: 10, y: -2, z: -10 },
+        { x: -8, y: -4, z: -12 },
+        { x: 15, y: 5, z: 5 },
+      ];
+      const cluster = clusterCenters[clusterIndex];
       
-      const angle = t * Math.PI * 2 * spiralTurns + armOffset;
-      const radius = 1.5 + t * galaxyRadius;
+      const spreadX = (seededRandom(seed + '-spreadX') - 0.5) * 12;
+      const spreadY = (seededRandom(seed + '-spreadY') - 0.5) * 8;
+      const spreadZ = (seededRandom(seed + '-spreadZ') - 0.5) * 12;
       
-      let jitterX = (seededRandom(seed + '-jx') - 0.5) * 2.5;
-      let jitterZ = (seededRandom(seed + '-jz') - 0.5) * 2.5;
-      const jitterY = (seededRandom(seed + '-jy') - 0.5) * 1.0;
-      
-      let x = Math.cos(angle) * radius + jitterX;
-      let z = Math.sin(angle) * radius + jitterZ;
-      let y = jitterY * (1 - t * 0.5);
+      let x = cluster.x + spreadX;
+      let y = cluster.y + spreadY;
+      let z = cluster.z + spreadZ;
       
       let attempts = 0;
-      const maxAttempts = 10;
+      const maxAttempts = 20;
       while (attempts < maxAttempts) {
         let tooClose = false;
         for (const placed of placedPositions) {
@@ -86,10 +116,9 @@ function useSpiralGalaxyLayout(households, people) {
         }
         if (!tooClose) break;
         
-        jitterX = (seededRandom(seed + '-jx-' + attempts) - 0.5) * 3.0;
-        jitterZ = (seededRandom(seed + '-jz-' + attempts) - 0.5) * 3.0;
-        x = Math.cos(angle) * (radius + attempts * 0.5) + jitterX;
-        z = Math.sin(angle) * (radius + attempts * 0.5) + jitterZ;
+        x += (seededRandom(seed + '-adj-x-' + attempts) - 0.5) * 4;
+        y += (seededRandom(seed + '-adj-y-' + attempts) - 0.5) * 3;
+        z += (seededRandom(seed + '-adj-z-' + attempts) - 0.5) * 4;
         attempts++;
       }
       
@@ -110,38 +139,7 @@ function useSpiralGalaxyLayout(households, people) {
   }, [households, people]);
 }
 
-function arrangeStarsInSpiral(people, centerX = 0, centerY = 0, centerZ = 0) {
-  const count = people.length;
-  if (count === 0) return [];
-  if (count === 1) {
-    return [{
-      ...people[0],
-      position: [centerX + 1.5, centerY, centerZ],
-    }];
-  }
-  
-  const baseRadius = 2;
-  const spiralTightness = 0.4;
-  const verticalSpread = 0.3;
-  
-  return people.map((person, index) => {
-    const angle = (index / count) * Math.PI * 2 * 1.5;
-    const radiusOffset = index * spiralTightness;
-    const radius = baseRadius + radiusOffset;
-    const yOffset = Math.sin(angle * 0.5) * verticalSpread + (index % 2) * 0.2;
-    
-    return {
-      ...person,
-      position: [
-        centerX + Math.cos(angle) * radius,
-        centerY + yOffset,
-        centerZ + Math.sin(angle) * radius,
-      ],
-    };
-  });
-}
-
-function GalaxyBackground() {
+function NebulaBackground() {
   const meshRef = useRef();
   
   const gradientMaterial = useMemo(() => {
@@ -182,25 +180,37 @@ function GalaxyBackground() {
           );
         }
         
+        float fbm(vec3 p) {
+          float value = 0.0;
+          float amplitude = 0.5;
+          for (int i = 0; i < 5; i++) {
+            value += amplitude * noise(p);
+            p *= 2.0;
+            amplitude *= 0.5;
+          }
+          return value;
+        }
+        
         void main() {
           vec3 dir = normalize(vPosition);
           
-          float n1 = noise(dir * 2.5 + time * 0.003);
-          float n2 = noise(dir * 4.0 - time * 0.002);
-          float n3 = noise(dir * 6.0 + time * 0.004);
+          float n1 = fbm(dir * 2.0 + time * 0.002);
+          float n2 = fbm(dir * 3.0 - time * 0.001);
+          float n3 = fbm(dir * 4.0 + time * 0.003);
           
-          vec3 deepSpace = vec3(0.01, 0.01, 0.04);
-          vec3 deepIndigo = vec3(0.05, 0.02, 0.12);
-          vec3 darkPurple = vec3(0.08, 0.02, 0.1);
-          vec3 deepTeal = vec3(0.01, 0.04, 0.08);
+          vec3 deepPurple = vec3(0.118, 0.106, 0.294);
+          vec3 deepBlue = vec3(0.118, 0.251, 0.424);
+          vec3 teal = vec3(0.035, 0.569, 0.698);
+          vec3 deepSpace = vec3(0.01, 0.01, 0.03);
+          vec3 vibrantPurple = vec3(0.486, 0.227, 0.929);
           
           float yFactor = (dir.y + 1.0) * 0.5;
-          vec3 baseColor = mix(deepSpace, deepIndigo, yFactor);
-          baseColor = mix(baseColor, deepTeal, n1 * 0.35);
-          baseColor = mix(baseColor, darkPurple, n2 * 0.25);
+          vec3 baseColor = mix(deepSpace, deepPurple, yFactor * 0.6);
+          baseColor = mix(baseColor, deepBlue, n1 * 0.4);
+          baseColor = mix(baseColor, teal, n2 * 0.15);
           
-          float nebulaIntensity = pow(n3, 2.5) * 0.12;
-          vec3 nebulaGlow = vec3(0.15, 0.08, 0.2);
+          float nebulaIntensity = pow(n3, 2.0) * 0.2;
+          vec3 nebulaGlow = mix(vibrantPurple, teal, n1);
           baseColor += nebulaGlow * nebulaIntensity;
           
           gl_FragColor = vec4(baseColor, 1.0);
@@ -219,92 +229,108 @@ function GalaxyBackground() {
   
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[200, 64, 64]} />
+      <sphereGeometry args={[300, 64, 64]} />
       <primitive object={gradientMaterial} attach="material" />
     </mesh>
   );
 }
 
-function ColorfulStarfield({ count = 4000 }) {
-  const pointsRef = useRef();
+function DenseStarField({ count = 55000 }) {
+  const pointsRef = useRef(null);
   
-  const { positions, colors, sizes, twinkleData, isBrightStar } = useMemo(() => {
+  const { positions, colors, sizes, twinklePhases, brightStars } = useMemo(() => {
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
     const siz = new Float32Array(count);
-    const twinkle = new Float32Array(count * 2);
+    const phases = new Float32Array(count);
     const bright = new Float32Array(count);
     
     const starColors = [
-      [1.0, 0.98, 0.95],
-      [0.9, 0.95, 1.0],
-      [1.0, 0.9, 0.8],
-      [0.95, 0.85, 1.0],
-      [0.8, 0.95, 1.0],
       [1.0, 1.0, 1.0],
+      [0.9, 0.95, 1.0],
+      [1.0, 0.95, 0.9],
+      [0.85, 0.9, 1.0],
+      [1.0, 0.9, 0.95],
+      [0.95, 0.98, 1.0],
+      [0.486, 0.227, 0.929],
+      [0.035, 0.569, 0.698],
     ];
+    
+    const farCount = Math.floor(count * 0.6);
+    const midCount = Math.floor(count * 0.3);
+    const closeCount = count - farCount - midCount;
     
     for (let i = 0; i < count; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const radius = 120 + Math.random() * 80;
+      
+      let radius;
+      if (i < farCount) {
+        radius = 150 + Math.random() * 100;
+      } else if (i < farCount + midCount) {
+        radius = 80 + Math.random() * 70;
+      } else {
+        radius = 40 + Math.random() * 40;
+      }
       
       pos[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
       pos[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
       pos[i * 3 + 2] = radius * Math.cos(phi);
       
       const colorIndex = Math.floor(Math.random() * starColors.length);
-      const brightness = 0.5 + Math.random() * 0.5;
+      const brightness = 0.4 + Math.random() * 0.6;
       col[i * 3] = starColors[colorIndex][0] * brightness;
       col[i * 3 + 1] = starColors[colorIndex][1] * brightness;
       col[i * 3 + 2] = starColors[colorIndex][2] * brightness;
       
-      const sizeFactor = Math.pow(Math.random(), 2);
-      siz[i] = 0.4 + sizeFactor * 1.2;
+      const sizeFactor = Math.pow(Math.random(), 2.5);
+      if (i < farCount) {
+        siz[i] = 0.3 + sizeFactor * 0.6;
+      } else if (i < farCount + midCount) {
+        siz[i] = 0.5 + sizeFactor * 1.0;
+      } else {
+        siz[i] = 0.8 + sizeFactor * 1.5;
+      }
       
-      twinkle[i * 2] = Math.random() * 100;
-      twinkle[i * 2 + 1] = 0.03 + Math.random() * 0.08;
-      
-      bright[i] = Math.random() < 0.1 ? 1.0 : 0.0;
+      phases[i] = Math.random() * Math.PI * 2;
+      bright[i] = Math.random() < 0.008 ? 1.0 : 0.0;
     }
     
-    return { positions: pos, colors: col, sizes: siz, twinkleData: twinkle, isBrightStar: bright };
+    return { 
+      positions: pos, 
+      colors: col, 
+      sizes: siz, 
+      twinklePhases: phases, 
+      brightStars: bright 
+    };
   }, [count]);
   
   const starMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
       vertexShader: `
-        attribute vec3 color;
+        attribute vec3 starColor;
         attribute float size;
-        attribute vec2 twinkleData;
-        attribute float isBrightStar;
+        attribute float twinklePhase;
+        attribute float isBright;
         uniform float time;
         varying vec3 vColor;
         varying float vBrightness;
         varying float vIsBright;
         
-        float rand(float n) {
-          return fract(sin(n) * 43758.5453);
-        }
-        
         void main() {
-          vColor = color;
-          vIsBright = isBrightStar;
+          vColor = starColor;
+          vIsBright = isBright;
           
-          float phase = twinkleData.x;
-          float speed = twinkleData.y;
+          float t1 = sin(time * 0.8 + twinklePhase) * 0.5 + 0.5;
+          float t2 = sin(time * 1.3 + twinklePhase * 1.5) * 0.5 + 0.5;
+          float twinkle = mix(t1, t2, 0.5);
+          vBrightness = 0.6 + twinkle * 0.4;
           
-          float t1 = sin(time * speed + phase) * 0.5 + 0.5;
-          float t2 = sin(time * speed * 0.7 + phase * 1.3) * 0.5 + 0.5;
-          float t3 = sin(time * speed * 1.5 + phase * 0.7) * 0.5 + 0.5;
-          float twinkle = mix(mix(t1, t2, 0.5), t3, 0.3);
-          
-          vBrightness = 0.5 + twinkle * 0.5;
-          
-          float sizeMultiplier = isBrightStar > 0.5 ? 1.8 : 1.0;
+          float sizeMultiplier = isBright > 0.5 ? 2.2 : 1.0;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * sizeMultiplier * (200.0 / -mvPosition.z);
+          gl_PointSize = size * sizeMultiplier * (250.0 / -mvPosition.z);
+          gl_PointSize = clamp(gl_PointSize, 0.5, 12.0);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
@@ -316,21 +342,31 @@ function ColorfulStarfield({ count = 4000 }) {
         void main() {
           vec2 center = gl_PointCoord - 0.5;
           float dist = length(center);
-          float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-          alpha = pow(alpha, 2.0);
+          
+          float core = 1.0 - smoothstep(0.0, 0.3, dist);
+          float glow = 1.0 - smoothstep(0.0, 0.5, dist);
+          glow = pow(glow, 2.0);
+          
+          float alpha = core + glow * 0.5;
           
           float spike = 0.0;
           if (vIsBright > 0.5) {
             float angle = atan(center.y, center.x);
-            float spikePattern = abs(sin(angle * 2.0));
-            spikePattern = pow(spikePattern, 8.0);
-            float spikeFalloff = exp(-dist * 4.0);
-            spike = spikePattern * spikeFalloff * 0.6;
+            float spike4 = pow(abs(sin(angle * 2.0)), 12.0);
+            float spike6 = pow(abs(sin(angle * 3.0 + 0.5)), 10.0);
+            float spikeFalloff = exp(-dist * 3.0);
+            spike = (spike4 * 0.7 + spike6 * 0.3) * spikeFalloff * 0.8;
             alpha += spike;
           }
           
           if (alpha < 0.01) discard;
-          gl_FragColor = vec4(vColor * vBrightness * (1.0 + spike * 0.5), alpha * vBrightness);
+          
+          vec3 finalColor = vColor * vBrightness;
+          if (vIsBright > 0.5) {
+            finalColor += vec3(1.0, 1.0, 1.0) * spike * 0.5;
+          }
+          
+          gl_FragColor = vec4(finalColor, alpha * vBrightness);
         }
       `,
       uniforms: {
@@ -347,109 +383,77 @@ function ColorfulStarfield({ count = 4000 }) {
   });
   
   return (
-    <points ref={pointsRef} material={starMaterial}>
+    <points ref={pointsRef} material={starMaterial} frustumCulled={true}>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={count}
-          array={positions}
-          itemSize={3}
-        />
-        <bufferAttribute
-          attach="attributes-color"
-          count={count}
-          array={colors}
-          itemSize={3}
-        />
-        <bufferAttribute
-          attach="attributes-size"
-          count={count}
-          array={sizes}
-          itemSize={1}
-        />
-        <bufferAttribute
-          attach="attributes-twinkleData"
-          count={count}
-          array={twinkleData}
-          itemSize={2}
-        />
-        <bufferAttribute
-          attach="attributes-isBrightStar"
-          count={count}
-          array={isBrightStar}
-          itemSize={1}
-        />
+        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-starColor" count={count} array={colors} itemSize={3} />
+        <bufferAttribute attach="attributes-size" count={count} array={sizes} itemSize={1} />
+        <bufferAttribute attach="attributes-twinklePhase" count={count} array={twinklePhases} itemSize={1} />
+        <bufferAttribute attach="attributes-isBright" count={count} array={brightStars} itemSize={1} />
       </bufferGeometry>
     </points>
   );
 }
 
-function SpiralArmParticles({ count = 25000 }) {
-  const groupRef = useRef();
+function NebulaGasCloud({ count = 8000 }) {
+  const pointsRef = useRef(null);
   
-  const { positions, colors, sizes } = useMemo(() => {
+  const { positions, colors, sizes, phases } = useMemo(() => {
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
     const siz = new Float32Array(count);
+    const pha = new Float32Array(count);
     
-    const centerColor = new THREE.Color('#FFB347');
-    const edgeColor = new THREE.Color('#1E90FF');
-    const tempColor = new THREE.Color();
-    
-    const maxRadius = 28;
-    const armCount = 4;
+    const nebulaColors = [
+      new THREE.Color(NEBULA_COLORS.vibrantPurple),
+      new THREE.Color(NEBULA_COLORS.teal),
+      new THREE.Color(NEBULA_COLORS.cyan),
+      new THREE.Color(NEBULA_COLORS.deepBlue),
+      new THREE.Color(NEBULA_COLORS.warmPink),
+    ];
     
     for (let i = 0; i < count; i++) {
-      const branchAngle = ((i % armCount) / armCount) * Math.PI * 2;
+      const theta = Math.random() * Math.PI * 2;
+      const radius = Math.pow(Math.random(), 0.5) * 50;
+      const height = (Math.random() - 0.5) * 25;
       
-      const radiusRandom = Math.pow(Math.random(), 0.6);
-      const radius = radiusRandom * maxRadius + 0.5;
+      pos[i * 3] = Math.cos(theta) * radius + (Math.random() - 0.5) * 10;
+      pos[i * 3 + 1] = height + (Math.random() - 0.5) * 8;
+      pos[i * 3 + 2] = Math.sin(theta) * radius + (Math.random() - 0.5) * 10;
       
-      const spinAngle = radius * 1.2;
+      const colorIndex = Math.floor(Math.random() * nebulaColors.length);
+      const c = nebulaColors[colorIndex];
+      const brightness = 0.3 + Math.random() * 0.4;
+      col[i * 3] = c.r * brightness;
+      col[i * 3 + 1] = c.g * brightness;
+      col[i * 3 + 2] = c.b * brightness;
       
-      const randomOffsetX = (Math.random() - 0.5) * 2.0 * (1 - radiusRandom * 0.3);
-      const randomOffsetZ = (Math.random() - 0.5) * 2.0 * (1 - radiusRandom * 0.3);
-      const randomOffsetY = (Math.random() - 0.5) * 1.5 * (1 - radiusRandom * 0.5);
-      
-      const x = Math.cos(branchAngle + spinAngle) * radius + randomOffsetX;
-      const z = Math.sin(branchAngle + spinAngle) * radius + randomOffsetZ;
-      const y = randomOffsetY;
-      
-      pos[i * 3] = x;
-      pos[i * 3 + 1] = y;
-      pos[i * 3 + 2] = z;
-      
-      const t = radius / maxRadius;
-      tempColor.copy(centerColor).lerp(edgeColor, t);
-      
-      const brightness = 0.6 + Math.random() * 0.4;
-      col[i * 3] = tempColor.r * brightness;
-      col[i * 3 + 1] = tempColor.g * brightness;
-      col[i * 3 + 2] = tempColor.b * brightness;
-      
-      siz[i] = 0.3 + Math.random() * 0.8 * (1 - t * 0.5);
+      siz[i] = 2 + Math.random() * 4;
+      pha[i] = Math.random() * Math.PI * 2;
     }
     
-    return { positions: pos, colors: col, sizes: siz };
+    return { positions: pos, colors: col, sizes: siz, phases: pha };
   }, [count]);
   
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
       vertexShader: `
-        attribute vec3 particleColor;
+        attribute vec3 gasColor;
         attribute float size;
+        attribute float phase;
         uniform float time;
         varying vec3 vColor;
         varying float vAlpha;
         
         void main() {
-          vColor = particleColor;
+          vColor = gasColor;
           
-          float twinkle = sin(time * 0.5 + position.x * 0.3 + position.z * 0.3) * 0.2 + 0.8;
-          vAlpha = twinkle;
+          float drift = sin(time * 0.1 + phase) * 0.3;
+          vAlpha = 0.15 + drift * 0.1;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * (180.0 / -mvPosition.z);
+          gl_PointSize = size * (200.0 / -mvPosition.z);
+          gl_PointSize = clamp(gl_PointSize, 1.0, 30.0);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
@@ -460,10 +464,14 @@ function SpiralArmParticles({ count = 25000 }) {
         void main() {
           vec2 center = gl_PointCoord - 0.5;
           float dist = length(center);
+          
           float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-          alpha = pow(alpha, 1.8);
-          if (alpha < 0.01) discard;
-          gl_FragColor = vec4(vColor, alpha * vAlpha * 0.7);
+          alpha = pow(alpha, 3.0);
+          alpha *= vAlpha;
+          
+          if (alpha < 0.005) discard;
+          
+          gl_FragColor = vec4(vColor, alpha);
         }
       `,
       uniforms: {
@@ -472,91 +480,38 @@ function SpiralArmParticles({ count = 25000 }) {
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
-      vertexColors: true,
     });
   }, []);
   
   useFrame((state) => {
     material.uniforms.time.value = state.clock.elapsedTime;
-    if (groupRef.current) {
-      groupRef.current.rotation.y += 0.0003;
+    if (pointsRef.current) {
+      pointsRef.current.rotation.y += 0.00015;
     }
   });
   
   return (
-    <group ref={groupRef}>
-      <points material={material}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
-          <bufferAttribute attach="attributes-particleColor" count={count} array={colors} itemSize={3} />
-          <bufferAttribute attach="attributes-size" count={count} array={sizes} itemSize={1} />
-        </bufferGeometry>
-      </points>
-    </group>
+    <points ref={pointsRef} material={material} frustumCulled={true}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-gasColor" count={count} array={colors} itemSize={3} />
+        <bufferAttribute attach="attributes-size" count={count} array={sizes} itemSize={1} />
+        <bufferAttribute attach="attributes-phase" count={count} array={phases} itemSize={1} />
+      </bufferGeometry>
+    </points>
   );
 }
 
-function SystemConnectionLines({ people, relationships }) {
-  const lines = useMemo(() => {
-    const peopleMap = new Map(people.map(p => [p.id, p]));
-    const connections = [];
-    
-    relationships.forEach(rel => {
-      const source = peopleMap.get(rel.person_id);
-      const target = peopleMap.get(rel.related_person_id);
-      
-      if (source && target && source.position && target.position) {
-        let color = '#FBBF24';
-        let opacity = 0.4;
-        
-        if (rel.relationship_type === 'partner' || rel.relationship_type === 'spouse') {
-          color = '#EC4899';
-          opacity = 0.6;
-        } else if (rel.relationship_type === 'parent') {
-          color = '#60A5FA';
-          opacity = 0.5;
-        } else if (rel.relationship_type === 'sibling') {
-          color = '#34D399';
-          opacity = 0.45;
-        }
-        
-        connections.push({
-          source: source.position,
-          target: target.position,
-          color,
-          opacity,
-        });
-      }
-    });
-    
-    return connections;
-  }, [people, relationships]);
-  
+function VignetteOverlay() {
   return (
-    <group>
-      {lines.map((line, i) => {
-        const points = [
-          new THREE.Vector3(...line.source),
-          new THREE.Vector3(...line.target),
-        ];
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        
-        return (
-          <line key={i} geometry={geometry}>
-            <lineBasicMaterial
-              color={line.color}
-              transparent
-              opacity={line.opacity}
-              blending={THREE.AdditiveBlending}
-              linewidth={2}
-            />
-          </line>
-        );
-      })}
-    </group>
+    <div 
+      className="absolute inset-0 pointer-events-none z-10"
+      style={{
+        background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.4) 100%)',
+      }}
+    />
   );
 }
-
 
 function CameraController({ 
   level, 
@@ -566,17 +521,21 @@ function CameraController({
   setAutoRotateEnabled
 }) {
   const { camera } = useThree();
-  const targetCamPos = useRef(new THREE.Vector3(20, 25, 45));
+  const targetCamPos = useRef(new THREE.Vector3(25, 20, 50));
   const targetLookAt = useRef(new THREE.Vector3(0, 0, 0));
   const isAnimating = useRef(false);
   
   useEffect(() => {
     if (level === 'galaxy') {
-      targetCamPos.current.set(20, 25, 45);
+      targetCamPos.current.set(25, 20, 50);
       targetLookAt.current.set(0, 0, 0);
-    } else if (level === 'system') {
-      targetCamPos.current.set(0, 5, 15);
-      targetLookAt.current.set(0, 0, 0);
+    } else if (level === 'system' && targetPosition) {
+      targetCamPos.current.set(
+        targetPosition.x + 8,
+        targetPosition.y + 5,
+        targetPosition.z + 12
+      );
+      targetLookAt.current.set(targetPosition.x, targetPosition.y, targetPosition.z);
     }
     isAnimating.current = true;
     
@@ -588,15 +547,15 @@ function CameraController({
   
   useFrame(() => {
     if (isAnimating.current) {
-      camera.position.lerp(targetCamPos.current, 0.04);
+      camera.position.lerp(targetCamPos.current, 0.035);
       
       if (controlsRef.current) {
-        controlsRef.current.target.lerp(targetLookAt.current, 0.04);
+        controlsRef.current.target.lerp(targetLookAt.current, 0.035);
         controlsRef.current.update();
       }
       
       const distance = camera.position.distanceTo(targetCamPos.current);
-      if (distance < 0.3) {
+      if (distance < 0.5) {
         isAnimating.current = false;
         
         if (controlsRef.current) {
@@ -622,66 +581,82 @@ function CameraController({
   return null;
 }
 
-function SystemNebulaBackdrop({ colors, scale }) {
-  const meshRef = useRef();
+function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0) {
+  const count = people.length;
+  if (count === 0) return [];
+  if (count === 1) {
+    return [{
+      ...people[0],
+      position: [centerX + 1.5, centerY, centerZ],
+    }];
+  }
   
-  const material = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      vertexShader: `
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 color1;
-        uniform vec3 color2;
-        uniform float time;
-        varying vec2 vUv;
-        
-        float noise(vec2 p) {
-          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-        }
-        
-        void main() {
-          vec2 center = vUv - 0.5;
-          float dist = length(center);
-          
-          float n = noise(vUv * 8.0 + time * 0.02);
-          
-          float alpha = smoothstep(0.5, 0.0, dist) * 0.3;
-          alpha *= (0.7 + n * 0.3);
-          
-          vec3 color = mix(color1, color2, dist * 2.0);
-          
-          gl_FragColor = vec4(color, alpha);
-        }
-      `,
-      uniforms: {
-        color1: { value: new THREE.Color(colors.primary) },
-        color2: { value: new THREE.Color(colors.secondary) },
-        time: { value: 0 },
-      },
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-    });
-  }, [colors]);
-  
-  useFrame((state) => {
-    if (meshRef.current) {
-      meshRef.current.lookAt(state.camera.position);
-    }
-    material.uniforms.time.value = state.clock.elapsedTime;
+  return people.map((person, index) => {
+    const seed = person.id || index;
+    const angle = seededRandom(seed + '-angle') * Math.PI * 2;
+    const radius = 1.5 + seededRandom(seed + '-radius') * 3;
+    const yOffset = (seededRandom(seed + '-y') - 0.5) * 1.5;
+    
+    return {
+      ...person,
+      position: [
+        centerX + Math.cos(angle) * radius,
+        centerY + yOffset,
+        centerZ + Math.sin(angle) * radius,
+      ],
+    };
   });
+}
+
+function SystemLevelScene({
+  household,
+  people,
+  relationships,
+  hoveredStarId,
+  focusedStarId,
+  onStarClick,
+  onStarHover,
+  colorIndex = 0,
+}) {
+  const householdPeople = useMemo(() => {
+    return people.filter(p => p.household_id === household.id);
+  }, [people, household.id]);
+  
+  const positionedPeople = useMemo(() => {
+    return arrangeStarsInCluster(householdPeople);
+  }, [householdPeople]);
+  
+  const starsWithProfiles = useMemo(() => {
+    return positionedPeople.map(person => ({
+      id: person.id,
+      position: person.position,
+      starProfile: person.star_profile || generateRandomStarProfile(person.id),
+      person,
+    }));
+  }, [positionedPeople]);
+  
+  const colors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
   
   return (
-    <mesh ref={meshRef}>
-      <planeGeometry args={[scale * 3, scale * 3]} />
-      <primitive object={material} attach="material" />
-    </mesh>
+    <group>
+      <mesh position={[0, 0, 0]}>
+        <sphereGeometry args={[8, 32, 32]} />
+        <meshBasicMaterial 
+          color={colors.primary} 
+          transparent 
+          opacity={0.03} 
+          side={THREE.BackSide}
+        />
+      </mesh>
+      
+      <StarInstanced
+        stars={starsWithProfiles}
+        onStarClick={onStarClick}
+        onStarHover={onStarHover}
+        hoveredId={hoveredStarId}
+        focusedId={focusedStarId}
+      />
+    </group>
   );
 }
 
@@ -706,7 +681,6 @@ function GalaxyLevelScene({
             memberCount={pos.memberCount}
             colorIndex={index}
             isHovered={hoveredHouseholdId === household.id}
-            uniqueness={pos.uniqueness}
             onClick={() => onHouseholdClick(household)}
             onPointerOver={() => onHouseholdHover(household.id)}
             onPointerOut={() => onHouseholdHover(null)}
@@ -717,389 +691,11 @@ function GalaxyLevelScene({
   );
 }
 
-function SystemLevelScene({
-  household,
-  people,
-  relationships,
-  hoveredStarId,
-  focusedStarId,
-  onStarClick,
-  onStarHover,
-  colorIndex = 0,
-}) {
-  const householdPeople = useMemo(() => {
-    return people.filter(p => p.household_id === household?.id);
-  }, [people, household]);
-  
-  const householdRelationships = useMemo(() => {
-    const peopleIds = new Set(householdPeople.map(p => p.id));
-    return relationships.filter(r => 
-      peopleIds.has(r.person_id) && peopleIds.has(r.related_person_id)
-    );
-  }, [householdPeople, relationships]);
-  
-  const arrangedPeople = useMemo(() => {
-    return arrangeStarsInSpiral(householdPeople);
-  }, [householdPeople]);
-  
-  const stars = useMemo(() => {
-    return arrangedPeople.map(person => ({
-      id: person.id,
-      person,
-      position: person.position,
-      starProfile: person.star_profile || generateRandomStarProfile(person.id),
-    }));
-  }, [arrangedPeople]);
-  
-  const colors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
-  
-  if (householdPeople.length === 0) {
-    return (
-      <group>
-        <SystemNebulaBackdrop colors={colors} scale={8} />
-        <Html center>
-          <div className="px-8 py-6 rounded-2xl bg-slate-900/95 border border-purple-500/30 backdrop-blur-lg shadow-2xl text-center max-w-xs">
-            <div className="text-4xl mb-3">✨</div>
-            <div className="text-lg font-semibold text-white mb-2">
-              Empty Household
-            </div>
-            <div className="text-sm text-slate-400">
-              No family members have been added to {household?.name || 'this household'} yet.
-            </div>
-          </div>
-        </Html>
-      </group>
-    );
-  }
-  
-  return (
-    <group>
-      <SystemNebulaBackdrop colors={colors} scale={12} />
-      
-      <SystemConnectionLines
-        people={arrangedPeople}
-        relationships={householdRelationships}
-      />
-      
-      <StarInstanced
-        stars={stars}
-        onStarClick={onStarClick}
-        onStarHover={onStarHover}
-        hoveredId={hoveredStarId}
-        focusedId={focusedStarId}
-      />
-      
-      {stars.map(star => (
-        <Html
-          key={star.id}
-          position={[star.position[0], star.position[1] + 0.8, star.position[2]]}
-          center
-          style={{ 
-            pointerEvents: 'none',
-            opacity: hoveredStarId === star.id || focusedStarId === star.id ? 1 : 0.8,
-            transition: 'opacity 0.2s',
-          }}
-        >
-          <div className="px-3 py-1.5 rounded-lg bg-slate-900/85 border border-slate-500/40 backdrop-blur-sm whitespace-nowrap shadow-lg">
-            <div className="text-sm font-medium text-white">{star.person.name}</div>
-          </div>
-        </Html>
-      ))}
-    </group>
-  );
-}
-
-function VolumetricDustLayer({ yOffset, scale, opacity, rotationSpeed, colorShift }) {
-  const meshRef = useRef();
-  
-  const material = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      vertexShader: `
-        varying vec2 vUv;
-        varying vec3 vWorldPos;
-        void main() {
-          vUv = uv;
-          vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform float time;
-        uniform float layerOpacity;
-        uniform float colorShift;
-        varying vec2 vUv;
-        varying vec3 vWorldPos;
-        
-        float hash(vec2 p) {
-          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-        }
-        
-        float noise(vec2 p) {
-          vec2 i = floor(p);
-          vec2 f = fract(p);
-          f = f * f * (3.0 - 2.0 * f);
-          float a = hash(i);
-          float b = hash(i + vec2(1.0, 0.0));
-          float c = hash(i + vec2(0.0, 1.0));
-          float d = hash(i + vec2(1.0, 1.0));
-          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-        }
-        
-        float fbm(vec2 p) {
-          float value = 0.0;
-          float amplitude = 0.5;
-          for (int i = 0; i < 5; i++) {
-            value += amplitude * noise(p);
-            p *= 2.0;
-            amplitude *= 0.5;
-          }
-          return value;
-        }
-        
-        void main() {
-          vec2 centered = vUv - 0.5;
-          float dist = length(centered);
-          float angle = atan(centered.y, centered.x);
-          
-          float spiral = sin(angle * 2.0 - dist * 4.0 + time * 0.008) * 0.5 + 0.5;
-          spiral = pow(spiral, 2.5);
-          
-          float n = fbm(vUv * 6.0 + time * 0.005 + colorShift * 10.0);
-          float n2 = fbm(vUv * 12.0 - time * 0.003);
-          
-          float dustDensity = spiral * (0.5 + n * 0.5);
-          dustDensity *= smoothstep(0.5, 0.15, dist);
-          dustDensity *= (0.6 + n2 * 0.4);
-          
-          vec3 dustColor1 = vec3(0.25, 0.15, 0.45);
-          vec3 dustColor2 = vec3(0.15, 0.25, 0.5);
-          vec3 dustColor3 = vec3(0.35, 0.2, 0.55);
-          
-          vec3 color = mix(dustColor1, dustColor2, n + colorShift);
-          color = mix(color, dustColor3, n2 * 0.5);
-          
-          float alpha = dustDensity * layerOpacity;
-          alpha *= smoothstep(0.52, 0.35, dist);
-          
-          gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.25));
-        }
-      `,
-      uniforms: {
-        time: { value: 0 },
-        layerOpacity: { value: opacity },
-        colorShift: { value: colorShift },
-      },
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-    });
-  }, [opacity, colorShift]);
-  
-  useFrame((state) => {
-    material.uniforms.time.value = state.clock.elapsedTime;
-    if (meshRef.current) {
-      meshRef.current.rotation.z += rotationSpeed * 0.0001;
-    }
-  });
-  
-  return (
-    <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, yOffset, 0]}>
-      <planeGeometry args={[scale, scale, 1, 1]} />
-      <primitive object={material} attach="material" />
-    </mesh>
-  );
-}
-
-function AmbientDustParticles({ count = 2000, radius = 30 }) {
-  const pointsRef = useRef();
-  
-  const { positions, colors, sizes, phases } = useMemo(() => {
-    const pos = new Float32Array(count * 3);
-    const col = new Float32Array(count * 3);
-    const siz = new Float32Array(count);
-    const pha = new Float32Array(count);
-    
-    const dustColors = [
-      [0.4, 0.25, 0.6],
-      [0.25, 0.35, 0.55],
-      [0.5, 0.3, 0.65],
-      [0.3, 0.4, 0.6],
-    ];
-    
-    for (let i = 0; i < count; i++) {
-      const theta = Math.random() * Math.PI * 2;
-      const r = Math.pow(Math.random(), 0.5) * radius;
-      const heightSpread = 8;
-      const y = (Math.random() - 0.5) * heightSpread * (1 - r / radius * 0.7);
-      
-      pos[i * 3] = Math.cos(theta) * r;
-      pos[i * 3 + 1] = y;
-      pos[i * 3 + 2] = Math.sin(theta) * r;
-      
-      const colorIndex = Math.floor(Math.random() * dustColors.length);
-      const brightness = 0.4 + Math.random() * 0.4;
-      col[i * 3] = dustColors[colorIndex][0] * brightness;
-      col[i * 3 + 1] = dustColors[colorIndex][1] * brightness;
-      col[i * 3 + 2] = dustColors[colorIndex][2] * brightness;
-      
-      siz[i] = 0.8 + Math.random() * 1.5;
-      pha[i] = Math.random() * Math.PI * 2;
-    }
-    
-    return { positions: pos, colors: col, sizes: siz, phases: pha };
-  }, [count, radius]);
-  
-  const material = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      vertexShader: `
-        attribute vec3 particleColor;
-        attribute float size;
-        attribute float phase;
-        uniform float time;
-        varying vec3 vColor;
-        varying float vAlpha;
-        
-        void main() {
-          vColor = particleColor;
-          float drift = sin(time * 0.2 + phase) * 0.3;
-          vAlpha = 0.3 + drift * 0.2;
-          
-          vec3 pos = position;
-          pos.y += sin(time * 0.1 + phase) * 0.2;
-          
-          vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-          gl_PointSize = size * (150.0 / -mvPosition.z);
-          gl_Position = projectionMatrix * mvPosition;
-        }
-      `,
-      fragmentShader: `
-        varying vec3 vColor;
-        varying float vAlpha;
-        
-        void main() {
-          vec2 center = gl_PointCoord - 0.5;
-          float dist = length(center);
-          float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-          alpha = pow(alpha, 1.5);
-          gl_FragColor = vec4(vColor, alpha * vAlpha * 0.4);
-        }
-      `,
-      uniforms: {
-        time: { value: 0 },
-      },
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-  }, []);
-  
-  useFrame((state) => {
-    material.uniforms.time.value = state.clock.elapsedTime;
-    if (pointsRef.current) {
-      pointsRef.current.rotation.y += 0.0002;
-    }
-  });
-  
-  return (
-    <points ref={pointsRef} material={material}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
-        <bufferAttribute attach="attributes-particleColor" count={count} array={colors} itemSize={3} />
-        <bufferAttribute attach="attributes-size" count={count} array={sizes} itemSize={1} />
-        <bufferAttribute attach="attributes-phase" count={count} array={phases} itemSize={1} />
-      </bufferGeometry>
-    </points>
-  );
-}
-
-function GalacticCore() {
-  const coreRef = useRef();
-  
-  const material = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      vertexShader: `
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform float time;
-        varying vec2 vUv;
-        
-        void main() {
-          vec2 centered = vUv - 0.5;
-          float dist = length(centered);
-          
-          float core = smoothstep(0.5, 0.0, dist);
-          core = pow(core, 1.8);
-          
-          float pulse = sin(time * 0.3) * 0.08 + 0.92;
-          core *= pulse;
-          
-          vec3 coreColor = mix(
-            vec3(1.0, 0.95, 1.0),
-            vec3(0.7, 0.5, 0.95),
-            pow(dist * 2.0, 0.8)
-          );
-          
-          float outerGlow = smoothstep(0.5, 0.0, dist) * 0.4;
-          
-          float alpha = core * 0.8 + outerGlow * 0.3;
-          
-          gl_FragColor = vec4(coreColor, alpha);
-        }
-      `,
-      uniforms: {
-        time: { value: 0 },
-      },
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-    });
-  }, []);
-  
-  useFrame((state) => {
-    material.uniforms.time.value = state.clock.elapsedTime;
-    if (coreRef.current) {
-      coreRef.current.lookAt(state.camera.position);
-    }
-  });
-  
-  return (
-    <mesh ref={coreRef} position={[0, 0, 0]}>
-      <planeGeometry args={[12, 12]} />
-      <primitive object={material} attach="material" />
-    </mesh>
-  );
-}
-
-function ImmersiveGalaxy() {
-  return (
-    <group>
-      <SpiralArmParticles count={25000} />
-      
-      <VolumetricDustLayer yOffset={-3} scale={70} opacity={0.3} rotationSpeed={0.3} colorShift={0.0} />
-      <VolumetricDustLayer yOffset={-1.5} scale={60} opacity={0.35} rotationSpeed={0.4} colorShift={0.2} />
-      <VolumetricDustLayer yOffset={0} scale={55} opacity={0.4} rotationSpeed={0.5} colorShift={0.4} />
-      <VolumetricDustLayer yOffset={1.5} scale={60} opacity={0.35} rotationSpeed={0.45} colorShift={0.6} />
-      <VolumetricDustLayer yOffset={3} scale={70} opacity={0.3} rotationSpeed={0.35} colorShift={0.8} />
-      
-      <AmbientDustParticles count={2500} radius={35} />
-      
-      <GalacticCore />
-    </group>
-  );
-}
-
 function FogController() {
   const { scene } = useThree();
   
   useEffect(() => {
-    scene.fog = new THREE.FogExp2('#0a0a15', 0.008);
+    scene.fog = new THREE.FogExp2('#050510', 0.006);
     return () => {
       scene.fog = null;
     };
@@ -1108,7 +704,7 @@ function FogController() {
   return null;
 }
 
-function GalaxyScene({
+function NebulaScene({
   level,
   households,
   people,
@@ -1126,6 +722,7 @@ function GalaxyScene({
   controlsRef,
   autoRotateEnabled,
   setAutoRotateEnabled,
+  qualityTier,
 }) {
   const selectedHouseholdPosition = useMemo(() => {
     if (!selectedHousehold) return null;
@@ -1143,29 +740,32 @@ function GalaxyScene({
         level={level}
         targetPosition={selectedHouseholdPosition}
         controlsRef={controlsRef}
+        onTransitionComplete={() => {}}
         setAutoRotateEnabled={setAutoRotateEnabled}
       />
       
       <FogController />
       
-      <ambientLight intensity={0.15} />
-      <pointLight position={[30, 30, 30]} intensity={0.25} color="#ffffff" />
-      <pointLight position={[-20, -10, -20]} intensity={0.15} color="#8B5CF6" />
-      <pointLight position={[0, 40, 0]} intensity={0.1} color="#3B82F6" />
+      <ambientLight intensity={0.1} />
+      <pointLight position={[40, 30, 40]} intensity={0.2} color="#ffffff" />
+      <pointLight position={[-30, -10, -30]} intensity={0.15} color={NEBULA_COLORS.vibrantPurple} />
+      <pointLight position={[0, 50, 0]} intensity={0.1} color={NEBULA_COLORS.cyan} />
+      <pointLight position={[20, -20, 30]} intensity={0.08} color={NEBULA_COLORS.warmPink} />
       
-      <GalaxyBackground />
-      <ColorfulStarfield count={3500} />
-      
-      {level === 'galaxy' && <ImmersiveGalaxy />}
+      <NebulaBackground />
+      <DenseStarField count={qualityTier.starCount} />
       
       {level === 'galaxy' && (
-        <GalaxyLevelScene
-          households={households}
-          householdPositions={householdPositions}
-          hoveredHouseholdId={hoveredHouseholdId}
-          onHouseholdClick={onHouseholdClick}
-          onHouseholdHover={onHouseholdHover}
-        />
+        <>
+          <NebulaGasCloud count={qualityTier.gasCount} />
+          <GalaxyLevelScene
+            households={households}
+            householdPositions={householdPositions}
+            hoveredHouseholdId={hoveredHouseholdId}
+            onHouseholdClick={onHouseholdClick}
+            onHouseholdHover={onHouseholdHover}
+          />
+        </>
       )}
       
       {level === 'system' && selectedHousehold && (
@@ -1181,11 +781,8 @@ function GalaxyScene({
         />
       )}
       
-      <mesh
-        visible={false}
-        onClick={onBackgroundClick}
-      >
-        <sphereGeometry args={[250, 8, 8]} />
+      <mesh visible={false} onClick={onBackgroundClick}>
+        <sphereGeometry args={[350, 8, 8]} />
         <meshBasicMaterial side={THREE.BackSide} />
       </mesh>
       
@@ -1195,16 +792,16 @@ function GalaxyScene({
         enableZoom={true}
         enableRotate={true}
         enableDamping={true}
-        dampingFactor={0.06}
-        minDistance={level === 'system' ? 6 : 25}
-        maxDistance={level === 'system' ? 30 : 100}
+        dampingFactor={0.05}
+        minDistance={level === 'system' ? 6 : 20}
+        maxDistance={level === 'system' ? 35 : 120}
         autoRotate={autoRotateEnabled && level === 'galaxy' && !hoveredHouseholdId}
-        autoRotateSpeed={0.08}
-        rotateSpeed={0.35}
-        zoomSpeed={0.5}
-        panSpeed={0.35}
-        minPolarAngle={Math.PI * 0.2}
-        maxPolarAngle={Math.PI * 0.8}
+        autoRotateSpeed={0.06}
+        rotateSpeed={0.4}
+        zoomSpeed={0.6}
+        panSpeed={0.4}
+        minPolarAngle={Math.PI * 0.15}
+        maxPolarAngle={Math.PI * 0.85}
       />
     </>
   );
@@ -1231,13 +828,13 @@ function NavigationUI({
             }`}
           >
             <Home className="w-4 h-4" />
-            Galaxy
+            Nebula
           </button>
           
           {level === 'system' && selectedHousehold && (
             <>
               <ChevronRight className="w-4 h-4 text-slate-600" />
-              <span className="text-sm text-purple-400 font-medium">
+              <span className="text-sm text-cyan-400 font-medium">
                 {selectedHousehold.name}
               </span>
             </>
@@ -1245,25 +842,24 @@ function NavigationUI({
         </div>
       </div>
       
-      
       <div className="absolute bottom-6 right-6 z-50 flex flex-col gap-2">
         <button
           onClick={onZoomIn}
-          className="p-3 rounded-lg bg-slate-800/90 border border-purple-500/30 backdrop-blur-md text-white hover:bg-slate-700/90 transition-colors"
+          className="p-3 rounded-lg bg-slate-800/90 border border-cyan-500/30 backdrop-blur-md text-white hover:bg-slate-700/90 transition-colors"
           title="Zoom In"
         >
           <ZoomIn className="w-5 h-5" />
         </button>
         <button
           onClick={onZoomOut}
-          className="p-3 rounded-lg bg-slate-800/90 border border-purple-500/30 backdrop-blur-md text-white hover:bg-slate-700/90 transition-colors"
+          className="p-3 rounded-lg bg-slate-800/90 border border-cyan-500/30 backdrop-blur-md text-white hover:bg-slate-700/90 transition-colors"
           title="Zoom Out"
         >
           <ZoomOut className="w-5 h-5" />
         </button>
         <button
           onClick={onResetView}
-          className="p-3 rounded-lg bg-slate-800/90 border border-purple-500/30 backdrop-blur-md text-white hover:bg-slate-700/90 transition-colors"
+          className="p-3 rounded-lg bg-slate-800/90 border border-cyan-500/30 backdrop-blur-md text-white hover:bg-slate-700/90 transition-colors"
           title="Reset View"
         >
           <RotateCcw className="w-5 h-5" />
@@ -1277,10 +873,10 @@ function PersonDetailPanel({ person, household, onClose }) {
   if (!person) return null;
   
   return (
-    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[480px] max-w-[calc(100vw-2rem)] glass-card rounded-2xl p-6 border border-purple-500/30 z-50 animate-in slide-in-from-bottom duration-300 bg-slate-900/95 backdrop-blur-xl">
+    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[480px] max-w-[calc(100vw-2rem)] glass-card rounded-2xl p-6 border border-cyan-500/30 z-50 animate-in slide-in-from-bottom duration-300 bg-slate-900/95 backdrop-blur-xl">
       <div className="flex justify-between items-start">
         <div className="flex gap-3">
-          <div className="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden border-2 border-purple-500/30">
+          <div className="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden border-2 border-cyan-500/30">
             {person.photo_url ? (
               <img src={person.photo_url} className="w-full h-full object-cover" alt="" />
             ) : (
@@ -1290,7 +886,7 @@ function PersonDetailPanel({ person, household, onClose }) {
           <div>
             <h3 className="text-lg font-semibold text-slate-100">{person.name}</h3>
             {person.nickname && (
-              <p className="text-sm text-purple-400 mt-0.5">"{person.nickname}"</p>
+              <p className="text-sm text-cyan-400 mt-0.5">"{person.nickname}"</p>
             )}
             <span className="inline-block mt-2 px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">
               {person.role_type}
@@ -1325,9 +921,36 @@ export default function GalaxyView({ people = [], relationships = [], households
   const [hoveredStarId, setHoveredStarId] = useState(null);
   const [focusedStarId, setFocusedStarId] = useState(null);
   const [autoRotateEnabled, setAutoRotateEnabled] = useState(true);
+  const [contextLost, setContextLost] = useState(false);
   const controlsRef = useRef(null);
+  const rendererRef = useRef(null);
   
-  const householdPositions = useSpiralGalaxyLayout(households, people);
+  const qualityTier = useQualityTier();
+  const householdPositions = useOrganicClusterLayout(households, people);
+  
+  const handleCanvasCreated = useCallback(({ gl }) => {
+    rendererRef.current = gl;
+    const canvas = gl.domElement;
+    
+    const handleContextLost = (event) => {
+      event.preventDefault();
+      setContextLost(true);
+      console.warn('WebGL context lost. Attempting recovery...');
+    };
+    
+    const handleContextRestored = () => {
+      setContextLost(false);
+      console.log('WebGL context restored.');
+    };
+    
+    canvas.addEventListener('webglcontextlost', handleContextLost, false);
+    canvas.addEventListener('webglcontextrestored', handleContextRestored, false);
+    
+    return () => {
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
+    };
+  }, []);
   
   const handleHouseholdClick = useCallback((household) => {
     setSelectedHousehold(household);
@@ -1360,7 +983,7 @@ export default function GalaxyView({ people = [], relationships = [], households
       const camera = controlsRef.current.object;
       const direction = new THREE.Vector3();
       camera.getWorldDirection(direction);
-      camera.position.addScaledVector(direction, 3);
+      camera.position.addScaledVector(direction, 5);
     }
   }, []);
   
@@ -1369,7 +992,7 @@ export default function GalaxyView({ people = [], relationships = [], households
       const camera = controlsRef.current.object;
       const direction = new THREE.Vector3();
       camera.getWorldDirection(direction);
-      camera.position.addScaledVector(direction, -3);
+      camera.position.addScaledVector(direction, -5);
     }
   }, []);
   
@@ -1390,7 +1013,7 @@ export default function GalaxyView({ people = [], relationships = [], households
   
   if (!people || people.length === 0) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-[#0a0a15] via-[#0d0820] to-[#080510]">
+      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-[#050510] via-[#0d0820] to-[#080510]">
         <p className="text-slate-500">No family members yet</p>
       </div>
     );
@@ -1398,20 +1021,30 @@ export default function GalaxyView({ people = [], relationships = [], households
   
   if (!households || households.length === 0) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-[#0a0a15] via-[#0d0820] to-[#080510]">
-        <p className="text-slate-500">No households created yet. Add households to see the galaxy view.</p>
+      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-[#050510] via-[#0d0820] to-[#080510]">
+        <p className="text-slate-500">No households created yet. Add households to see the nebula view.</p>
       </div>
     );
   }
   
   return (
     <div className="absolute inset-0">
+      {contextLost && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/90">
+          <div className="text-center">
+            <p className="text-white text-lg mb-2">Recovering graphics...</p>
+            <p className="text-slate-400 text-sm">Please wait a moment</p>
+          </div>
+        </div>
+      )}
       <Canvas
-        camera={{ position: [20, 25, 45], fov: 50 }}
-        gl={{ antialias: true, alpha: false }}
-        style={{ background: '#030308' }}
+        camera={{ position: [25, 20, 50], fov: 55 }}
+        gl={{ antialias: false, alpha: false, powerPreference: 'high-performance' }}
+        style={{ background: '#020208' }}
+        dpr={[1, 1.5]}
+        onCreated={handleCanvasCreated}
       >
-        <GalaxyScene
+        <NebulaScene
           level={level}
           households={households}
           people={people}
@@ -1429,8 +1062,11 @@ export default function GalaxyView({ people = [], relationships = [], households
           controlsRef={controlsRef}
           autoRotateEnabled={autoRotateEnabled}
           setAutoRotateEnabled={setAutoRotateEnabled}
+          qualityTier={qualityTier}
         />
       </Canvas>
+      
+      <VignetteOverlay />
       
       <NavigationUI
         level={level}
