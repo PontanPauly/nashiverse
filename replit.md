@@ -22,11 +22,18 @@ Nashiverse is a family management application with a cosmic/space theme. It help
    - React Three Fiber + Three.js rendering
    - **Hierarchical navigation**: Galaxy level shows households as glowing nebula clusters, click to zoom into a household to see individual family members as stars
    - Force-directed organic layout using d3-force-3d for household positioning
-   - HouseholdCluster component with particle cloud nebula effects (8 unique color palettes)
+   - HouseholdCluster component with simplified nebula effects (2-layer design with hover scaling)
    - 8,640+ unique star combinations (8 shapes × 12 colors × 6 glows × 5 animations × 3 sizes)
    - Smooth camera fly-through animations with OrbitControls
    - Navigation UI overlay: zoom +/-, reset view, back to galaxy button, breadcrumb navigation
    - Editable star profiles per family member
+   - **Galaxy Visual Enhancements (Hubble-inspired)**:
+     - SpiralArmParticles: 25,000 particles in 4 logarithmic spiral arms
+     - Color gradient: Warm golden core (#FFB347) → cool blue edges (#1E90FF)
+     - Enhanced starfield with diffraction spikes for bright stars
+     - FogExp2 atmospheric depth effect
+     - Gentle galaxy rotation animation
+     - VolumetricDustLayers with FBM noise for cosmic clouds
 2. **Trip Planning** - Full trip management with participants, rooms, meals, activities, budgets
 3. **Love Notes** - Gratitude messages between family members
 4. **Moments** - Photo/memory sharing
@@ -67,3 +74,10 @@ Key tables:
 - Created star customization system with 8,640+ unique combinations
 - Added StarEditor component for personalized star profiles
 - Seeded database with 58-member Nash-Martinez extended family across 5 generations
+- **Galaxy Visual Enhancements** (Jan 2026):
+  - Added 25,000-particle spiral arm structure with 4 logarithmic arms
+  - Implemented warm-to-cool color gradient (golden core → blue edges)
+  - Enhanced starfield with diffraction spikes for 10% of stars
+  - Added FogExp2 for atmospheric depth
+  - Added gentle rotation animation to spiral arms
+  - Simplified household nebulas to 2-layer design with hover effects and labels
