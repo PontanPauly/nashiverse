@@ -19,6 +19,7 @@ const entityToTable = {
   Moment: 'moments',
   LoveNote: 'love_notes',
   FamilyStory: 'family_stories',
+  FamilySettings: 'family_settings',
   FamilySetting: 'family_settings',
   JoinRequest: 'join_requests',
   Ritual: 'rituals',
