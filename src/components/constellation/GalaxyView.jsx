@@ -86,8 +86,8 @@ function useOrganicClusterLayout(households, people) {
     const positions = new Map();
     const placedPositions = [];
     const count = households.length;
-    const minSeparation = 5.0;
-    const nebulaRadius = 25;
+    const minSeparation = 12.0;
+    const nebulaRadius = 40;
     
     households.forEach((household, index) => {
       const seed = household.id;
@@ -95,23 +95,23 @@ function useOrganicClusterLayout(households, people) {
       const clusterIndex = Math.floor(seededRandom(seed + '-cluster') * 5);
       const clusterCenters = [
         { x: 0, y: 0, z: 0 },
-        { x: -12, y: 3, z: 8 },
-        { x: 10, y: -2, z: -10 },
-        { x: -8, y: -4, z: -12 },
-        { x: 15, y: 5, z: 5 },
+        { x: -22, y: 5, z: 15 },
+        { x: 18, y: -3, z: -18 },
+        { x: -15, y: -6, z: -20 },
+        { x: 25, y: 8, z: 10 },
       ];
       const cluster = clusterCenters[clusterIndex];
       
-      const spreadX = (seededRandom(seed + '-spreadX') - 0.5) * 12;
-      const spreadY = (seededRandom(seed + '-spreadY') - 0.5) * 8;
-      const spreadZ = (seededRandom(seed + '-spreadZ') - 0.5) * 12;
+      const spreadX = (seededRandom(seed + '-spreadX') - 0.5) * 18;
+      const spreadY = (seededRandom(seed + '-spreadY') - 0.5) * 10;
+      const spreadZ = (seededRandom(seed + '-spreadZ') - 0.5) * 18;
       
       let x = cluster.x + spreadX;
       let y = cluster.y + spreadY;
       let z = cluster.z + spreadZ;
       
       let attempts = 0;
-      const maxAttempts = 20;
+      const maxAttempts = 30;
       while (attempts < maxAttempts) {
         let tooClose = false;
         for (const placed of placedPositions) {
@@ -126,9 +126,9 @@ function useOrganicClusterLayout(households, people) {
         }
         if (!tooClose) break;
         
-        x += (seededRandom(seed + '-adj-x-' + attempts) - 0.5) * 4;
-        y += (seededRandom(seed + '-adj-y-' + attempts) - 0.5) * 3;
-        z += (seededRandom(seed + '-adj-z-' + attempts) - 0.5) * 4;
+        x += (seededRandom(seed + '-adj-x-' + attempts) - 0.5) * 6;
+        y += (seededRandom(seed + '-adj-y-' + attempts) - 0.5) * 4;
+        z += (seededRandom(seed + '-adj-z-' + attempts) - 0.5) * 6;
         attempts++;
       }
       
