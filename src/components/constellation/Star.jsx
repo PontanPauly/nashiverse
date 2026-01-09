@@ -4,6 +4,32 @@ import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { getStarVisuals, DEFAULT_STAR_PROFILE } from '@/lib/starConfig';
 
+const createGlowTexture = () => {
+  const size = 64;
+  const data = new Uint8Array(size * size * 4);
+  const center = size / 2;
+  
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = x - center;
+      const dy = y - center;
+      const dist = Math.sqrt(dx * dx + dy * dy) / center;
+      const alpha = Math.max(0, 1 - dist * dist);
+      const i = (y * size + x) * 4;
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = Math.floor(alpha * 255);
+    }
+  }
+  
+  const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  texture.needsUpdate = true;
+  return texture;
+};
+
+const glowTexture = createGlowTexture();
+
 // Shared noise functions for all shaders
 const noiseLib = `
   vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -871,36 +897,40 @@ export default function Star({
         onPointerOver={onPointerOver}
         onPointerOut={onPointerOut}
       >
-        <mesh>
-          <sphereGeometry args={[0.12 * activeScale, 12, 12]} />
-          <meshBasicMaterial 
+        <sprite scale={[0.35 * activeScale, 0.35 * activeScale, 1]}>
+          <spriteMaterial
+            map={glowTexture}
             color={visuals.colors.primary}
             transparent
             opacity={globalOpacity}
-          />
-        </mesh>
-        <sprite scale={[0.6 * activeScale, 0.6 * activeScale, 1]}>
-          <spriteMaterial
-            color={visuals.colors.glow}
-            transparent
-            opacity={globalOpacity * 0.7}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
           />
         </sprite>
-        <sprite scale={[1.2 * activeScale, 1.2 * activeScale, 1]}>
+        <sprite scale={[0.7 * activeScale, 0.7 * activeScale, 1]}>
           <spriteMaterial
+            map={glowTexture}
+            color={visuals.colors.glow}
+            transparent
+            opacity={globalOpacity * 0.5}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </sprite>
+        <sprite scale={[1.1 * activeScale, 1.1 * activeScale, 1]}>
+          <spriteMaterial
+            map={glowTexture}
             color={visuals.colors.secondary}
             transparent
-            opacity={globalOpacity * 0.3}
+            opacity={globalOpacity * 0.25}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
           />
         </sprite>
         <pointLight 
           color={visuals.colors.glow} 
-          intensity={globalOpacity * 0.3} 
-          distance={3}
+          intensity={globalOpacity * 0.2} 
+          distance={2.5}
           decay={2}
         />
       </group>
