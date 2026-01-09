@@ -92,3 +92,4 @@ Key tables:
   - Organic edge function for irregular star boundaries (no circular cutoffs)
   - Enlarged billboard geometry (0.9x sprite, 1.4x glow) with proper alpha fade
   - Reduced shader complexity (ray steps/octaves) to prevent WebGL context loss
+  - Unified galaxy and household view backdrops for visual consistency
