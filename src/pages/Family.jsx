@@ -35,7 +35,6 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import PersonForm from "@/components/family/PersonForm";
 import HouseholdForm from "@/components/family/HouseholdForm";
-import FamilyConstellation from "@/components/family/FamilyConstellation";
 import LineageView from "@/components/family/LineageView";
 import GalaxyView from "@/components/constellation/GalaxyView";
 
@@ -48,7 +47,7 @@ export default function Family() {
   const [editingPerson, setEditingPerson] = useState(null);
   const [editingHousehold, setEditingHousehold] = useState(null);
   const [selectedHousehold, setSelectedHousehold] = useState(null);
-  const [viewMode, setViewMode] = useState('galaxy'); // 'galaxy', 'list', 'constellation', or 'connections'
+  const [viewMode, setViewMode] = useState('galaxy'); // 'galaxy', 'list', or 'connections'
   
   const queryClient = useQueryClient();
 
@@ -191,62 +190,6 @@ export default function Family() {
             </div>
           </div>
         </div>
-      ) : viewMode === 'constellation' ? (
-        <div className="fixed inset-0 lg:left-64 z-0">
-          <FamilyConstellation 
-            people={people}
-            households={households}
-            relationships={relationships}
-          />
-          {/* Floating Controls */}
-          <div className="fixed top-4 left-4 lg:left-68 right-4 z-50 flex items-center justify-between gap-4">
-            <div className="glass-card rounded-xl px-4 py-3 border border-slate-700/50">
-              <h1 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                <Users className="w-5 h-5 text-amber-400" />
-                Family Universe
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">{people.length} members across {households.length} households</p>
-            </div>
-
-            <div className="flex gap-2">
-              <Button 
-                onClick={() => setViewMode('galaxy')}
-                className="bg-amber-500/90 hover:bg-amber-600 text-slate-900 font-semibold backdrop-blur-md"
-              >
-                <Star className="w-4 h-4 mr-2" />
-                3D Galaxy
-              </Button>
-              <Button 
-                onClick={() => setViewMode('list')}
-                className="bg-slate-700/90 hover:bg-slate-600 text-white border border-slate-500 backdrop-blur-md"
-              >
-                <Users className="w-4 h-4 mr-2" />
-                List View
-              </Button>
-              <Button 
-                onClick={() => setViewMode('connections')}
-                className="bg-slate-700/90 hover:bg-slate-600 text-white border border-slate-500 backdrop-blur-md"
-              >
-                <Network className="w-4 h-4 mr-2" />
-                Connections
-              </Button>
-              <Button 
-                onClick={() => setShowHouseholdForm(true)}
-                className="bg-slate-700/90 hover:bg-slate-600 text-white border border-slate-500 backdrop-blur-md"
-              >
-                <HomeIcon className="w-4 h-4 mr-2" />
-                Add Household
-              </Button>
-              <Button 
-                onClick={() => setShowPersonForm(true)}
-                className="bg-amber-500/90 hover:bg-amber-600 text-slate-900 font-semibold backdrop-blur-md"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Person
-              </Button>
-            </div>
-          </div>
-        </div>
       ) : viewMode === 'connections' ? (
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Header */}
@@ -261,11 +204,11 @@ export default function Family() {
 
             <div className="flex gap-2">
               <Button 
-                onClick={() => setViewMode('constellation')}
-                className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
+                onClick={() => setViewMode('galaxy')}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
               >
                 <Star className="w-4 h-4 mr-2" />
-                Universe View
+                Galaxy View
               </Button>
               <Button 
                 onClick={() => setViewMode('list')}
@@ -298,11 +241,11 @@ export default function Family() {
 
             <div className="flex gap-2">
               <Button 
-                onClick={() => setViewMode('constellation')}
-                className="bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-500"
+                onClick={() => setViewMode('galaxy')}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
               >
                 <Star className="w-4 h-4 mr-2" />
-                Universe View
+                Galaxy View
               </Button>
               <Button 
                 onClick={() => setViewMode('connections')}
