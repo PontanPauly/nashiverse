@@ -1,6 +1,6 @@
-import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useRef, useCallback, useEffect, Suspense } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
-import { OrbitControls, Html } from '@react-three/drei';
+import { OrbitControls, Html, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import HouseholdCluster, { HOUSEHOLD_COLORS } from './HouseholdCluster';
 import { ChevronRight, ZoomIn, ZoomOut, RotateCcw, Home } from 'lucide-react';
@@ -16,11 +16,11 @@ function useQualityTier() {
     const isLowEnd = cores <= 4 || screenPixels > 6000000;
     
     if (isHighEnd) {
-      return { tier: 'high', starCount: 18000, gasCount: 4000 };
+      return { tier: 'high', starCount: 12000, gasCount: 3000, useGlb: true };
     } else if (isLowEnd) {
-      return { tier: 'low', starCount: 6000, gasCount: 1000 };
+      return { tier: 'low', starCount: 6000, gasCount: 1000, useGlb: false };
     } else {
-      return { tier: 'medium', starCount: 10000, gasCount: 2000 };
+      return { tier: 'medium', starCount: 8000, gasCount: 1500, useGlb: true };
     }
   }, []);
 }
@@ -137,6 +137,57 @@ function useOrganicClusterLayout(households, people) {
     
     return positions;
   }, [households, people]);
+}
+
+function NebulaModel({ url, position, scale, rotation, opacity = 0.4 }) {
+  const { scene } = useGLTF(url);
+  const ref = useRef(null);
+  
+  const clonedScene = useMemo(() => {
+    const clone = scene.clone();
+    clone.traverse((child) => {
+      if (child.isMesh) {
+        child.material = child.material.clone();
+        child.material.transparent = true;
+        child.material.opacity = opacity;
+        child.material.depthWrite = false;
+        child.material.blending = THREE.AdditiveBlending;
+      }
+    });
+    return clone;
+  }, [scene, opacity]);
+  
+  useFrame(() => {
+    if (ref.current) {
+      ref.current.rotation.y += 0.0002;
+    }
+  });
+  
+  return (
+    <primitive 
+      ref={ref}
+      object={clonedScene} 
+      position={position} 
+      scale={scale}
+      rotation={rotation}
+    />
+  );
+}
+
+function TieredNebulaBackdrop({ qualityTier }) {
+  if (!qualityTier.useGlb) {
+    return null;
+  }
+  
+  return (
+    <NebulaModel
+      url="/attached_assets/gjptsjoamukljk6vxhg5_1767941334938.glb"
+      position={[0, 0, 0]}
+      scale={[25, 25, 25]}
+      rotation={[0, 0, 0]}
+      opacity={0.4}
+    />
+  );
 }
 
 function NebulaBackground() {
@@ -755,6 +806,10 @@ function NebulaScene({
       <NebulaBackground />
       <DenseStarField count={qualityTier.starCount} />
       
+      <Suspense fallback={null}>
+        <TieredNebulaBackdrop qualityTier={qualityTier} />
+      </Suspense>
+      
       {level === 'galaxy' && (
         <>
           <NebulaGasCloud count={qualityTier.gasCount} />
@@ -1087,3 +1142,5 @@ export default function GalaxyView({ people = [], relationships = [], households
     </div>
   );
 }
+
+useGLTF.preload('/attached_assets/gjptsjoamukljk6vxhg5_1767941334938.glb');
