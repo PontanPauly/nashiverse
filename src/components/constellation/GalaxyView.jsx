@@ -901,13 +901,26 @@ function CameraController({
   setAutoRotateEnabled
 }) {
   const { camera } = useThree();
+  const startCamPos = useRef(new THREE.Vector3());
+  const startLookAt = useRef(new THREE.Vector3());
   const targetCamPos = useRef(new THREE.Vector3(25, 20, 50));
   const targetLookAt = useRef(new THREE.Vector3(0, 0, 0));
   const isAnimating = useRef(false);
   const animationPhase = useRef('idle');
-  const animationProgress = useRef(0);
+  const elapsedTime = useRef(0);
+  const arcOffset = useRef(new THREE.Vector3());
+  
+  const easeInOutCubic = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
   
   useEffect(() => {
+    startCamPos.current.copy(camera.position);
+    if (controlsRef.current) {
+      startLookAt.current.copy(controlsRef.current.target);
+    } else {
+      startLookAt.current.set(0, 0, 0);
+    }
+    
     if (level === 'galaxy') {
       targetCamPos.current.set(25, 20, 50);
       targetLookAt.current.set(0, 0, 0);
@@ -921,8 +934,13 @@ function CameraController({
       targetCamPos.current.set(hx + 8, hy + 6, hz + 15);
       animationPhase.current = 'zoom-in';
     }
+    
+    const direction = new THREE.Vector3().subVectors(targetCamPos.current, startCamPos.current).normalize();
+    const worldUp = new THREE.Vector3(0, 1, 0);
+    arcOffset.current.crossVectors(direction, worldUp).normalize().multiplyScalar(3);
+    
     isAnimating.current = true;
-    animationProgress.current = 0;
+    elapsedTime.current = 0;
     
     if (controlsRef.current) {
       controlsRef.current.enabled = false;
@@ -932,23 +950,33 @@ function CameraController({
   
   useFrame((state, delta) => {
     if (isAnimating.current) {
-      animationProgress.current += delta;
+      elapsedTime.current += delta;
       
-      const lerpSpeed = animationPhase.current === 'zoom-in' ? 0.045 : 0.04;
+      const duration = animationPhase.current === 'zoom-in' ? 1.4 : 1.2;
+      const progress = Math.min(elapsedTime.current / duration, 1);
       
-      camera.position.lerp(targetCamPos.current, lerpSpeed);
+      const eased = animationPhase.current === 'zoom-in' 
+        ? easeInOutCubic(progress) 
+        : easeOutQuart(progress);
+      
+      const arcStrength = 4 * eased * (1 - eased);
+      
+      const interpolatedPos = new THREE.Vector3().lerpVectors(startCamPos.current, targetCamPos.current, eased);
+      interpolatedPos.add(arcOffset.current.clone().multiplyScalar(arcStrength));
+      
+      camera.position.copy(interpolatedPos);
       
       if (controlsRef.current) {
-        controlsRef.current.target.lerp(targetLookAt.current, lerpSpeed);
+        const interpolatedLookAt = new THREE.Vector3().lerpVectors(startLookAt.current, targetLookAt.current, eased);
+        controlsRef.current.target.copy(interpolatedLookAt);
         controlsRef.current.update();
       }
       
-      const distance = camera.position.distanceTo(targetCamPos.current);
-      const threshold = animationPhase.current === 'zoom-in' ? 0.3 : 0.5;
-      
-      if (distance < threshold) {
+      if (progress >= 1) {
         isAnimating.current = false;
         animationPhase.current = 'idle';
+        
+        camera.position.copy(targetCamPos.current);
         
         if (controlsRef.current) {
           controlsRef.current.target.copy(targetLookAt.current);
