@@ -1230,6 +1230,95 @@ function SystemLevelScene({
   );
 }
 
+function AnimatedNebulaWrapper({ 
+  household, 
+  basePosition, 
+  colorIndex, 
+  isHovered, 
+  isFocused,
+  focusProgress,
+  focusedHouseholdId,
+  hoveredPos,
+  onClick, 
+  onPointerOver, 
+  onPointerOut 
+}) {
+  const groupRef = useRef();
+  const currentState = useRef({
+    offsetX: 0, offsetY: 0, offsetZ: 0,
+    scale: 1, opacity: 0.6
+  });
+  
+  useFrame((state, delta) => {
+    if (!groupRef.current) return;
+    
+    let targetOffsetX = 0, targetOffsetY = 0, targetOffsetZ = 0;
+    let targetScale = 1;
+    let targetOpacity = 0.6;
+    
+    if (isFocused) {
+      targetScale = 1 + focusProgress * 0.5;
+      targetOpacity = Math.max(0.1, 1 - focusProgress);
+    } else if (focusedHouseholdId) {
+      targetOpacity = 0.3;
+    } else if (isHovered) {
+      targetOffsetZ = 8;
+      targetScale = 1.6;
+      targetOpacity = 1;
+    } else if (hoveredPos) {
+      const dx = basePosition.x - hoveredPos.x;
+      const dy = basePosition.y - hoveredPos.y;
+      const dz = basePosition.z - hoveredPos.z;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (dist < 25 && dist > 0) {
+        const pushStrength = Math.pow(1 - dist / 25, 1.5) * 5;
+        targetOffsetX = (dx / dist) * pushStrength;
+        targetOffsetY = (dy / dist) * pushStrength;
+        targetOffsetZ = (dz / dist) * pushStrength - 2;
+        targetOpacity = 0.4;
+        targetScale = 0.85;
+      }
+    }
+    
+    const lerpSpeed = 3.5 * delta;
+    const curr = currentState.current;
+    curr.offsetX += (targetOffsetX - curr.offsetX) * lerpSpeed;
+    curr.offsetY += (targetOffsetY - curr.offsetY) * lerpSpeed;
+    curr.offsetZ += (targetOffsetZ - curr.offsetZ) * lerpSpeed;
+    curr.scale += (targetScale - curr.scale) * lerpSpeed;
+    curr.opacity += (targetOpacity - curr.opacity) * lerpSpeed;
+    
+    groupRef.current.position.set(
+      basePosition.x + curr.offsetX,
+      basePosition.y + curr.offsetY,
+      basePosition.z + curr.offsetZ
+    );
+    groupRef.current.scale.setScalar(curr.scale);
+    
+    groupRef.current.traverse((child) => {
+      if (child.material && child.material.opacity !== undefined) {
+        child.material.opacity = curr.opacity * (child.userData.opacityMultiplier || 1);
+      }
+    });
+  });
+  
+  return (
+    <group ref={groupRef}>
+      <HouseholdAtmosphere
+        position={[0, 0, 0]}
+        colorIndex={colorIndex}
+        opacity={0.6}
+        scale={1}
+        isHovered={isHovered && !focusedHouseholdId}
+        householdName={household.name}
+        onClick={onClick}
+        onPointerOver={onPointerOver}
+        onPointerOut={onPointerOut}
+      />
+    </group>
+  );
+}
+
 function UnifiedGalaxyScene({
   households,
   householdPositions,
@@ -1297,40 +1386,17 @@ function UnifiedGalaxyScene({
         const isFocused = household.id === focusedHouseholdId;
         const isHovered = household.id === hoveredHouseholdId;
         
-        let offsetX = 0, offsetY = 0, offsetZ = 0;
-        let hoverScale = 1;
-        
-        if (hoveredHouseholdId && !focusedHouseholdId) {
-          if (isHovered) {
-            offsetZ = 2;
-            hoverScale = 1.15;
-          } else if (hoveredPos) {
-            const dx = pos.x - hoveredPos.x;
-            const dy = pos.y - hoveredPos.y;
-            const dz = pos.z - hoveredPos.z;
-            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            if (dist < 20 && dist > 0) {
-              const pushStrength = (1 - dist / 20) * 1.5;
-              offsetX = (dx / dist) * pushStrength;
-              offsetY = (dy / dist) * pushStrength;
-              offsetZ = (dz / dist) * pushStrength - 0.5;
-            }
-          }
-        }
-        
-        const atmosphereOpacity = isFocused 
-          ? Math.max(0.1, 1 - focusProgress) 
-          : (focusedHouseholdId ? 0.3 : (isHovered ? 1 : 0.6));
-        
         return (
-          <HouseholdAtmosphere
+          <AnimatedNebulaWrapper
             key={`atmo-${household.id}`}
-            position={[pos.x + offsetX, pos.y + offsetY, pos.z + offsetZ]}
+            household={household}
+            basePosition={pos}
             colorIndex={index}
-            opacity={atmosphereOpacity}
-            scale={(isFocused ? 1 + focusProgress * 0.5 : 1) * hoverScale}
-            isHovered={isHovered && !focusedHouseholdId}
-            householdName={household.name}
+            isHovered={isHovered}
+            isFocused={isFocused}
+            focusProgress={focusProgress}
+            focusedHouseholdId={focusedHouseholdId}
+            hoveredPos={hoveredPos}
             onClick={() => !focusedHouseholdId && onHouseholdClick(household)}
             onPointerOver={() => !focusedHouseholdId && onHouseholdHover(household.id)}
             onPointerOut={() => onHouseholdHover(null)}
