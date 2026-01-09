@@ -1230,7 +1230,7 @@ function SystemLevelScene({
   );
 }
 
-function AnimatedNebulaWrapper({ 
+function AnimatedHouseholdGroup({ 
   household, 
   basePosition, 
   colorIndex, 
@@ -1239,48 +1239,81 @@ function AnimatedNebulaWrapper({
   focusProgress,
   focusedHouseholdId,
   hoveredPos,
+  stars,
+  onStarClick,
+  onStarHover,
+  hoveredStarId,
+  focusedStarId,
   onClick, 
   onPointerOver, 
   onPointerOut 
 }) {
   const groupRef = useRef();
+  const { camera } = useThree();
   const currentState = useRef({
     offsetX: 0, offsetY: 0, offsetZ: 0,
-    scale: 1, opacity: 0.6
+    scale: 1, opacity: 0.5
   });
+  
+  const localStars = useMemo(() => {
+    return stars.map(star => ({
+      ...star,
+      position: [
+        star.position[0] - basePosition.x,
+        star.position[1] - basePosition.y,
+        star.position[2] - basePosition.z
+      ]
+    }));
+  }, [stars, basePosition]);
   
   useFrame((state, delta) => {
     if (!groupRef.current) return;
     
+    const cameraForward = new THREE.Vector3();
+    camera.getWorldDirection(cameraForward);
+    const cameraRight = new THREE.Vector3();
+    cameraRight.crossVectors(camera.up, cameraForward).normalize();
+    const cameraUp = new THREE.Vector3();
+    cameraUp.crossVectors(cameraForward, cameraRight).normalize();
+    
     let targetOffsetX = 0, targetOffsetY = 0, targetOffsetZ = 0;
     let targetScale = 1;
-    let targetOpacity = 0.6;
+    let targetOpacity = 0.5;
     
     if (isFocused) {
       targetScale = 1 + focusProgress * 0.5;
       targetOpacity = Math.max(0.1, 1 - focusProgress);
     } else if (focusedHouseholdId) {
-      targetOpacity = 0.3;
+      targetOpacity = 0.25;
     } else if (isHovered) {
-      targetOffsetZ = 8;
-      targetScale = 1.6;
-      targetOpacity = 1;
+      const towardCamera = cameraForward.clone().multiplyScalar(-6);
+      targetOffsetX = towardCamera.x;
+      targetOffsetY = towardCamera.y;
+      targetOffsetZ = towardCamera.z;
+      targetScale = 1.5;
+      targetOpacity = 0.9;
     } else if (hoveredPos) {
       const dx = basePosition.x - hoveredPos.x;
       const dy = basePosition.y - hoveredPos.y;
       const dz = basePosition.z - hoveredPos.z;
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (dist < 25 && dist > 0) {
-        const pushStrength = Math.pow(1 - dist / 25, 1.5) * 5;
-        targetOffsetX = (dx / dist) * pushStrength;
-        targetOffsetY = (dy / dist) * pushStrength;
-        targetOffsetZ = (dz / dist) * pushStrength - 2;
-        targetOpacity = 0.4;
-        targetScale = 0.85;
+      
+      if (dist < 30 && dist > 0) {
+        const worldPush = new THREE.Vector3(dx, dy, dz).normalize();
+        const forwardComponent = worldPush.dot(cameraForward);
+        worldPush.sub(cameraForward.clone().multiplyScalar(forwardComponent));
+        worldPush.normalize();
+        
+        const pushStrength = Math.pow(1 - dist / 30, 1.8) * 6;
+        targetOffsetX = worldPush.x * pushStrength;
+        targetOffsetY = worldPush.y * pushStrength;
+        targetOffsetZ = worldPush.z * pushStrength;
+        targetOpacity = 0.35;
+        targetScale = 0.9;
       }
     }
     
-    const lerpSpeed = 3.5 * delta;
+    const lerpSpeed = 4.5 * delta;
     const curr = currentState.current;
     curr.offsetX += (targetOffsetX - curr.offsetX) * lerpSpeed;
     curr.offsetY += (targetOffsetY - curr.offsetY) * lerpSpeed;
@@ -1294,12 +1327,6 @@ function AnimatedNebulaWrapper({
       basePosition.z + curr.offsetZ
     );
     groupRef.current.scale.setScalar(curr.scale);
-    
-    groupRef.current.traverse((child) => {
-      if (child.material && child.material.opacity !== undefined) {
-        child.material.opacity = curr.opacity * (child.userData.opacityMultiplier || 1);
-      }
-    });
   });
   
   return (
@@ -1307,13 +1334,23 @@ function AnimatedNebulaWrapper({
       <HouseholdAtmosphere
         position={[0, 0, 0]}
         colorIndex={colorIndex}
-        opacity={0.6}
+        opacity={0.5}
         scale={1}
         isHovered={isHovered && !focusedHouseholdId}
         householdName={household.name}
         onClick={onClick}
         onPointerOver={onPointerOver}
         onPointerOut={onPointerOut}
+      />
+      <StarInstanced
+        stars={localStars}
+        onStarClick={focusedHouseholdId ? onStarClick : (star) => onClick()}
+        onStarHover={focusedHouseholdId ? onStarHover : () => {}}
+        hoveredId={focusedHouseholdId ? hoveredStarId : null}
+        focusedId={focusedHouseholdId ? focusedStarId : null}
+        globalOpacity={1}
+        globalScale={1}
+        animated={false}
       />
     </group>
   );
@@ -1333,8 +1370,8 @@ function UnifiedGalaxyScene({
   onStarHover,
   focusProgress = 0,
 }) {
-  const allStars = useMemo(() => {
-    const stars = [];
+  const starsByHousehold = useMemo(() => {
+    const map = new Map();
     households.forEach((household, householdIndex) => {
       const pos = householdPositions.get(household.id);
       if (!pos) return;
@@ -1342,35 +1379,20 @@ function UnifiedGalaxyScene({
       const householdPeople = people.filter(p => p.household_id === household.id);
       const positionedPeople = arrangeStarsInCluster(householdPeople, pos.x, pos.y, pos.z);
       
-      positionedPeople.forEach(person => {
-        stars.push({
-          id: person.id,
-          householdId: household.id,
-          household,
-          householdIndex,
-          position: person.position,
-          starProfile: person.star_profile || generateRandomStarProfile(person.id),
-          person,
-        });
-      });
+      const stars = positionedPeople.map(person => ({
+        id: person.id,
+        householdId: household.id,
+        household,
+        householdIndex,
+        position: person.position,
+        starProfile: person.star_profile || generateRandomStarProfile(person.id),
+        person,
+      }));
+      
+      map.set(household.id, stars);
     });
-    return stars;
+    return map;
   }, [households, householdPositions, people]);
-  
-  const focusedStars = useMemo(() => {
-    if (!focusedHouseholdId) return [];
-    return allStars.filter(s => s.householdId === focusedHouseholdId);
-  }, [allStars, focusedHouseholdId]);
-  
-  const unfocusedStars = useMemo(() => {
-    if (!focusedHouseholdId) return allStars;
-    return allStars.filter(s => s.householdId !== focusedHouseholdId);
-  }, [allStars, focusedHouseholdId]);
-  
-  const unfocusedOpacity = focusedHouseholdId ? Math.max(0.15, 1 - focusProgress * 0.85) : 1;
-  const unfocusedScale = focusedHouseholdId ? Math.max(0.4, 1 - focusProgress * 0.6) : 1;
-  const focusedScale = 0.3 + focusProgress * 0.7;
-  const focusedOpacity = 0.2 + focusProgress * 0.8;
   
   const hoveredPos = useMemo(() => {
     if (!hoveredHouseholdId) return null;
@@ -1385,10 +1407,11 @@ function UnifiedGalaxyScene({
         
         const isFocused = household.id === focusedHouseholdId;
         const isHovered = household.id === hoveredHouseholdId;
+        const householdStars = starsByHousehold.get(household.id) || [];
         
         return (
-          <AnimatedNebulaWrapper
-            key={`atmo-${household.id}`}
+          <AnimatedHouseholdGroup
+            key={`household-${household.id}`}
             household={household}
             basePosition={pos}
             colorIndex={index}
@@ -1397,36 +1420,17 @@ function UnifiedGalaxyScene({
             focusProgress={focusProgress}
             focusedHouseholdId={focusedHouseholdId}
             hoveredPos={hoveredPos}
+            stars={householdStars}
+            onStarClick={onStarClick}
+            onStarHover={onStarHover}
+            hoveredStarId={hoveredStarId}
+            focusedStarId={focusedStarId}
             onClick={() => !focusedHouseholdId && onHouseholdClick(household)}
             onPointerOver={() => !focusedHouseholdId && onHouseholdHover(household.id)}
             onPointerOut={() => onHouseholdHover(null)}
           />
         );
       })}
-      
-      <StarInstanced
-        stars={unfocusedStars}
-        onStarClick={focusedHouseholdId ? onStarClick : (star) => onHouseholdClick(star.household)}
-        onStarHover={focusedHouseholdId ? onStarHover : () => {}}
-        hoveredId={focusedHouseholdId ? hoveredStarId : null}
-        focusedId={focusedHouseholdId ? focusedStarId : null}
-        globalOpacity={unfocusedOpacity}
-        globalScale={unfocusedScale}
-        animated={false}
-      />
-      
-      {focusedHouseholdId && (
-        <StarInstanced
-          stars={focusedStars}
-          onStarClick={onStarClick}
-          onStarHover={onStarHover}
-          hoveredId={hoveredStarId}
-          focusedId={focusedStarId}
-          globalOpacity={focusedOpacity}
-          globalScale={focusedScale}
-          animated={true}
-        />
-      )}
     </group>
   );
 }
@@ -1558,16 +1562,19 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, isHover
     outer: createNebulaTexture(colors.primary, colorIndex * 17 + 11, 'cloud'),
   }), [colors, colorIndex]);
   
-  const stretch1 = 1.3 + (colorIndex % 3) * 0.2;
-  const stretch2 = 0.8 + (colorIndex % 4) * 0.15;
+  const stretch1 = 1.6 + (colorIndex % 3) * 0.4;
+  const stretch2 = 0.6 + (colorIndex % 4) * 0.2;
+  const stretch3 = 1.2 + (colorIndex % 5) * 0.3;
   const baseRotation = (colorIndex * 0.7) % (Math.PI * 2);
+  
+  const dimFactor = 0.55;
   
   return (
     <group position={position}>
       <HouseholdLabel name={householdName} isVisible={isHovered} color={colors.primary} />
       
       <sprite 
-        scale={[scale * 6 * stretch1, scale * 5, 1]}
+        scale={[scale * 7 * stretch1, scale * 4 * stretch2, 1]}
         rotation={[0, 0, baseRotation]}
         onClick={onClick}
         onPointerOver={onPointerOver}
@@ -1576,50 +1583,50 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, isHover
         <spriteMaterial
           map={textures.core}
           transparent
-          opacity={opacity * 0.45}
+          opacity={opacity * 0.35 * dimFactor}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
       <sprite 
-        scale={[scale * 9 * stretch2, scale * 7, 1]} 
-        rotation={[0, 0, baseRotation + 0.5]}
+        scale={[scale * 10 * stretch2, scale * 8 * stretch3, 1]} 
+        rotation={[0, 0, baseRotation + 0.6]}
       >
         <spriteMaterial
           map={textures.cloud}
           transparent
-          opacity={opacity * 0.3}
+          opacity={opacity * 0.22 * dimFactor}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
       <sprite 
-        scale={[scale * 11, scale * 8 * stretch1, 1]} 
-        rotation={[0, 0, baseRotation - 0.4]}
+        scale={[scale * 13 * stretch3, scale * 6 * stretch1, 1]} 
+        rotation={[0, 0, baseRotation - 0.5]}
       >
         <spriteMaterial
           map={textures.wispy}
           transparent
-          opacity={opacity * 0.2}
+          opacity={opacity * 0.15 * dimFactor}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
       <sprite 
-        scale={[scale * 14 * stretch2, scale * 12, 1]} 
-        rotation={[0, 0, baseRotation + 0.8]}
+        scale={[scale * 16 * stretch2, scale * 14 * stretch3, 1]} 
+        rotation={[0, 0, baseRotation + 1.0]}
       >
         <spriteMaterial
           map={textures.outer}
           transparent
-          opacity={opacity * 0.1}
+          opacity={opacity * 0.08 * dimFactor}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
       <pointLight 
         color={colors.primary} 
-        intensity={opacity * (isHovered ? 0.25 : 0.15)} 
+        intensity={opacity * (isHovered ? 0.18 : 0.1)} 
         distance={isHovered ? 10 : 8}
         decay={2}
       />
