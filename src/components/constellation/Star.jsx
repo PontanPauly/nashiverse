@@ -43,25 +43,22 @@ const noiseLib = `
     return sum;
   }
   
-  // Organic edge function - creates very irregular, wispy boundaries
+  // Organic edge function - creates irregular, wispy boundaries
+  // Returns a value clamped to stay within safe bounds (max 0.42 to avoid box edges)
   float organicEdge(vec2 center, float baseRadius, float time, float uniqueOffset) {
     float angle = atan(center.y, center.x);
-    float dist = length(center);
     
-    // Strong noise layers for dramatic edge variation
-    float edgeNoise1 = snoise(vec2(angle * 2.5 + uniqueOffset * 10.0, time * 0.15)) * 0.22;
-    float edgeNoise2 = snoise(vec2(angle * 5.0 - uniqueOffset * 5.0, time * 0.25)) * 0.14;
-    float edgeNoise3 = snoise(vec2(angle * 9.0 + time * 0.08, uniqueOffset * 3.0)) * 0.08;
+    // Moderate noise layers for natural variation
+    float edgeNoise1 = snoise(vec2(angle * 2.5 + uniqueOffset * 10.0, time * 0.15)) * 0.08;
+    float edgeNoise2 = snoise(vec2(angle * 5.0 - uniqueOffset * 5.0, time * 0.25)) * 0.05;
+    float edgeNoise3 = snoise(vec2(angle * 9.0 + time * 0.08, uniqueOffset * 3.0)) * 0.03;
     
-    // Large asymmetric shape deformation
-    float shapeWarp = snoise(vec2(angle * 1.5 + uniqueOffset * 8.0, 0.3)) * 0.18;
-    float shapeWarp2 = snoise(vec2(angle * 0.7 - uniqueOffset * 3.0, 1.5)) * 0.1;
+    // Shape deformation (keep subtle)
+    float shapeWarp = snoise(vec2(angle * 1.5 + uniqueOffset * 8.0, 0.3)) * 0.06;
     
-    // Occasional dramatic protrusions
-    float protrusion = pow(max(snoise(vec2(angle * 3.0 + uniqueOffset * 20.0, 0.0)), 0.0), 2.0) * 0.15;
-    
-    float irregularRadius = baseRadius + edgeNoise1 + edgeNoise2 + edgeNoise3 + shapeWarp + shapeWarp2 + protrusion;
-    return irregularRadius;
+    float irregularRadius = baseRadius + edgeNoise1 + edgeNoise2 + edgeNoise3 + shapeWarp;
+    // Clamp to ensure we stay within plane bounds
+    return min(irregularRadius, 0.42);
   }
 `;
 
