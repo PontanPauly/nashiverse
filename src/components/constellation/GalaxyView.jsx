@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useCallback, useEffect, Suspense } from 'react';
+import React, { useMemo, useState, useRef, useCallback, useEffect, Suspense, createContext, useContext } from 'react';
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { OrbitControls, Html, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
@@ -6,6 +6,16 @@ import HouseholdCluster, { HOUSEHOLD_COLORS } from './HouseholdCluster';
 import { ChevronRight, ZoomIn, ZoomOut, RotateCcw, Home } from 'lucide-react';
 import { generateRandomStarProfile } from '@/lib/starConfig';
 import { StarInstanced } from './Star';
+
+const TransitionContext = createContext({
+  progress: 0,
+  isActive: false,
+  direction: null,
+});
+
+function useTransitionProgress() {
+  return useContext(TransitionContext);
+}
 
 function useQualityTier() {
   return useMemo(() => {
@@ -898,9 +908,10 @@ function CameraController({
   targetPosition, 
   controlsRef,
   onTransitionComplete,
-  setAutoRotateEnabled
+  setAutoRotateEnabled,
+  onProgressUpdate
 }) {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const startCamPos = useRef(new THREE.Vector3());
   const startLookAt = useRef(new THREE.Vector3());
   const targetCamPos = useRef(new THREE.Vector3(25, 20, 50));
@@ -909,6 +920,7 @@ function CameraController({
   const animationPhase = useRef('idle');
   const elapsedTime = useRef(0);
   const arcOffset = useRef(new THREE.Vector3());
+  const originalDpr = useRef(1);
   
   const easeInOutCubic = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
@@ -942,6 +954,9 @@ function CameraController({
     isAnimating.current = true;
     elapsedTime.current = 0;
     
+    originalDpr.current = gl.getPixelRatio();
+    gl.setPixelRatio(Math.min(originalDpr.current, 1));
+    
     if (controlsRef.current) {
       controlsRef.current.enabled = false;
       controlsRef.current.autoRotate = false;
@@ -952,12 +967,14 @@ function CameraController({
     if (isAnimating.current) {
       elapsedTime.current += delta;
       
-      const duration = animationPhase.current === 'zoom-in' ? 1.4 : 1.2;
+      const duration = animationPhase.current === 'zoom-in' ? 1.6 : 1.2;
       const progress = Math.min(elapsedTime.current / duration, 1);
       
       const eased = animationPhase.current === 'zoom-in' 
         ? easeInOutCubic(progress) 
         : easeOutQuart(progress);
+      
+      onProgressUpdate?.(eased, animationPhase.current);
       
       const arcStrength = 4 * eased * (1 - eased);
       
@@ -974,6 +991,7 @@ function CameraController({
       
       if (progress >= 1) {
         isAnimating.current = false;
+        gl.setPixelRatio(originalDpr.current);
         animationPhase.current = 'idle';
         
         camera.position.copy(targetCamPos.current);
@@ -1028,40 +1046,27 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0) {
   });
 }
 
-function TransitioningNebula({ household, householdPositions, households, onFadeComplete }) {
+function TransitioningNebula({ household, householdPositions, households, opacity = 1, onFadeComplete }) {
   const groupRef = useRef();
-  const startTime = useRef(null);
-  const hasCompleted = useRef(false);
-  const duration = 1.4;
+  const lastOpacity = useRef(opacity);
   
   const pos = householdPositions.get(household.id);
   const colorIndex = households.findIndex(h => h.id === household.id);
   
-  useFrame((state) => {
-    if (hasCompleted.current) return;
-    
-    if (startTime.current === null) {
-      startTime.current = state.clock.elapsedTime;
-    }
-    
-    const elapsed = state.clock.elapsedTime - startTime.current;
-    const progress = Math.min(elapsed / duration, 1);
-    const fadeOut = 1 - Math.pow(progress, 2);
-    
+  useFrame(() => {
     if (groupRef.current) {
       groupRef.current.traverse((child) => {
         if (child.material) {
-          child.material.opacity = fadeOut;
+          child.material.opacity = opacity;
           child.material.transparent = true;
         }
       });
-      groupRef.current.scale.setScalar(1 + progress * 2);
     }
     
-    if (progress >= 1 && !hasCompleted.current) {
-      hasCompleted.current = true;
+    if (lastOpacity.current > 0.01 && opacity <= 0.01) {
       onFadeComplete?.();
     }
+    lastOpacity.current = opacity;
   });
   
   if (!pos) return null;
@@ -1079,6 +1084,33 @@ function TransitioningNebula({ household, householdPositions, households, onFade
         onPointerOut={() => {}}
       />
     </group>
+  );
+}
+
+function BloomingStars({ children, duration = 1.6 }) {
+  const startTime = useRef(null);
+  const [progress, setProgress] = useState(0);
+  
+  useFrame((state) => {
+    if (startTime.current === null) {
+      startTime.current = state.clock.elapsedTime;
+    }
+    
+    const elapsed = state.clock.elapsedTime - startTime.current;
+    const rawProgress = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - rawProgress, 3);
+    setProgress(eased);
+  });
+  
+  return (
+    <>
+      {React.Children.map(children, child => 
+        React.cloneElement(child, { 
+          fadeOpacity: progress,
+          bloomScale: 0.15 + progress * 0.85
+        })
+      )}
+    </>
   );
 }
 
@@ -1158,6 +1190,7 @@ function SystemLevelScene({
   colorIndex = 0,
   householdPosition,
   fadeOpacity = 1,
+  bloomScale = 1,
 }) {
   const householdPeople = useMemo(() => {
     return people.filter(p => p.household_id === household.id);
@@ -1191,6 +1224,7 @@ function SystemLevelScene({
         hoveredId={hoveredStarId}
         focusedId={focusedStarId}
         globalOpacity={fadeOpacity}
+        globalScale={bloomScale}
       />
     </group>
   );
@@ -1263,6 +1297,14 @@ function NebulaScene({
   transitioningHousehold,
   onTransitionComplete,
 }) {
+  const [transitionProgress, setTransitionProgress] = useState(0);
+  const [transitionDirection, setTransitionDirection] = useState(null);
+  
+  const handleProgressUpdate = useCallback((progress, direction) => {
+    setTransitionProgress(progress);
+    setTransitionDirection(direction);
+  }, []);
+  
   const selectedHouseholdPosition = useMemo(() => {
     if (!selectedHousehold) return null;
     return householdPositions.get(selectedHousehold.id);
@@ -1273,6 +1315,21 @@ function NebulaScene({
     return households.findIndex(h => h.id === selectedHousehold.id);
   }, [selectedHousehold, households]);
   
+  const nebulaOpacity = useMemo(() => {
+    if (transitionDirection === 'zoom-in') {
+      return Math.max(0, 1 - transitionProgress * 1.2);
+    }
+    return 1;
+  }, [transitionProgress, transitionDirection]);
+  
+  const starBloom = useMemo(() => {
+    if (transitionDirection === 'zoom-in') {
+      const delayed = Math.max(0, (transitionProgress - 0.15) / 0.85);
+      return 0.1 + delayed * 0.9;
+    }
+    return 1;
+  }, [transitionProgress, transitionDirection]);
+  
   return (
     <>
       <CameraController
@@ -1281,6 +1338,7 @@ function NebulaScene({
         controlsRef={controlsRef}
         onTransitionComplete={() => {}}
         setAutoRotateEnabled={setAutoRotateEnabled}
+        onProgressUpdate={handleProgressUpdate}
       />
       
       <FogController />
@@ -1309,27 +1367,28 @@ function NebulaScene({
       
       {level === 'system' && selectedHousehold && (
         <>
-          {isTransitioning && transitioningHousehold && (
+          {transitioningHousehold && nebulaOpacity > 0 && (
             <TransitioningNebula
               household={transitioningHousehold}
               householdPositions={householdPositions}
               households={households}
+              opacity={nebulaOpacity}
               onFadeComplete={onTransitionComplete}
             />
           )}
-          <FadeInGroup duration={1.2} delay={0.4}>
-            <SystemLevelScene
-              household={selectedHousehold}
-              people={people}
-              relationships={relationships}
-              hoveredStarId={hoveredStarId}
-              focusedStarId={focusedStarId}
-              onStarClick={onStarClick}
-              onStarHover={onStarHover}
-              colorIndex={selectedColorIndex}
-              householdPosition={selectedHouseholdPosition}
-            />
-          </FadeInGroup>
+          <SystemLevelScene
+            household={selectedHousehold}
+            people={people}
+            relationships={relationships}
+            hoveredStarId={hoveredStarId}
+            focusedStarId={focusedStarId}
+            onStarClick={onStarClick}
+            onStarHover={onStarHover}
+            colorIndex={selectedColorIndex}
+            householdPosition={selectedHouseholdPosition}
+            bloomScale={starBloom}
+            fadeOpacity={starBloom}
+          />
         </>
       )}
       

@@ -824,6 +824,7 @@ export default function Star({
   isHovered = false,
   isFocused = false,
   globalOpacity = 1,
+  globalScale = 1,
   onClick,
   onPointerOver,
   onPointerOut,
@@ -847,10 +848,11 @@ export default function Star({
   const shapeId = starProfile?.shape || visuals.shape?.id || 'classic';
   
   const activeScale = useMemo(() => {
-    if (isFocused) return visuals.scale * 2.2;
-    if (isHovered) return visuals.scale * 2.0;
-    return visuals.scale;
-  }, [isHovered, isFocused, visuals.scale]);
+    let base = visuals.scale;
+    if (isFocused) base = visuals.scale * 2.2;
+    else if (isHovered) base = visuals.scale * 2.0;
+    return base * globalScale;
+  }, [isHovered, isFocused, visuals.scale, globalScale]);
   
   const activeIntensity = useMemo(() => {
     const base = visuals.glow?.intensity || 0.7;
@@ -894,7 +896,7 @@ export default function Star({
   );
 }
 
-export function StarInstanced({ stars, onStarClick, onStarHover, hoveredId, focusedId, globalOpacity = 1 }) {
+export function StarInstanced({ stars, onStarClick, onStarHover, hoveredId, focusedId, globalOpacity = 1, globalScale = 1 }) {
   return (
     <group>
       {stars.map((star) => (
@@ -907,6 +909,7 @@ export function StarInstanced({ stars, onStarClick, onStarHover, hoveredId, focu
           isHovered={hoveredId === star.id}
           isFocused={focusedId === star.id}
           globalOpacity={globalOpacity}
+          globalScale={globalScale}
           onClick={(e) => {
             e.stopPropagation();
             onStarClick?.(star);
