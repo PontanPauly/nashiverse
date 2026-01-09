@@ -244,19 +244,19 @@ export default function Home() {
             <Button 
               onClick={handleExportData}
               variant="outline" 
-              className="w-full justify-start border-slate-700 text-slate-300 hover:bg-slate-800"
+              className="w-full justify-start border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50"
             >
               <Download className="w-4 h-4 mr-2" />
               Export Data
             </Button>
             <Link to={createPageUrl("Calendar")} className="block">
-              <Button variant="outline" className="w-full justify-start border-slate-700 text-slate-300 hover:bg-slate-800">
+              <Button variant="outline" className="w-full justify-start border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50">
                 <Calendar className="w-4 h-4 mr-2" />
                 Calendar
               </Button>
             </Link>
             <Link to={createPageUrl("FamilyStories")} className="block">
-              <Button variant="outline" className="w-full justify-start border-slate-700 text-slate-300 hover:bg-slate-800">
+              <Button variant="outline" className="w-full justify-start border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50">
                 <BookOpen className="w-4 h-4 mr-2" />
                 Stories
               </Button>
