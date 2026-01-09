@@ -1336,37 +1336,97 @@ function UnifiedGalaxyScene({
   );
 }
 
+const createNebulaTexture = (colorHex, seed = 0) => {
+  const size = 128;
+  const data = new Uint8Array(size * size * 4);
+  const center = size / 2;
+  
+  const color = new THREE.Color(colorHex);
+  const r = Math.floor(color.r * 255);
+  const g = Math.floor(color.g * 255);
+  const b = Math.floor(color.b * 255);
+  
+  const noise = (x, y, s) => {
+    const nx = Math.sin(x * 0.1 + s) * Math.cos(y * 0.12 + s * 0.7);
+    const ny = Math.sin(y * 0.08 + s * 1.3) * Math.cos(x * 0.15 + s * 0.5);
+    return (nx + ny + 2) / 4;
+  };
+  
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = (x - center) / center;
+      const dy = (y - center) / center;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      const n1 = noise(x, y, seed);
+      const n2 = noise(x * 2, y * 2, seed + 5);
+      const n3 = noise(x * 0.5, y * 0.5, seed + 10);
+      const noiseVal = (n1 * 0.5 + n2 * 0.3 + n3 * 0.2);
+      
+      const irregularDist = dist + (noiseVal - 0.5) * 0.4;
+      const falloff = Math.max(0, 1 - irregularDist * 1.2);
+      const alpha = falloff * falloff * noiseVal * 0.8;
+      
+      const i = (y * size + x) * 4;
+      data[i] = r;
+      data[i + 1] = g;
+      data[i + 2] = b;
+      data[i + 3] = Math.floor(Math.min(1, alpha) * 255);
+    }
+  }
+  
+  const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  texture.needsUpdate = true;
+  return texture;
+};
+
 function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, onClick, onPointerOver, onPointerOut }) {
   const colors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
-  const meshRef = useRef();
   
-  useFrame((state) => {
-    if (meshRef.current && meshRef.current.material) {
-      meshRef.current.material.opacity = opacity * 0.12;
-    }
-  });
+  const textures = useMemo(() => ({
+    main: createNebulaTexture(colors.primary, colorIndex * 7),
+    secondary: createNebulaTexture(colors.secondary, colorIndex * 11 + 3),
+    glow: createNebulaTexture(colors.glow, colorIndex * 13 + 7),
+  }), [colors, colorIndex]);
   
   return (
     <group position={position}>
-      <mesh 
-        ref={meshRef}
+      <sprite 
+        scale={[scale * 5, scale * 5, 1]}
         onClick={onClick}
         onPointerOver={onPointerOver}
         onPointerOut={onPointerOut}
-        scale={[scale * 2.5, scale * 2.5, scale * 2.5]}
       >
-        <sphereGeometry args={[1.5, 16, 16]} />
-        <meshBasicMaterial 
-          color={colors.primary}
+        <spriteMaterial
+          map={textures.main}
           transparent
-          opacity={opacity * 0.12}
+          opacity={opacity * 0.35}
+          blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
-      </mesh>
+      </sprite>
+      <sprite scale={[scale * 4, scale * 4.5, 1]} rotation={[0, 0, 0.5]}>
+        <spriteMaterial
+          map={textures.secondary}
+          transparent
+          opacity={opacity * 0.25}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </sprite>
+      <sprite scale={[scale * 6, scale * 5.5, 1]} rotation={[0, 0, -0.3]}>
+        <spriteMaterial
+          map={textures.glow}
+          transparent
+          opacity={opacity * 0.15}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </sprite>
       <pointLight 
         color={colors.primary} 
-        intensity={opacity * 0.15} 
-        distance={6}
+        intensity={opacity * 0.1} 
+        distance={5}
         decay={2}
       />
     </group>
