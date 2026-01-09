@@ -4,17 +4,8 @@ import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { getStarVisuals, DEFAULT_STAR_PROFILE } from '@/lib/starConfig';
 
-// Style 1: Nebula - Complex turbulent multi-color clouds (Cassiopeia A inspired)
-const nebulaShader = `
-  uniform vec3 primaryColor;
-  uniform vec3 secondaryColor;
-  uniform vec3 glowColor;
-  uniform float time;
-  uniform float brightness;
-  uniform float uniqueOffset;
-  uniform float styleVariant;
-  varying vec2 vUv;
-  
+// Shared noise functions for all shaders
+const noiseLib = `
   vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
   vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
   vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
@@ -52,9 +43,38 @@ const nebulaShader = `
     return sum;
   }
   
-  float ridgedNoise(vec2 p) {
-    return 1.0 - abs(snoise(p));
+  // Organic edge function - creates irregular, wispy boundaries
+  float organicEdge(vec2 center, float baseRadius, float time, float uniqueOffset) {
+    float angle = atan(center.y, center.x);
+    float dist = length(center);
+    
+    // Multiple noise layers for edge variation
+    float edgeNoise1 = snoise(vec2(angle * 3.0 + uniqueOffset * 10.0, time * 0.2)) * 0.15;
+    float edgeNoise2 = snoise(vec2(angle * 7.0 - uniqueOffset * 5.0, time * 0.3)) * 0.08;
+    float edgeNoise3 = snoise(vec2(angle * 12.0 + time * 0.1, uniqueOffset * 3.0)) * 0.04;
+    
+    // Larger-scale shape deformation
+    float shapeWarp = snoise(vec2(angle * 2.0 + uniqueOffset * 8.0, 0.5)) * 0.12;
+    
+    float irregularRadius = baseRadius + edgeNoise1 + edgeNoise2 + edgeNoise3 + shapeWarp;
+    return irregularRadius;
   }
+`;
+
+// Style 1: Nebula - Complex turbulent multi-color clouds with organic edges
+const nebulaShader = `
+  uniform vec3 primaryColor;
+  uniform vec3 secondaryColor;
+  uniform vec3 glowColor;
+  uniform float time;
+  uniform float brightness;
+  uniform float uniqueOffset;
+  uniform float styleVariant;
+  varying vec2 vUv;
+  
+  ${noiseLib}
+  
+  float ridgedNoise(vec2 p) { return 1.0 - abs(snoise(p)); }
   
   float ridgedFbm(vec2 p, int oct) {
     float sum = 0.0, amp = 0.5, freq = 1.0;
@@ -70,86 +90,89 @@ const nebulaShader = `
   void main() {
     vec2 center = vUv - 0.5;
     float dist = length(center);
-    if (dist > 0.5) discard;
-    
     float angle = atan(center.y, center.x);
     float t = time * 0.25 + uniqueOffset * 10.0;
+    
+    // Organic irregular boundary
+    float edgeRadius = organicEdge(center, 0.38, t, uniqueOffset);
+    
+    // Wispy tendrils extending outward
+    float tendrils = 0.0;
+    for (float i = 0.0; i < 8.0; i++) {
+      float tendrilAngle = i * 0.785 + uniqueOffset * 6.28 + t * 0.05;
+      float angleDiff = abs(mod(angle - tendrilAngle + 3.14159, 6.28318) - 3.14159);
+      float tendrilWidth = 0.15 + snoise(vec2(i, uniqueOffset)) * 0.1;
+      float tendril = exp(-angleDiff * angleDiff / (tendrilWidth * tendrilWidth));
+      float tendrilLength = 0.35 + snoise(vec2(i * 2.0, t * 0.1)) * 0.15;
+      tendril *= smoothstep(tendrilLength + 0.1, tendrilLength * 0.5, dist);
+      tendrils += tendril * 0.3;
+    }
+    
+    // Soft discard with organic edge
+    float edgeFade = 1.0 - smoothstep(edgeRadius - 0.1, edgeRadius + 0.15, dist);
+    edgeFade = max(edgeFade, tendrils);
+    if (edgeFade < 0.01) discard;
+    
     vec2 wUv = center * (4.0 + styleVariant * 2.0);
     
-    // Multi-layer warping for turbulence
+    // Multi-layer warping
     float warpX = fbm(wUv + t * 0.08, 5);
     float warpY = fbm(wUv + vec2(5.2, 1.3) + t * 0.1, 5);
     vec2 warped = wUv + vec2(warpX, warpY) * (0.4 + styleVariant * 0.4);
     
-    // Second warp layer
     float warpX2 = fbm(warped * 0.7 + t * 0.05, 3);
     float warpY2 = fbm(warped * 0.7 + vec2(3.1, 7.2) + t * 0.06, 3);
     warped += vec2(warpX2, warpY2) * 0.25;
     
-    // Multi-scale structure
+    // Structure
     float largeStructure = fbm(warped * 0.4 + t * 0.03, 6);
     float medStructure = fbm(warped * 1.2 + t * 0.06, 5);
     float fineDetail = fbm(warped * 3.0 + t * 0.12, 4);
     float structure = largeStructure * 0.45 + medStructure * 0.35 + fineDetail * 0.2;
     structure = structure * 0.5 + 0.5;
     
-    // Bright filaments
+    // Filaments
     float filaments = ridgedFbm(warped * 1.5 + t * 0.08, 4);
     float filaments2 = ridgedFbm(warped * 2.5 - t * 0.06, 3);
     float filamentGlow = pow(filaments, 1.8) * 0.6 + pow(filaments2, 2.2) * 0.4;
     
-    // Hot spots
-    float hotSpots = pow(max(fbm(warped * 2.0 + t * 0.15, 3), 0.0), 2.5);
-    
-    // Multi-color palette (Cassiopeia A inspired)
+    // Colors
     vec3 hotWhite = vec3(1.0, 0.99, 0.96);
     vec3 hotYellow = vec3(1.0, 0.92, 0.6);
     vec3 hotPink = vec3(1.0, 0.45, 0.65);
     vec3 electricBlue = vec3(0.35, 0.55, 1.0);
     vec3 deepPurple = vec3(0.55, 0.2, 0.85);
     vec3 cyan = vec3(0.3, 0.85, 0.95);
-    vec3 green = vec3(0.4, 0.9, 0.5);
     
-    // Color zones
     float zone1 = fbm(warped * 0.8 + t * 0.04, 4) * 0.5 + 0.5;
     float zone2 = fbm(warped * 1.0 + vec2(5.0, 9.0) + t * 0.05, 4) * 0.5 + 0.5;
-    float zone3 = fbm(warped * 1.3 + vec2(11.0, 3.0) - t * 0.03, 4) * 0.5 + 0.5;
     
     vec3 colorMix = primaryColor;
     colorMix = mix(colorMix, electricBlue, smoothstep(0.3, 0.65, zone1) * 0.55);
     colorMix = mix(colorMix, deepPurple, smoothstep(0.35, 0.75, zone2) * 0.5);
-    colorMix = mix(colorMix, hotPink, smoothstep(0.4, 0.85, zone3) * 0.45);
+    colorMix = mix(colorMix, hotPink, filamentGlow * 0.4);
     colorMix = mix(colorMix, cyan, pow(filaments, 2.0) * 0.4);
-    colorMix = mix(colorMix, green, pow(filaments2, 2.5) * 0.25);
-    colorMix = mix(colorMix, hotYellow, hotSpots * 0.6);
     
-    // Core glow
-    float coreGlow = pow(1.0 - smoothstep(0.0, 0.25, dist), 1.8);
+    // Core
+    float coreGlow = pow(1.0 - smoothstep(0.0, 0.2, dist), 1.8);
     colorMix = mix(colorMix, hotWhite, coreGlow * 0.75);
-    colorMix = mix(colorMix, hotYellow, coreGlow * hotSpots * 0.5);
+    colorMix = mix(colorMix, hotYellow, coreGlow * pow(max(fbm(warped * 2.0 + t * 0.15, 3), 0.0), 2.5) * 0.5);
     
-    // Edge wisps
-    float edgeNoise = fbm(vec2(angle * 4.0, dist * 6.0) + t * 0.15, 4);
-    float wispyEdge = smoothstep(0.2, 0.42, dist) * (0.4 + edgeNoise * 0.6);
-    
-    // Intensity
-    float intensity = structure * 0.55 + filamentGlow * 0.9 + coreGlow * 1.3;
+    float intensity = structure * 0.55 + filamentGlow * 0.9 + coreGlow * 1.3 + tendrils * 0.5;
     intensity *= brightness * (0.88 + 0.12 * sin(time * 1.8 + uniqueOffset * 5.0));
-    intensity *= 0.92 + 0.08 * sin(time * 2.9 + 1.2);
     
     vec3 finalColor = colorMix * intensity;
     finalColor += hotWhite * pow(filaments, 3.5) * 0.35;
     finalColor += cyan * pow(filaments2, 3.0) * 0.25;
     
-    float alpha = (structure * 0.45 + filamentGlow * 0.9 + coreGlow * 1.1);
-    alpha *= 1.0 - smoothstep(0.32 + wispyEdge * 0.1, 0.5, dist);
-    alpha = pow(clamp(alpha, 0.0, 1.0), 0.65);
+    float alpha = (structure * 0.4 + filamentGlow * 0.85 + coreGlow * 1.1 + tendrils * 0.6) * edgeFade;
+    alpha = pow(clamp(alpha, 0.0, 1.0), 0.6);
     
     gl_FragColor = vec4(finalColor, alpha);
   }
 `;
 
-// Style 2: Classic - Elegant radiant star with prominent diffraction spikes
+// Style 2: Classic - Radiant star with organic diffraction spikes
 const classicShader = `
   uniform vec3 primaryColor;
   uniform vec3 glowColor;
@@ -160,79 +183,81 @@ const classicShader = `
   uniform float rayCount;
   varying vec2 vUv;
   
+  ${noiseLib}
+  
   void main() {
     vec2 center = vUv - 0.5;
     float dist = length(center);
-    if (dist > 0.5) discard;
-    
     float angle = atan(center.y, center.x);
     float t = time + uniqueOffset * 10.0;
     
-    // Brilliant core with color temperature
-    float coreRadius = 0.08 + styleVariant * 0.04;
-    float core = 1.0 - smoothstep(0.0, coreRadius, dist);
+    // Core with organic edge
+    float coreRadius = 0.06 + styleVariant * 0.03;
+    float coreNoise = snoise(vec2(angle * 8.0, t * 0.5)) * 0.015;
+    float core = 1.0 - smoothstep(0.0, coreRadius + coreNoise, dist);
     core = pow(core, 1.2);
     
-    // Inner corona
-    float corona = 1.0 - smoothstep(0.0, 0.22, dist);
-    corona = pow(corona, 2.2);
+    // Corona with irregular shape
+    float coronaNoise = snoise(vec2(angle * 4.0 + uniqueOffset * 5.0, t * 0.2)) * 0.05;
+    float corona = 1.0 - smoothstep(0.0, 0.18 + coronaNoise, dist);
+    corona = pow(corona, 2.0);
     
-    // Outer halo
-    float halo = 1.0 - smoothstep(0.0, 0.4, dist);
-    halo = pow(halo, 3.5);
+    // Halo
+    float haloNoise = snoise(vec2(angle * 3.0, t * 0.15)) * 0.08;
+    float halo = 1.0 - smoothstep(0.0, 0.35 + haloNoise, dist);
+    halo = pow(halo, 3.2);
     
-    // Primary diffraction spikes
+    // Organic diffraction spikes with varying lengths
     float rays = 0.0;
     float numRays = rayCount;
     for (float i = 0.0; i < 12.0; i++) {
       if (i >= numRays) break;
       float rayAngle = i * 6.28318 / numRays + uniqueOffset * 3.14159;
-      float spikeIntensity = pow(abs(cos((angle - rayAngle) * numRays * 0.5)), 60.0 + styleVariant * 40.0);
-      spikeIntensity *= exp(-dist * (3.0 - styleVariant * 0.8));
+      float rayLengthVar = 0.8 + snoise(vec2(i, uniqueOffset * 10.0)) * 0.4;
+      float rayWidthVar = 0.8 + snoise(vec2(i * 2.0, uniqueOffset * 5.0)) * 0.4;
       
-      // Taper the spikes
-      float taper = 1.0 - pow(dist * 2.0, 1.5);
+      float spikeIntensity = pow(abs(cos((angle - rayAngle) * numRays * 0.5)), 50.0 * rayWidthVar + styleVariant * 30.0);
+      spikeIntensity *= exp(-dist * (2.5 / rayLengthVar - styleVariant * 0.5));
+      
+      // Wispy ray edges
+      float rayNoise = snoise(vec2(dist * 10.0, i + t * 0.3)) * 0.3;
+      spikeIntensity *= (0.7 + rayNoise);
+      
+      float taper = 1.0 - pow(dist * 1.8, 1.2);
       spikeIntensity *= max(taper, 0.0);
       rays += spikeIntensity;
     }
     
-    // Secondary shorter spikes (offset by half)
-    float rays2 = 0.0;
-    for (float i = 0.0; i < 12.0; i++) {
-      if (i >= numRays) break;
-      float rayAngle = i * 6.28318 / numRays + uniqueOffset * 3.14159 + 3.14159 / numRays;
-      float spikeIntensity = pow(abs(cos((angle - rayAngle) * numRays * 0.5)), 80.0);
-      spikeIntensity *= exp(-dist * 5.0) * 0.4;
-      rays2 += spikeIntensity;
-    }
-    rays += rays2;
-    
-    // Chromatic shimmer
+    // Shimmer
     float shimmer = 0.88 + 0.12 * sin(t * 2.5) * sin(t * 3.7 + 1.5);
     shimmer *= 0.92 + 0.08 * sin(t * 4.1 + angle * 2.0);
     
-    // Color gradient
+    // Colors
     vec3 hotWhite = vec3(1.0, 0.995, 0.97);
     vec3 warmCore = vec3(1.0, 0.95, 0.88);
     vec3 coreColor = mix(warmCore, hotWhite, core * 0.9);
     vec3 rayColor = mix(glowColor, hotWhite, 0.45);
-    vec3 haloColor = mix(primaryColor, glowColor, 0.3);
     
     vec3 finalColor = coreColor * core * 2.5;
     finalColor += primaryColor * corona * 0.8;
-    finalColor += haloColor * halo * 0.4;
+    finalColor += mix(primaryColor, glowColor, 0.3) * halo * 0.4;
     finalColor += rayColor * rays * 0.75;
     finalColor *= brightness * shimmer;
     
-    float alpha = core * 1.2 + corona * 0.7 + halo * 0.4 + rays * 0.55;
-    alpha *= 1.0 - smoothstep(0.42, 0.5, dist);
-    alpha = pow(clamp(alpha, 0.0, 1.0), 0.75);
+    float alpha = core * 1.2 + corona * 0.7 + halo * 0.35 + rays * 0.55;
+    
+    // Soft organic edge fade
+    float edgeRadius = organicEdge(center, 0.4, t, uniqueOffset);
+    alpha *= 1.0 - smoothstep(edgeRadius - 0.15, edgeRadius + 0.1, dist);
+    alpha = pow(clamp(alpha, 0.0, 1.0), 0.7);
+    
+    if (alpha < 0.01) discard;
     
     gl_FragColor = vec4(finalColor, alpha);
   }
 `;
 
-// Style 3: Plasma - Swirling energy plasma with electric arcs
+// Style 3: Plasma - Swirling energy with organic boundaries
 const plasmaShader = `
   uniform vec3 primaryColor;
   uniform vec3 secondaryColor;
@@ -243,39 +268,36 @@ const plasmaShader = `
   uniform float styleVariant;
   varying vec2 vUv;
   
-  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-  
-  float noise(vec2 p) {
-    vec2 i = floor(p), f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i), hash(i + vec2(1,0)), f.x),
-               mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);
-  }
-  
-  float fbm(vec2 p) {
-    float sum = 0.0, amp = 0.5;
-    for (int i = 0; i < 5; i++) {
-      sum += noise(p) * amp;
-      p *= 2.0;
-      amp *= 0.5;
-    }
-    return sum;
-  }
+  ${noiseLib}
   
   void main() {
     vec2 center = vUv - 0.5;
     float dist = length(center);
-    if (dist > 0.5) discard;
-    
     float angle = atan(center.y, center.x);
     float t = time * (0.7 + styleVariant * 0.4) + uniqueOffset * 10.0;
     
-    // Swirling plasma layers
+    // Organic boundary
+    float edgeRadius = organicEdge(center, 0.36, t, uniqueOffset);
+    float edgeFade = 1.0 - smoothstep(edgeRadius - 0.12, edgeRadius + 0.12, dist);
+    if (edgeFade < 0.01) discard;
+    
+    // Plasma tendrils extending outward
+    float plasmaTendrils = 0.0;
+    for (float i = 0.0; i < 6.0; i++) {
+      float tAngle = i * 1.047 + t * 0.2 + uniqueOffset * 3.0;
+      float tNoise = snoise(vec2(i, t * 0.1)) * 0.5;
+      float angleDiff = abs(mod(angle - tAngle + 3.14159, 6.28318) - 3.14159);
+      float tendril = exp(-angleDiff * angleDiff / 0.08);
+      tendril *= smoothstep(0.5 + tNoise, 0.1, dist);
+      plasmaTendrils += tendril * 0.25;
+    }
+    
+    // Swirling plasma
     float swirl1 = sin(angle * (3.0 + styleVariant * 2.0) + dist * 12.0 - t * 2.2);
     float swirl2 = sin(angle * (5.0 + styleVariant) - dist * 9.0 + t * 1.7);
     float swirl3 = sin(angle * 7.0 + dist * 6.0 - t * 0.9);
     float plasmaPattern = swirl1 * 0.4 + swirl2 * 0.35 + swirl3 * 0.25;
-    plasmaPattern += fbm(vec2(angle * 6.0, dist * 12.0 + t)) * 0.5;
+    plasmaPattern += fbm(vec2(angle * 6.0, dist * 12.0 + t), 5) * 0.5;
     
     // Electric arcs
     float arcs = 0.0;
@@ -288,14 +310,13 @@ const plasmaShader = `
       arcs += arc;
     }
     
-    // Core pulse
-    float coreSize = 0.1 + sin(t * 2.5) * 0.025;
-    float core = 1.0 - smoothstep(0.0, coreSize, dist);
+    // Core
+    float core = 1.0 - smoothstep(0.0, 0.1 + sin(t * 2.5) * 0.025, dist);
     core = pow(core, 1.6);
     
-    // Outer corona
-    float corona = 1.0 - smoothstep(0.0, 0.35, dist);
-    corona = pow(corona, 2.8);
+    // Corona
+    float corona = 1.0 - smoothstep(0.0, 0.3, dist);
+    corona = pow(corona, 2.5);
     
     // Colors
     vec3 hotWhite = vec3(1.0, 0.98, 0.96);
@@ -305,22 +326,21 @@ const plasmaShader = `
     plasmaColor = mix(plasmaColor, glowColor, corona * 0.3);
     plasmaColor = mix(plasmaColor, hotWhite, core * 0.85);
     
-    float intensity = (plasmaPattern * 0.25 + 0.75) * (1.0 - dist * 1.3);
-    intensity += arcs * 0.7 + core * 1.8;
+    float intensity = (plasmaPattern * 0.25 + 0.75) * (1.0 - dist * 1.2);
+    intensity += arcs * 0.7 + core * 1.8 + plasmaTendrils;
     intensity *= brightness * (0.92 + 0.08 * sin(t * 4.5));
     
     vec3 finalColor = plasmaColor * intensity;
     finalColor += hotWhite * arcs * 0.35;
     
-    float alpha = intensity * 0.7 + core * 0.8;
-    alpha *= 1.0 - smoothstep(0.38, 0.5, dist);
-    alpha = pow(clamp(alpha, 0.0, 1.0), 0.7);
+    float alpha = (intensity * 0.65 + core * 0.8 + plasmaTendrils * 0.5) * edgeFade;
+    alpha = pow(clamp(alpha, 0.0, 1.0), 0.65);
     
     gl_FragColor = vec4(finalColor, alpha);
   }
 `;
 
-// Style 4: Crystal - Geometric faceted gem with internal fire
+// Style 4: Crystal - Geometric with organic glow overflow
 const crystalShader = `
   uniform vec3 primaryColor;
   uniform vec3 secondaryColor;
@@ -331,42 +351,45 @@ const crystalShader = `
   uniform float styleVariant;
   varying vec2 vUv;
   
+  ${noiseLib}
+  
   void main() {
     vec2 center = vUv - 0.5;
     float dist = length(center);
-    if (dist > 0.5) discard;
-    
     float angle = atan(center.y, center.x);
     float t = time * 0.4 + uniqueOffset * 10.0;
     
-    // Faceted structure
+    // Organic outer glow that extends beyond crystal
+    float glowRadius = organicEdge(center, 0.42, t, uniqueOffset);
+    float outerGlow = 1.0 - smoothstep(0.0, glowRadius, dist);
+    outerGlow = pow(outerGlow, 2.5) * 0.4;
+    
+    // Crystal facets (sharper inner boundary)
     float facets = 6.0 + floor(styleVariant * 4.0);
     float facetAngle = mod(angle + t * 0.08, 6.28318 / facets);
     float facetCenter = 3.14159 / facets;
     float facetEdge = abs(facetAngle - facetCenter) / facetCenter;
     facetEdge = 1.0 - pow(facetEdge, 0.5);
     
-    // Inner facet layers
-    float innerFacets = facets * 2.0;
-    float innerAngle = mod(angle - t * 0.05, 6.28318 / innerFacets);
-    float innerEdge = abs(innerAngle - 3.14159 / innerFacets);
+    // Inner facets
+    float innerAngle = mod(angle - t * 0.05, 6.28318 / (facets * 2.0));
+    float innerEdge = abs(innerAngle - 3.14159 / (facets * 2.0));
     innerEdge = 1.0 - smoothstep(0.0, 0.25, innerEdge);
     
-    // Radial zones
-    float radialZones = 4.0 + styleVariant * 2.0;
-    float radialPos = dist * radialZones;
-    float radialEdge = smoothstep(0.0, 0.15, abs(fract(radialPos) - 0.5));
+    // Crystal body with slightly irregular edge
+    float crystalRadius = 0.28 + snoise(vec2(angle * facets, uniqueOffset * 5.0)) * 0.03;
+    float crystalBody = 1.0 - smoothstep(crystalRadius - 0.05, crystalRadius + 0.02, dist);
     
-    // Core brilliance
-    float core = 1.0 - smoothstep(0.0, 0.1, dist);
+    // Core
+    float core = 1.0 - smoothstep(0.0, 0.08, dist);
     core = pow(core, 1.3);
     
     // Fire inside
     float fire = sin(angle * 8.0 + dist * 15.0 + t * 2.0) * 0.5 + 0.5;
     fire *= sin(angle * 5.0 - dist * 10.0 - t * 1.5) * 0.5 + 0.5;
-    fire = pow(fire, 2.0) * (1.0 - dist * 2.0);
+    fire = pow(fire, 2.0) * crystalBody;
     
-    // Sparkle points
+    // Sparkles
     float sparkle = 0.0;
     for (float i = 0.0; i < 10.0; i++) {
       float sparkAngle = i * 0.628318 + t * 0.15 + uniqueOffset * 6.28;
@@ -378,33 +401,37 @@ const crystalShader = `
     
     // Iridescence
     float iridescence = sin(angle * 4.0 + dist * 12.0 + t * 0.8) * 0.5 + 0.5;
-    vec3 iriColor1 = mix(primaryColor, secondaryColor, iridescence);
-    vec3 iriColor2 = mix(secondaryColor, glowColor, 1.0 - iridescence);
-    vec3 gemColor = mix(iriColor1, iriColor2, dist * 1.5);
+    vec3 iriColor = mix(primaryColor, secondaryColor, iridescence);
     
     vec3 hotWhite = vec3(1.0, 0.99, 0.97);
     vec3 fireColor = vec3(1.0, 0.7, 0.4);
     
-    gemColor += facetEdge * 0.2 * glowColor;
-    gemColor += innerEdge * 0.15 * secondaryColor * (1.0 - dist * 2.0);
+    vec3 gemColor = iriColor;
+    gemColor += facetEdge * 0.2 * glowColor * crystalBody;
+    gemColor += innerEdge * 0.15 * secondaryColor * crystalBody;
     gemColor = mix(gemColor, fireColor, fire * 0.5);
     gemColor = mix(gemColor, hotWhite, core * 0.8);
     gemColor += hotWhite * sparkle * 0.6;
     
-    float intensity = 0.55 + facetEdge * 0.25 + core * 1.2 + fire * 0.4 + sparkle * 0.4;
+    // Add outer glow color
+    vec3 glowColor2 = mix(primaryColor, glowColor, 0.5);
+    gemColor = mix(glowColor2, gemColor, crystalBody + 0.3);
+    
+    float intensity = 0.5 + facetEdge * 0.25 + core * 1.2 + fire * 0.4 + sparkle * 0.4 + outerGlow;
     intensity *= brightness * (0.92 + 0.08 * sin(t * 1.5));
     
     vec3 finalColor = gemColor * intensity;
     
-    float alpha = 0.65 + facetEdge * 0.25 + core * 0.6 + sparkle * 0.3;
-    alpha *= 1.0 - smoothstep(0.38, 0.5, dist);
-    alpha = pow(clamp(alpha, 0.0, 1.0), 0.75);
+    float alpha = 0.55 * crystalBody + facetEdge * 0.2 + core * 0.6 + sparkle * 0.3 + outerGlow;
+    alpha = pow(clamp(alpha, 0.0, 1.0), 0.7);
+    
+    if (alpha < 0.01) discard;
     
     gl_FragColor = vec4(finalColor, alpha);
   }
 `;
 
-// Style 5: Pulse - Pulsating energy with rippling rings
+// Style 5: Pulse - Rippling rings with organic dissipation
 const pulseShader = `
   uniform vec3 primaryColor;
   uniform vec3 glowColor;
@@ -414,33 +441,45 @@ const pulseShader = `
   uniform float styleVariant;
   varying vec2 vUv;
   
+  ${noiseLib}
+  
   void main() {
     vec2 center = vUv - 0.5;
     float dist = length(center);
-    if (dist > 0.5) discard;
-    
+    float angle = atan(center.y, center.x);
     float t = time * (1.2 + styleVariant * 0.6) + uniqueOffset * 10.0;
     
-    // Pulsating core
+    // Organic boundary
+    float edgeRadius = organicEdge(center, 0.4, t, uniqueOffset);
+    float edgeFade = 1.0 - smoothstep(edgeRadius - 0.15, edgeRadius + 0.15, dist);
+    if (edgeFade < 0.01) discard;
+    
+    // Core
     float pulseFreq = 2.0 + styleVariant;
-    float coreSize = 0.07 + sin(t * pulseFreq) * 0.025 + sin(t * pulseFreq * 1.7) * 0.015;
+    float coreSize = 0.06 + sin(t * pulseFreq) * 0.02 + sin(t * pulseFreq * 1.7) * 0.012;
     float core = 1.0 - smoothstep(0.0, coreSize, dist);
     core = pow(core, 1.3);
     
     // Inner glow
-    float innerSize = 0.18 + sin(t * pulseFreq * 0.7) * 0.03;
+    float innerNoise = snoise(vec2(angle * 4.0, t * 0.3)) * 0.03;
+    float innerSize = 0.15 + sin(t * pulseFreq * 0.7) * 0.025 + innerNoise;
     float innerGlow = 1.0 - smoothstep(0.0, innerSize, dist);
     innerGlow = pow(innerGlow, 2.0);
     
-    // Rippling rings
+    // Rippling rings with organic distortion
     float rings = 0.0;
     float ringCount = 4.0 + styleVariant * 2.0;
     for (float i = 0.0; i < 7.0; i++) {
       if (i >= ringCount) break;
       float ringPhase = t * 1.5 - i * 0.4;
-      float ringRadius = fract(ringPhase * 0.25) * 0.42;
-      float ringWidth = 0.015 + i * 0.003;
-      float ring = 1.0 - smoothstep(0.0, ringWidth, abs(dist - ringRadius));
+      float ringRadius = fract(ringPhase * 0.25) * 0.45;
+      
+      // Distort ring shape
+      float ringDistort = snoise(vec2(angle * 3.0 + i, t * 0.2)) * 0.03;
+      float distortedDist = dist + ringDistort;
+      
+      float ringWidth = 0.012 + i * 0.002;
+      float ring = 1.0 - smoothstep(0.0, ringWidth, abs(distortedDist - ringRadius));
       float ringFade = 1.0 - fract(ringPhase * 0.25) * 1.8;
       ring *= max(ringFade, 0.0);
       ring *= 0.7 + 0.3 * sin(t * 3.0 + i * 1.5);
@@ -448,32 +487,30 @@ const pulseShader = `
     }
     
     // Outer halo
-    float halo = 1.0 - smoothstep(0.0, 0.4, dist);
+    float haloNoise = snoise(vec2(angle * 2.0, t * 0.1)) * 0.06;
+    float halo = 1.0 - smoothstep(0.0, 0.38 + haloNoise, dist);
     halo = pow(halo, 3.0);
-    float haloPulse = 0.75 + 0.25 * sin(t * pulseFreq * 0.6);
-    halo *= haloPulse;
+    halo *= 0.75 + 0.25 * sin(t * pulseFreq * 0.6);
     
     // Colors
     vec3 hotWhite = vec3(1.0, 0.99, 0.97);
     vec3 ringColor = mix(glowColor, hotWhite, 0.35);
     vec3 coreColor = mix(primaryColor, hotWhite, 0.75);
-    vec3 haloColor = mix(primaryColor, glowColor, 0.4);
     
     vec3 finalColor = coreColor * core * 2.2;
-    finalColor += haloColor * halo * 0.5;
+    finalColor += mix(primaryColor, glowColor, 0.4) * halo * 0.5;
     finalColor += primaryColor * innerGlow * 0.7;
     finalColor += ringColor * rings * 0.85;
     finalColor *= brightness;
     
-    float alpha = core * 1.1 + innerGlow * 0.6 + halo * 0.35 + rings * 0.7;
-    alpha *= 1.0 - smoothstep(0.42, 0.5, dist);
-    alpha = pow(clamp(alpha, 0.0, 1.0), 0.7);
+    float alpha = (core * 1.1 + innerGlow * 0.6 + halo * 0.35 + rings * 0.7) * edgeFade;
+    alpha = pow(clamp(alpha, 0.0, 1.0), 0.65);
     
     gl_FragColor = vec4(finalColor, alpha);
   }
 `;
 
-// Style 6: Nova - Explosive supernova burst
+// Style 6: Nova - Explosive burst with chaotic edges
 const novaShader = `
   uniform vec3 primaryColor;
   uniform vec3 secondaryColor;
@@ -484,43 +521,45 @@ const novaShader = `
   uniform float styleVariant;
   varying vec2 vUv;
   
-  float hash(float n) { return fract(sin(n) * 43758.5453); }
+  ${noiseLib}
   
-  float noise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    float n = i.x + i.y * 57.0;
-    return mix(mix(hash(n), hash(n + 1.0), f.x),
-               mix(hash(n + 57.0), hash(n + 58.0), f.x), f.y);
-  }
+  float hash(float n) { return fract(sin(n) * 43758.5453); }
   
   void main() {
     vec2 center = vUv - 0.5;
     float dist = length(center);
-    if (dist > 0.5) discard;
-    
     float angle = atan(center.y, center.x);
     float t = time * 0.4 + uniqueOffset * 10.0;
     
-    // Explosive core
-    float coreSize = 0.08 + styleVariant * 0.04;
+    // Very organic, chaotic boundary
+    float edgeRadius = organicEdge(center, 0.32, t, uniqueOffset);
+    
+    // Extra chaos for nova
+    float chaos = snoise(vec2(angle * 5.0, t * 0.3)) * 0.08;
+    chaos += snoise(vec2(angle * 11.0, t * 0.5)) * 0.04;
+    edgeRadius += chaos;
+    
+    // Core
+    float coreSize = 0.07 + styleVariant * 0.03;
     float core = 1.0 - smoothstep(0.0, coreSize, dist);
     core = pow(core, 1.1);
     
-    // Explosive rays
+    // Explosive rays with varying lengths
     float rays = 0.0;
-    float numRays = 10.0 + styleVariant * 10.0;
-    for (float i = 0.0; i < 24.0; i++) {
+    float numRays = 12.0 + styleVariant * 12.0;
+    for (float i = 0.0; i < 28.0; i++) {
       if (i >= numRays) break;
       float rayAngle = hash(i + uniqueOffset * 100.0) * 6.28318;
-      float rayLength = 0.25 + hash(i * 2.0 + uniqueOffset * 50.0) * 0.2;
-      float rayWidth = 0.012 + hash(i * 3.0) * 0.025;
-      float rayBrightness = 0.5 + hash(i * 4.0) * 0.5;
+      float rayLength = 0.2 + hash(i * 2.0 + uniqueOffset * 50.0) * 0.25;
+      float rayWidth = 0.008 + hash(i * 3.0) * 0.02;
+      float rayBrightness = 0.4 + hash(i * 4.0) * 0.6;
+      
+      // Ray noise for organic look
+      float rayNoise = snoise(vec2(dist * 8.0, i + t * 0.5)) * 0.4;
       
       float angleDiff = abs(mod(angle - rayAngle + 3.14159, 6.28318) - 3.14159);
-      float rayIntensity = 1.0 - smoothstep(0.0, rayWidth, angleDiff);
-      rayIntensity *= 1.0 - smoothstep(0.03, rayLength, dist);
+      float rayIntensity = 1.0 - smoothstep(0.0, rayWidth * (1.0 + rayNoise), angleDiff);
+      rayIntensity *= 1.0 - smoothstep(0.02, rayLength, dist);
       rayIntensity *= rayBrightness;
       rayIntensity *= 0.6 + 0.4 * sin(t * (1.5 + hash(i) * 2.5) + i * 1.2);
       rays += rayIntensity;
@@ -528,43 +567,49 @@ const novaShader = `
     
     // Shockwave
     float shockPhase = fract(t * 0.25);
-    float shockRadius = shockPhase * 0.45;
-    float shock = 1.0 - smoothstep(0.0, 0.018, abs(dist - shockRadius));
-    shock *= 1.0 - shockPhase * 1.2;
+    float shockRadius = shockPhase * 0.5;
+    float shockNoise = snoise(vec2(angle * 4.0, t)) * 0.02;
+    float shock = 1.0 - smoothstep(0.0, 0.015, abs(dist - shockRadius + shockNoise));
+    shock *= 1.0 - shockPhase * 1.3;
     shock = max(shock, 0.0);
     
-    // Debris cloud
+    // Debris
     float debris = 0.0;
-    for (float i = 0.0; i < 15.0; i++) {
+    for (float i = 0.0; i < 18.0; i++) {
       float debrisAngle = hash(i + 0.5 + uniqueOffset) * 6.28318;
-      float debrisDist = 0.08 + hash(i * 1.7) * 0.25;
+      float debrisDist = 0.06 + hash(i * 1.7) * 0.3;
       debrisDist *= 0.6 + 0.4 * sin(t * 1.5 + i * 0.8);
       vec2 debrisPos = vec2(cos(debrisAngle), sin(debrisAngle)) * debrisDist;
-      float d = exp(-length(center - debrisPos) * 45.0);
+      float d = exp(-length(center - debrisPos) * 40.0);
       d *= 0.5 + 0.5 * sin(t * 4.0 + i * 2.5);
       debris += d;
     }
     
-    // Outer nebula
-    float nebulaPattern = noise(vec2(angle * 3.0, dist * 8.0 + t * 0.5)) * 0.5 + 0.5;
-    float nebula = nebulaPattern * (1.0 - smoothstep(0.15, 0.45, dist));
-    nebula = pow(nebula, 1.5) * 0.4;
+    // Nebula background
+    float nebula = fbm(vec2(angle * 3.0, dist * 8.0 + t * 0.5), 4) * 0.5 + 0.5;
+    nebula *= 1.0 - smoothstep(0.1, 0.45, dist);
+    nebula = pow(nebula, 1.5) * 0.35;
     
     // Colors
     vec3 hotWhite = vec3(1.0, 0.99, 0.97);
     vec3 hotYellow = vec3(1.0, 0.92, 0.55);
-    vec3 hotOrange = vec3(1.0, 0.65, 0.3);
     
     vec3 finalColor = mix(primaryColor, hotWhite, core * 0.85) * core * 2.8;
     finalColor += mix(glowColor, hotYellow, 0.35) * rays * 0.85;
     finalColor += mix(secondaryColor, hotWhite, 0.4) * shock * 0.7;
     finalColor += hotWhite * debris * 0.45;
-    finalColor += mix(primaryColor, secondaryColor, nebulaPattern) * nebula;
+    finalColor += mix(primaryColor, secondaryColor, nebula) * nebula;
     finalColor *= brightness * (0.88 + 0.12 * sin(t * 2.5));
     
-    float alpha = core + rays * 0.55 + shock * 0.5 + debris * 0.4 + nebula * 0.6;
-    alpha *= 1.0 - smoothstep(0.42, 0.5, dist);
-    alpha = pow(clamp(alpha, 0.0, 1.0), 0.65);
+    float alpha = core + rays * 0.5 + shock * 0.45 + debris * 0.4 + nebula * 0.5;
+    
+    // Organic edge
+    float edgeFade = 1.0 - smoothstep(edgeRadius - 0.1, edgeRadius + 0.15, dist);
+    edgeFade = max(edgeFade, rays * 0.7 + debris * 0.5);
+    alpha *= edgeFade;
+    alpha = pow(clamp(alpha, 0.0, 1.0), 0.6);
+    
+    if (alpha < 0.01) discard;
     
     gl_FragColor = vec4(finalColor, alpha);
   }
@@ -638,7 +683,7 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId }) {
     }
   });
   
-  const spriteSize = 0.55 * scale;
+  const spriteSize = 0.65 * scale;
   
   return (
     <mesh ref={meshRef}>
@@ -663,21 +708,30 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset }) {
         uniform float uniqueOffset;
         varying vec2 vUv;
         
+        ${noiseLib}
+        
         void main() {
           vec2 center = vUv - 0.5;
           float dist = length(center);
-          if (dist > 0.5) discard;
+          float angle = atan(center.y, center.x);
           
-          float glow = 1.0 - smoothstep(0.0, 0.5, dist);
-          glow = pow(glow, 3.2);
+          // Organic glow boundary
+          float edgeRadius = organicEdge(center, 0.45, time * 0.2, uniqueOffset);
+          if (dist > edgeRadius + 0.1) discard;
+          
+          float glow = 1.0 - smoothstep(0.0, edgeRadius, dist);
+          glow = pow(glow, 2.8);
           
           float breath = 0.78 + 0.22 * sin(time * 1.3 + uniqueOffset * 5.0);
           breath *= 0.9 + 0.1 * sin(time * 2.1 + 1.5);
           
-          vec3 color = mix(glowColor, secondaryColor, dist * 1.5);
+          // Wispy variations
+          float wisp = snoise(vec2(angle * 3.0, dist * 5.0 + time * 0.2)) * 0.3 + 0.7;
+          glow *= wisp;
           
-          float alpha = glow * intensity * breath * 0.4;
-          alpha *= 1.0 - smoothstep(0.42, 0.5, dist);
+          vec3 color = mix(glowColor, secondaryColor, dist * 1.8);
+          
+          float alpha = glow * intensity * breath * 0.45;
           
           gl_FragColor = vec4(color * 1.15, alpha);
         }
@@ -705,7 +759,7 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset }) {
     }
   });
   
-  const glowSize = 1.0 * scale;
+  const glowSize = 1.1 * scale;
   
   return (
     <mesh ref={meshRef}>
@@ -742,7 +796,6 @@ function StarLabel({ name, isVisible }) {
           textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)',
           letterSpacing: '0.5px',
           transform: 'translateY(-20px)',
-          animation: 'fadeInUp 0.2s ease-out',
         }}
       >
         {name}
@@ -780,7 +833,6 @@ export default function Star({
   
   const shapeId = starProfile?.shape || visuals.shape?.id || 'classic';
   
-  // Much larger hover scale
   const activeScale = useMemo(() => {
     if (isFocused) return visuals.scale * 2.2;
     if (isHovered) return visuals.scale * 2.0;
