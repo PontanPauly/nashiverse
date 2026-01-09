@@ -518,11 +518,19 @@ function NebulaGLBModel({ scale = 50 }) {
     const clone = scene.clone(true);
     clone.traverse((child) => {
       if (child.isMesh) {
-        child.material = child.material.clone();
-        child.material.transparent = true;
-        child.material.opacity = 0.7;
-        child.material.depthWrite = false;
-        child.material.blending = THREE.AdditiveBlending;
+        const originalMat = child.material;
+        child.material = new THREE.MeshBasicMaterial({
+          map: originalMat.map || null,
+          color: originalMat.color || new THREE.Color(0xffffff),
+          transparent: true,
+          opacity: 0.85,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+        });
+        if (originalMat.emissiveMap) {
+          child.material.map = originalMat.emissiveMap;
+        }
       }
     });
     return clone;
@@ -530,7 +538,8 @@ function NebulaGLBModel({ scale = 50 }) {
   
   useFrame((state) => {
     if (groupRef.current) {
-      groupRef.current.rotation.y += 0.0003;
+      groupRef.current.rotation.y += 0.00015;
+      groupRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.05) * 0.02;
     }
   });
   
@@ -545,7 +554,7 @@ function TieredNebulaBackdrop({ qualityTier }) {
   return (
     <group>
       <Suspense fallback={null}>
-        <NebulaGLBModel scale={80} />
+        <NebulaGLBModel scale={300} />
       </Suspense>
       <ImmersiveNebulaVolume qualityTier={qualityTier} />
       <NebulaFilaments qualityTier={qualityTier} />
