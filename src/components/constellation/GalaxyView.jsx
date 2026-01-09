@@ -943,7 +943,7 @@ function CameraController({
       const hz = targetPosition.z || 0;
       
       targetLookAt.current.set(hx, hy, hz);
-      targetCamPos.current.set(hx + 8, hy + 6, hz + 15);
+      targetCamPos.current.set(hx + 4, hy + 3, hz + 8);
       animationPhase.current = 'zoom-in';
     }
     
@@ -1230,42 +1230,145 @@ function SystemLevelScene({
   );
 }
 
-function GalaxyLevelScene({
+function UnifiedGalaxyScene({
   households,
   householdPositions,
+  people,
+  focusedHouseholdId,
   hoveredHouseholdId,
+  hoveredStarId,
+  focusedStarId,
   onHouseholdClick,
   onHouseholdHover,
-  fadingHouseholdId = null,
-  fadeOpacity = 1,
+  onStarClick,
+  onStarHover,
+  focusProgress = 0,
 }) {
+  const allStars = useMemo(() => {
+    const stars = [];
+    households.forEach((household, householdIndex) => {
+      const pos = householdPositions.get(household.id);
+      if (!pos) return;
+      
+      const householdPeople = people.filter(p => p.household_id === household.id);
+      const positionedPeople = arrangeStarsInCluster(householdPeople, pos.x, pos.y, pos.z);
+      
+      positionedPeople.forEach(person => {
+        stars.push({
+          id: person.id,
+          householdId: household.id,
+          household,
+          householdIndex,
+          position: person.position,
+          starProfile: person.star_profile || generateRandomStarProfile(person.id),
+          person,
+        });
+      });
+    });
+    return stars;
+  }, [households, householdPositions, people]);
+  
+  const focusedStars = useMemo(() => {
+    if (!focusedHouseholdId) return [];
+    return allStars.filter(s => s.householdId === focusedHouseholdId);
+  }, [allStars, focusedHouseholdId]);
+  
+  const unfocusedStars = useMemo(() => {
+    if (!focusedHouseholdId) return allStars;
+    return allStars.filter(s => s.householdId !== focusedHouseholdId);
+  }, [allStars, focusedHouseholdId]);
+  
+  const unfocusedOpacity = focusedHouseholdId ? Math.max(0.15, 1 - focusProgress * 0.85) : 1;
+  const unfocusedScale = focusedHouseholdId ? Math.max(0.4, 1 - focusProgress * 0.6) : 1;
+  const focusedScale = 0.3 + focusProgress * 0.7;
+  const focusedOpacity = 0.2 + focusProgress * 0.8;
+  
   return (
     <group>
       {households.map((household, index) => {
         const pos = householdPositions.get(household.id);
         if (!pos) return null;
         
-        const isFading = household.id === fadingHouseholdId;
-        const opacity = isFading ? fadeOpacity : 1;
-        
-        if (isFading && fadeOpacity <= 0) return null;
+        const isFocused = household.id === focusedHouseholdId;
+        const isHovered = household.id === hoveredHouseholdId;
+        const atmosphereOpacity = isFocused 
+          ? Math.max(0.1, 1 - focusProgress) 
+          : (focusedHouseholdId ? 0.3 : (isHovered ? 0.9 : 0.6));
         
         return (
-          <group key={household.id} visible={opacity > 0}>
-            <HouseholdCluster
-              position={[pos.x, pos.y, pos.z]}
-              household={household}
-              memberCount={pos.memberCount}
-              colorIndex={index}
-              isHovered={hoveredHouseholdId === household.id}
-              onClick={() => onHouseholdClick(household)}
-              onPointerOver={() => onHouseholdHover(household.id)}
-              onPointerOut={() => onHouseholdHover(null)}
-              opacity={opacity}
-            />
-          </group>
+          <HouseholdAtmosphere
+            key={`atmo-${household.id}`}
+            position={[pos.x, pos.y, pos.z]}
+            colorIndex={index}
+            opacity={atmosphereOpacity}
+            scale={isFocused ? 1 + focusProgress * 0.5 : 1}
+            onClick={() => !focusedHouseholdId && onHouseholdClick(household)}
+            onPointerOver={() => !focusedHouseholdId && onHouseholdHover(household.id)}
+            onPointerOut={() => onHouseholdHover(null)}
+          />
         );
       })}
+      
+      <StarInstanced
+        stars={unfocusedStars}
+        onStarClick={focusedHouseholdId ? onStarClick : (star) => onHouseholdClick(star.household)}
+        onStarHover={focusedHouseholdId ? onStarHover : () => {}}
+        hoveredId={focusedHouseholdId ? hoveredStarId : null}
+        focusedId={focusedHouseholdId ? focusedStarId : null}
+        globalOpacity={unfocusedOpacity}
+        globalScale={unfocusedScale}
+        animated={false}
+      />
+      
+      {focusedHouseholdId && (
+        <StarInstanced
+          stars={focusedStars}
+          onStarClick={onStarClick}
+          onStarHover={onStarHover}
+          hoveredId={hoveredStarId}
+          focusedId={focusedStarId}
+          globalOpacity={focusedOpacity}
+          globalScale={focusedScale}
+          animated={true}
+        />
+      )}
+    </group>
+  );
+}
+
+function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, onClick, onPointerOver, onPointerOut }) {
+  const colors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
+  const meshRef = useRef();
+  
+  useFrame((state) => {
+    if (meshRef.current && meshRef.current.material) {
+      meshRef.current.material.opacity = opacity * 0.4;
+    }
+  });
+  
+  return (
+    <group position={position}>
+      <mesh 
+        ref={meshRef}
+        onClick={onClick}
+        onPointerOver={onPointerOver}
+        onPointerOut={onPointerOut}
+        scale={[scale * 3, scale * 3, scale * 3]}
+      >
+        <sphereGeometry args={[1.5, 16, 16]} />
+        <meshBasicMaterial 
+          color={colors.primary}
+          transparent
+          opacity={opacity * 0.4}
+          depthWrite={false}
+        />
+      </mesh>
+      <pointLight 
+        color={colors.primary} 
+        intensity={opacity * 0.3} 
+        distance={8}
+        decay={2}
+      />
     </group>
   );
 }
@@ -1368,52 +1471,22 @@ function NebulaScene({
       <NebulaBackground />
       <DenseStarField count={qualityTier.starCount} />
       
-      {(level === 'galaxy' || isTransitioning) && (
-        <>
-          <NebulaGasCloud count={qualityTier.gasCount} />
-          <GalaxyLevelScene
-            households={households}
-            householdPositions={householdPositions}
-            hoveredHouseholdId={hoveredHouseholdId}
-            onHouseholdClick={onHouseholdClick}
-            onHouseholdHover={onHouseholdHover}
-            fadingHouseholdId={transitioningHousehold?.id}
-            fadeOpacity={nebulaOpacity}
-          />
-        </>
-      )}
+      <NebulaGasCloud count={qualityTier.gasCount} />
       
-      {isTransitioning && transitioningHousehold && (
-        <SystemLevelScene
-          household={transitioningHousehold}
-          people={people}
-          relationships={relationships}
-          hoveredStarId={null}
-          focusedStarId={null}
-          onStarClick={() => {}}
-          onStarHover={() => {}}
-          colorIndex={households.findIndex(h => h.id === transitioningHousehold.id)}
-          householdPosition={householdPositions.get(transitioningHousehold.id)}
-          bloomScale={starBloom}
-          fadeOpacity={starBloom}
-        />
-      )}
-      
-      {level === 'system' && selectedHousehold && !isTransitioning && (
-        <SystemLevelScene
-          household={selectedHousehold}
-          people={people}
-          relationships={relationships}
-          hoveredStarId={hoveredStarId}
-          focusedStarId={focusedStarId}
-          onStarClick={onStarClick}
-          onStarHover={onStarHover}
-          colorIndex={selectedColorIndex}
-          householdPosition={selectedHouseholdPosition}
-          bloomScale={1}
-          fadeOpacity={1}
-        />
-      )}
+      <UnifiedGalaxyScene
+        households={households}
+        householdPositions={householdPositions}
+        people={people}
+        focusedHouseholdId={selectedHousehold?.id || transitioningHousehold?.id}
+        hoveredHouseholdId={hoveredHouseholdId}
+        hoveredStarId={hoveredStarId}
+        focusedStarId={focusedStarId}
+        onHouseholdClick={onHouseholdClick}
+        onHouseholdHover={onHouseholdHover}
+        onStarClick={onStarClick}
+        onStarHover={onStarHover}
+        focusProgress={transitionProgress}
+      />
       
       <mesh visible={false} onClick={onBackgroundClick}>
         <sphereGeometry args={[350, 8, 8]} />

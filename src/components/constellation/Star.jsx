@@ -825,6 +825,7 @@ export default function Star({
   isFocused = false,
   globalOpacity = 1,
   globalScale = 1,
+  animated = true,
   onClick,
   onPointerOver,
   onPointerOut,
@@ -861,6 +862,33 @@ export default function Star({
     return base;
   }, [isHovered, isFocused, visuals.glow]);
   
+  if (!animated) {
+    return (
+      <group 
+        ref={groupRef} 
+        position={position}
+        onClick={onClick}
+        onPointerOver={onPointerOver}
+        onPointerOut={onPointerOut}
+      >
+        <mesh>
+          <sphereGeometry args={[0.15 * activeScale, 8, 8]} />
+          <meshBasicMaterial 
+            color={visuals.colors.primary}
+            transparent
+            opacity={globalOpacity * 0.9}
+          />
+        </mesh>
+        <pointLight 
+          color={visuals.colors.glow} 
+          intensity={globalOpacity * 0.15} 
+          distance={2}
+          decay={2}
+        />
+      </group>
+    );
+  }
+  
   return (
     <group 
       ref={groupRef} 
@@ -896,7 +924,7 @@ export default function Star({
   );
 }
 
-export function StarInstanced({ stars, onStarClick, onStarHover, hoveredId, focusedId, globalOpacity = 1, globalScale = 1 }) {
+export function StarInstanced({ stars, onStarClick, onStarHover, hoveredId, focusedId, globalOpacity = 1, globalScale = 1, animated = true }) {
   return (
     <group>
       {stars.map((star) => (
@@ -910,6 +938,7 @@ export function StarInstanced({ stars, onStarClick, onStarHover, hoveredId, focu
           isFocused={focusedId === star.id}
           globalOpacity={globalOpacity}
           globalScale={globalScale}
+          animated={animated}
           onClick={(e) => {
             e.stopPropagation();
             onStarClick?.(star);
