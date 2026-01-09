@@ -40,16 +40,16 @@ function useHouseholdForceLayout(households, people) {
         id: household.id,
         household,
         memberCount: householdMemberCounts.get(household.id) || 0,
-        x: (seededRandom(seed + '-x') - 0.5) * 8,
-        y: (seededRandom(seed + '-y') - 0.5) * 5,
-        z: (seededRandom(seed + '-z') - 0.5) * 6,
+        x: (seededRandom(seed + '-x') - 0.5) * 25,
+        y: (seededRandom(seed + '-y') - 0.5) * 15,
+        z: (seededRandom(seed + '-z') - 0.5) * 20,
       };
     });
     
     const simulation = forceSimulation(nodes, 3)
-      .force('charge', forceManyBody().strength(-8))
-      .force('center', forceCenter(0, 0, 0).strength(0.15))
-      .force('collision', forceCollide().radius(4).strength(0.9))
+      .force('charge', forceManyBody().strength(-25))
+      .force('center', forceCenter(0, 0, 0).strength(0.08))
+      .force('collision', forceCollide().radius(10).strength(0.95))
       .stop();
     
     for (let i = 0; i < 200; i++) {
@@ -145,23 +145,23 @@ function GalaxyBackground() {
         void main() {
           vec3 dir = normalize(vPosition);
           
-          float n1 = noise(dir * 3.0 + time * 0.02);
-          float n2 = noise(dir * 5.0 - time * 0.01);
-          float n3 = noise(dir * 8.0 + time * 0.015);
+          float n1 = noise(dir * 2.5 + time * 0.003);
+          float n2 = noise(dir * 4.0 - time * 0.002);
+          float n3 = noise(dir * 6.0 + time * 0.004);
           
-          vec3 deepBlue = vec3(0.02, 0.02, 0.08);
-          vec3 purple = vec3(0.1, 0.02, 0.15);
-          vec3 magenta = vec3(0.15, 0.02, 0.1);
-          vec3 darkTeal = vec3(0.01, 0.05, 0.08);
+          vec3 deepSpace = vec3(0.01, 0.01, 0.04);
+          vec3 deepIndigo = vec3(0.05, 0.02, 0.12);
+          vec3 darkPurple = vec3(0.08, 0.02, 0.1);
+          vec3 deepTeal = vec3(0.01, 0.04, 0.08);
           
           float yFactor = (dir.y + 1.0) * 0.5;
-          vec3 baseColor = mix(deepBlue, purple, yFactor);
-          baseColor = mix(baseColor, darkTeal, n1 * 0.4);
-          baseColor = mix(baseColor, magenta, n2 * 0.2);
+          vec3 baseColor = mix(deepSpace, deepIndigo, yFactor);
+          baseColor = mix(baseColor, deepTeal, n1 * 0.35);
+          baseColor = mix(baseColor, darkPurple, n2 * 0.25);
           
-          float nebulaIntensity = pow(n3, 2.0) * 0.15;
-          vec3 nebulaColor = vec3(0.2, 0.1, 0.3);
-          baseColor += nebulaColor * nebulaIntensity;
+          float nebulaIntensity = pow(n3, 2.5) * 0.12;
+          vec3 nebulaGlow = vec3(0.15, 0.08, 0.2);
+          baseColor += nebulaGlow * nebulaIntensity;
           
           gl_FragColor = vec4(baseColor, 1.0);
         }
@@ -185,43 +185,46 @@ function GalaxyBackground() {
   );
 }
 
-function ColorfulStarfield({ count = 8000 }) {
+function ColorfulStarfield({ count = 6000 }) {
   const pointsRef = useRef();
   
-  const { positions, colors, sizes } = useMemo(() => {
+  const { positions, colors, sizes, twinklePhases } = useMemo(() => {
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
     const siz = new Float32Array(count);
+    const phases = new Float32Array(count);
     
     const starColors = [
-      [1.0, 0.95, 0.8],
-      [0.8, 0.85, 1.0],
-      [1.0, 0.8, 0.6],
-      [0.9, 0.7, 1.0],
-      [0.7, 0.9, 1.0],
+      [1.0, 0.98, 0.9],
+      [0.85, 0.9, 1.0],
+      [1.0, 0.85, 0.7],
+      [0.95, 0.8, 1.0],
+      [0.75, 0.92, 1.0],
       [1.0, 1.0, 1.0],
     ];
     
     for (let i = 0; i < count; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const radius = 80 + Math.random() * 100;
+      const radius = 100 + Math.random() * 120;
       
       pos[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
       pos[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
       pos[i * 3 + 2] = radius * Math.cos(phi);
       
       const colorIndex = Math.floor(Math.random() * starColors.length);
-      const brightness = 0.5 + Math.random() * 0.5;
+      const brightness = 0.4 + Math.random() * 0.6;
       col[i * 3] = starColors[colorIndex][0] * brightness;
       col[i * 3 + 1] = starColors[colorIndex][1] * brightness;
       col[i * 3 + 2] = starColors[colorIndex][2] * brightness;
       
-      const sizeFactor = Math.pow(Math.random(), 3);
-      siz[i] = 0.5 + sizeFactor * 2.5;
+      const sizeFactor = Math.pow(Math.random(), 2.5);
+      siz[i] = 0.3 + sizeFactor * 1.8;
+      
+      phases[i] = Math.random() * Math.PI * 2;
     }
     
-    return { positions: pos, colors: col, sizes: siz };
+    return { positions: pos, colors: col, sizes: siz, twinklePhases: phases };
   }, [count]);
   
   const starMaterial = useMemo(() => {
@@ -229,25 +232,36 @@ function ColorfulStarfield({ count = 8000 }) {
       vertexShader: `
         attribute vec3 color;
         attribute float size;
+        attribute float twinklePhase;
+        uniform float time;
         varying vec3 vColor;
+        varying float vTwinkle;
+        
         void main() {
           vColor = color;
+          float twinkle = sin(time * 0.15 + twinklePhase) * 0.15 + 0.85;
+          vTwinkle = twinkle;
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * (300.0 / -mvPosition.z);
+          gl_PointSize = size * twinkle * (250.0 / -mvPosition.z);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
       fragmentShader: `
         varying vec3 vColor;
+        varying float vTwinkle;
+        
         void main() {
           vec2 center = gl_PointCoord - 0.5;
           float dist = length(center);
           float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-          alpha = pow(alpha, 1.5);
+          alpha = pow(alpha, 1.8) * vTwinkle;
           if (alpha < 0.01) discard;
-          gl_FragColor = vec4(vColor, alpha);
+          gl_FragColor = vec4(vColor * vTwinkle, alpha);
         }
       `,
+      uniforms: {
+        time: { value: 0 },
+      },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -255,9 +269,7 @@ function ColorfulStarfield({ count = 8000 }) {
   }, []);
   
   useFrame((state) => {
-    if (pointsRef.current) {
-      pointsRef.current.rotation.y = state.clock.elapsedTime * 0.005;
-    }
+    starMaterial.uniforms.time.value = state.clock.elapsedTime;
   });
   
   return (
@@ -279,6 +291,12 @@ function ColorfulStarfield({ count = 8000 }) {
           attach="attributes-size"
           count={count}
           array={sizes}
+          itemSize={1}
+        />
+        <bufferAttribute
+          attach="attributes-twinklePhase"
+          count={count}
+          array={twinklePhases}
           itemSize={1}
         />
       </bufferGeometry>
@@ -352,12 +370,12 @@ function HouseholdLabel({ position, name, visible }) {
   
   return (
     <Html
-      position={[position.x, position.y + 3, position.z]}
+      position={[position.x, position.y + 5, position.z]}
       center
       style={{ pointerEvents: 'none' }}
     >
-      <div className="px-4 py-2 rounded-xl bg-slate-900/90 border border-purple-500/30 backdrop-blur-md shadow-2xl whitespace-nowrap">
-        <div className="text-sm font-medium text-white drop-shadow-lg">{name}</div>
+      <div className="px-4 py-2 rounded-xl bg-slate-900/85 border border-purple-400/25 backdrop-blur-md shadow-2xl whitespace-nowrap">
+        <div className="text-sm font-medium text-white/90 drop-shadow-lg">{name}</div>
       </div>
     </Html>
   );
@@ -370,42 +388,51 @@ function CameraController({
   onTransitionComplete 
 }) {
   const { camera } = useThree();
-  const targetCamPos = useRef(new THREE.Vector3(0, 15, 50));
+  const targetCamPos = useRef(new THREE.Vector3(0, 35, 100));
   const targetLookAt = useRef(new THREE.Vector3(0, 0, 0));
   const isAnimating = useRef(false);
+  const transitionStarted = useRef(false);
   
   useEffect(() => {
     if (level === 'galaxy') {
-      targetCamPos.current.set(0, 15, 50);
+      targetCamPos.current.set(0, 35, 100);
       targetLookAt.current.set(0, 0, 0);
     } else if (level === 'system') {
-      targetCamPos.current.set(0, 4, 12);
+      targetCamPos.current.set(0, 6, 18);
       targetLookAt.current.set(0, 0, 0);
     }
     isAnimating.current = true;
+    transitionStarted.current = true;
+    
+    if (controlsRef.current) {
+      controlsRef.current.enabled = false;
+    }
   }, [level, targetPosition]);
   
   useFrame(() => {
-    if (controlsRef.current) {
-      controlsRef.current.update();
-    }
-    
     if (isAnimating.current) {
-      camera.position.lerp(targetCamPos.current, 0.06);
+      camera.position.lerp(targetCamPos.current, 0.04);
       
       if (controlsRef.current) {
-        controlsRef.current.target.lerp(targetLookAt.current, 0.06);
+        controlsRef.current.target.lerp(targetLookAt.current, 0.04);
+        controlsRef.current.update();
       }
       
       const distance = camera.position.distanceTo(targetCamPos.current);
-      if (distance < 0.1) {
+      if (distance < 0.5) {
         isAnimating.current = false;
+        
         if (controlsRef.current) {
           controlsRef.current.target.copy(targetLookAt.current);
+          controlsRef.current.enabled = true;
           controlsRef.current.update();
         }
+        
+        transitionStarted.current = false;
         onTransitionComplete?.();
       }
+    } else if (controlsRef.current) {
+      controlsRef.current.update();
     }
   });
   
@@ -438,7 +465,7 @@ function SystemNebulaBackdrop({ colors, scale }) {
           vec2 center = vUv - 0.5;
           float dist = length(center);
           
-          float n = noise(vUv * 10.0 + time * 0.1);
+          float n = noise(vUv * 8.0 + time * 0.02);
           
           float alpha = smoothstep(0.5, 0.0, dist) * 0.3;
           alpha *= (0.7 + n * 0.3);
@@ -548,6 +575,25 @@ function SystemLevelScene({
   
   const colors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
   
+  if (householdPeople.length === 0) {
+    return (
+      <group>
+        <SystemNebulaBackdrop colors={colors} scale={8} />
+        <Html center>
+          <div className="px-8 py-6 rounded-2xl bg-slate-900/95 border border-purple-500/30 backdrop-blur-lg shadow-2xl text-center max-w-xs">
+            <div className="text-4xl mb-3">✨</div>
+            <div className="text-lg font-semibold text-white mb-2">
+              Empty Household
+            </div>
+            <div className="text-sm text-slate-400">
+              No family members have been added to {household?.name || 'this household'} yet.
+            </div>
+          </div>
+        </Html>
+      </group>
+    );
+  }
+  
   return (
     <group>
       <SystemNebulaBackdrop colors={colors} scale={12} />
@@ -626,7 +672,7 @@ function GalaxyScene({
       <pointLight position={[0, 30, 0]} intensity={0.15} color="#3B82F6" />
       
       <GalaxyBackground />
-      <ColorfulStarfield count={10000} />
+      <ColorfulStarfield count={5000} />
       
       {level === 'galaxy' && (
         <GalaxyLevelScene
@@ -665,16 +711,16 @@ function GalaxyScene({
         enableZoom={true}
         enableRotate={true}
         enableDamping={true}
-        dampingFactor={0.05}
-        minDistance={level === 'system' ? 5 : 15}
-        maxDistance={level === 'system' ? 25 : 80}
+        dampingFactor={0.08}
+        minDistance={level === 'system' ? 8 : 40}
+        maxDistance={level === 'system' ? 35 : 150}
         autoRotate={level === 'galaxy' && !hoveredHouseholdId}
-        autoRotateSpeed={0.1}
-        rotateSpeed={0.5}
-        zoomSpeed={0.8}
-        panSpeed={0.5}
-        minPolarAngle={Math.PI * 0.1}
-        maxPolarAngle={Math.PI * 0.9}
+        autoRotateSpeed={0.05}
+        rotateSpeed={0.4}
+        zoomSpeed={0.6}
+        panSpeed={0.4}
+        minPolarAngle={Math.PI * 0.15}
+        maxPolarAngle={Math.PI * 0.85}
       />
     </>
   );

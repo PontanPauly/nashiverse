@@ -113,20 +113,20 @@ const nebulaFragmentShader = `
     float dist = length(center);
     
     vec2 distortedUv = vUv + vec2(
-      sin(time * 0.3 + vUv.y * 3.0) * distortionAmount,
-      cos(time * 0.2 + vUv.x * 3.0) * distortionAmount
+      sin(time * 0.06 + vUv.y * 2.5) * distortionAmount,
+      cos(time * 0.04 + vUv.x * 2.5) * distortionAmount
     );
     
-    float n = fbm(distortedUv * noiseScale + time * 0.1);
-    float n2 = fbm(distortedUv * noiseScale * 0.5 - time * 0.05);
+    float n = fbm(distortedUv * noiseScale + time * 0.015);
+    float n2 = fbm(distortedUv * noiseScale * 0.5 - time * 0.008);
     
     float cloudShape = smoothstep(0.6, 0.0, dist);
     cloudShape *= (n * 0.6 + n2 * 0.4);
-    cloudShape = pow(cloudShape, 0.8);
+    cloudShape = pow(cloudShape, 0.9);
     
-    vec3 finalColor = mix(color1, color2, n * 0.7 + 0.3);
+    vec3 finalColor = mix(color1, color2, n * 0.6 + 0.4);
     
-    float pulse = 0.85 + sin(time * 0.5) * 0.15;
+    float pulse = 0.92 + sin(time * 0.08) * 0.08;
     float alpha = cloudShape * opacity * pulse;
     
     gl_FragColor = vec4(finalColor, alpha);
@@ -170,7 +170,7 @@ function NebulaLayer({
   useFrame((state) => {
     if (meshRef.current) {
       meshRef.current.lookAt(state.camera.position);
-      meshRef.current.rotation.z = rotation + state.clock.elapsedTime * animationSpeed * 0.1;
+      meshRef.current.rotation.z = rotation + state.clock.elapsedTime * animationSpeed * 0.02;
     }
     if (material) {
       material.uniforms.time.value = state.clock.elapsedTime + timeOffset;
