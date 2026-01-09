@@ -909,13 +909,9 @@ function CameraController({
     if (level === 'galaxy') {
       targetCamPos.current.set(25, 20, 50);
       targetLookAt.current.set(0, 0, 0);
-    } else if (level === 'system' && targetPosition) {
-      targetCamPos.current.set(
-        targetPosition.x + 8,
-        targetPosition.y + 5,
-        targetPosition.z + 12
-      );
-      targetLookAt.current.set(targetPosition.x, targetPosition.y, targetPosition.z);
+    } else if (level === 'system') {
+      targetCamPos.current.set(8, 6, 15);
+      targetLookAt.current.set(0, 0, 0);
     }
     isAnimating.current = true;
     
@@ -923,7 +919,7 @@ function CameraController({
       controlsRef.current.enabled = false;
       controlsRef.current.autoRotate = false;
     }
-  }, [level, targetPosition]);
+  }, [level]);
   
   useFrame(() => {
     if (isAnimating.current) {
