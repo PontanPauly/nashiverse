@@ -179,14 +179,37 @@ function TieredNebulaBackdrop({ qualityTier }) {
     return null;
   }
   
+  const isHighTier = qualityTier.tier === 'high';
+  
   return (
-    <NebulaModel
-      url="/attached_assets/gjptsjoamukljk6vxhg5_1767941334938.glb"
-      position={[0, 0, 0]}
-      scale={[25, 25, 25]}
-      rotation={[0, 0, 0]}
-      opacity={0.4}
-    />
+    <group>
+      <NebulaModel
+        url="/attached_assets/gjptsjoamukljk6vxhg5_1767941334938.glb"
+        position={[0, 0, -15]}
+        scale={[65, 65, 65]}
+        rotation={[0, 0, 0]}
+        opacity={0.5}
+      />
+      
+      {isHighTier && (
+        <>
+          <NebulaModel
+            url="/attached_assets/gjptsjoamukljk6vxhg5_1767941334938.glb"
+            position={[-20, 10, -25]}
+            scale={[50, 50, 50]}
+            rotation={[0.3, Math.PI / 3, 0.1]}
+            opacity={0.3}
+          />
+          <NebulaModel
+            url="/attached_assets/gjptsjoamukljk6vxhg5_1767941334938.glb"
+            position={[25, -8, -30]}
+            scale={[55, 55, 55]}
+            rotation={[-0.2, (Math.PI * 2) / 3, -0.1]}
+            opacity={0.25}
+          />
+        </>
+      )}
+    </group>
   );
 }
 
@@ -883,7 +906,7 @@ function NavigationUI({
             }`}
           >
             <Home className="w-4 h-4" />
-            Nebula
+            Galaxy
           </button>
           
           {level === 'system' && selectedHousehold && (
