@@ -510,9 +510,43 @@ function NebulaFilaments({ count = 2000, qualityTier }) {
   );
 }
 
+function NebulaGLBModel({ scale = 50 }) {
+  const groupRef = useRef();
+  const { scene } = useGLTF('/models/nebula.glb');
+  
+  const clonedScene = useMemo(() => {
+    const clone = scene.clone(true);
+    clone.traverse((child) => {
+      if (child.isMesh) {
+        child.material = child.material.clone();
+        child.material.transparent = true;
+        child.material.opacity = 0.7;
+        child.material.depthWrite = false;
+        child.material.blending = THREE.AdditiveBlending;
+      }
+    });
+    return clone;
+  }, [scene]);
+  
+  useFrame((state) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += 0.0003;
+    }
+  });
+  
+  return (
+    <group ref={groupRef} scale={[scale, scale, scale]}>
+      <primitive object={clonedScene} />
+    </group>
+  );
+}
+
 function TieredNebulaBackdrop({ qualityTier }) {
   return (
     <group>
+      <Suspense fallback={null}>
+        <NebulaGLBModel scale={80} />
+      </Suspense>
       <ImmersiveNebulaVolume qualityTier={qualityTier} />
       <NebulaFilaments qualityTier={qualityTier} />
     </group>
