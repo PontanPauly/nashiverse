@@ -19,6 +19,17 @@ const seededRandom = (seed) => {
   return x - Math.floor(x);
 };
 
+function generateUniquenessProfile(seed) {
+  return {
+    wispiness: 1.5 + seededRandom(seed + '-wisp') * 2.0,
+    turbulence: 0.5 + seededRandom(seed + '-turb') * 1.0,
+    layerCount: Math.floor(3 + seededRandom(seed + '-layers') * 2.99),
+    colorShift: seededRandom(seed + '-colorShift'),
+    glowIntensity: 0.8 + seededRandom(seed + '-glow') * 0.5,
+    rotationSpeed: 0.2 + seededRandom(seed + '-rotSpeed') * 0.6,
+  };
+}
+
 function useSpiralGalaxyLayout(households, people) {
   return useMemo(() => {
     if (!households || households.length === 0) return new Map();
@@ -34,10 +45,12 @@ function useSpiralGalaxyLayout(households, people) {
     });
     
     const positions = new Map();
+    const placedPositions = [];
     const count = households.length;
-    const galaxyRadius = 12;
+    const galaxyRadius = 18;
     const spiralTurns = 1.5;
     const armCount = 2;
+    const minSeparation = 4.5;
     
     households.forEach((household, index) => {
       const seed = household.id;
@@ -47,21 +60,49 @@ function useSpiralGalaxyLayout(households, people) {
       const armOffset = (armIndex / armCount) * Math.PI * 2;
       
       const angle = t * Math.PI * 2 * spiralTurns + armOffset;
-      const radius = 1 + t * galaxyRadius;
+      const radius = 1.5 + t * galaxyRadius;
       
-      const jitterX = (seededRandom(seed + '-jx') - 0.5) * 1.5;
-      const jitterZ = (seededRandom(seed + '-jz') - 0.5) * 1.5;
-      const jitterY = (seededRandom(seed + '-jy') - 0.5) * 0.8;
+      let jitterX = (seededRandom(seed + '-jx') - 0.5) * 2.5;
+      let jitterZ = (seededRandom(seed + '-jz') - 0.5) * 2.5;
+      const jitterY = (seededRandom(seed + '-jy') - 0.5) * 1.0;
       
-      const x = Math.cos(angle) * radius + jitterX;
-      const z = Math.sin(angle) * radius + jitterZ;
-      const y = jitterY * (1 - t * 0.5);
+      let x = Math.cos(angle) * radius + jitterX;
+      let z = Math.sin(angle) * radius + jitterZ;
+      let y = jitterY * (1 - t * 0.5);
+      
+      let attempts = 0;
+      const maxAttempts = 10;
+      while (attempts < maxAttempts) {
+        let tooClose = false;
+        for (const placed of placedPositions) {
+          const dx = x - placed.x;
+          const dy = y - placed.y;
+          const dz = z - placed.z;
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          if (dist < minSeparation) {
+            tooClose = true;
+            break;
+          }
+        }
+        if (!tooClose) break;
+        
+        jitterX = (seededRandom(seed + '-jx-' + attempts) - 0.5) * 3.0;
+        jitterZ = (seededRandom(seed + '-jz-' + attempts) - 0.5) * 3.0;
+        x = Math.cos(angle) * (radius + attempts * 0.5) + jitterX;
+        z = Math.sin(angle) * (radius + attempts * 0.5) + jitterZ;
+        attempts++;
+      }
+      
+      placedPositions.push({ x, y, z });
+      
+      const uniqueness = generateUniquenessProfile(seed);
       
       positions.set(household.id, {
         x,
         y,
         z,
         memberCount: householdMemberCounts.get(household.id) || 0,
+        uniqueness,
       });
     });
     
@@ -377,17 +418,55 @@ function SystemConnectionLines({ people, relationships }) {
   );
 }
 
-function HouseholdLabel({ position, name, visible }) {
+function HouseholdLabel({ position, name, visible, color }) {
+  const [isHovered, setIsHovered] = useState(false);
+  
   if (!visible) return null;
   
   return (
     <Html
-      position={[position.x, position.y + 5, position.z]}
+      position={[position.x, position.y + 4.5, position.z]}
       center
-      style={{ pointerEvents: 'none' }}
+      style={{ pointerEvents: 'auto' }}
     >
-      <div className="px-4 py-2 rounded-xl bg-slate-900/85 border border-purple-400/25 backdrop-blur-md shadow-2xl whitespace-nowrap">
-        <div className="text-sm font-medium text-white/90 drop-shadow-lg">{name}</div>
+      <div 
+        className="flex items-center cursor-pointer"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+      >
+        <div 
+          className="rounded-full flex-shrink-0"
+          style={{
+            width: '7px',
+            height: '7px',
+            backgroundColor: color || '#8B5CF6',
+            boxShadow: `0 0 6px ${color || '#8B5CF6'}, 0 0 12px ${color || '#8B5CF6'}50`,
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        />
+        <div 
+          className="overflow-hidden whitespace-nowrap"
+          style={{
+            maxWidth: isHovered ? '200px' : '0px',
+            opacity: isHovered ? 1 : 0,
+            marginLeft: isHovered ? '8px' : '0px',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        >
+          <span 
+            className="text-xs font-medium text-white/90 px-2 py-1 rounded-md"
+            style={{
+              backgroundColor: 'rgba(15, 23, 42, 0.85)',
+              backdropFilter: 'blur(8px)',
+              border: `1px solid ${color || '#8B5CF6'}30`,
+            }}
+          >
+            {name}
+          </span>
+        </div>
       </div>
     </Html>
   );
@@ -541,6 +620,7 @@ function GalaxyLevelScene({
               memberCount={pos.memberCount}
               colorIndex={index}
               isHovered={hoveredHouseholdId === household.id}
+              uniqueness={pos.uniqueness}
               onClick={() => onHouseholdClick(household)}
               onPointerOver={() => onHouseholdHover(household.id)}
               onPointerOut={() => onHouseholdHover(null)}
@@ -549,6 +629,7 @@ function GalaxyLevelScene({
               position={pos}
               name={household.name}
               visible={true}
+              color={HOUSEHOLD_COLORS[index % HOUSEHOLD_COLORS.length].primary}
             />
           </React.Fragment>
         );
@@ -649,6 +730,174 @@ function SystemLevelScene({
   );
 }
 
+function GalaxyDisc() {
+  const discRef = useRef();
+  const coreRef = useRef();
+  
+  const discMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float time;
+        varying vec2 vUv;
+        
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+        
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
+        
+        float fbm(vec2 p) {
+          float value = 0.0;
+          float amplitude = 0.5;
+          for (int i = 0; i < 4; i++) {
+            value += amplitude * noise(p);
+            p *= 2.0;
+            amplitude *= 0.5;
+          }
+          return value;
+        }
+        
+        float spiralArm(vec2 uv, float armOffset, float tightness) {
+          vec2 centered = uv - 0.5;
+          float dist = length(centered);
+          float angle = atan(centered.y, centered.x);
+          
+          float spiralAngle = angle - dist * tightness + armOffset;
+          float arm = sin(spiralAngle * 1.0) * 0.5 + 0.5;
+          arm = pow(arm, 3.0);
+          
+          float falloff = smoothstep(0.5, 0.1, dist) * smoothstep(0.0, 0.08, dist);
+          return arm * falloff;
+        }
+        
+        void main() {
+          vec2 centered = vUv - 0.5;
+          float dist = length(centered);
+          
+          float arm1 = spiralArm(vUv, 0.0 + time * 0.02, 6.0);
+          float arm2 = spiralArm(vUv, 2.094 + time * 0.02, 6.0);
+          float arm3 = spiralArm(vUv, 4.188 + time * 0.02, 6.0);
+          float arms = max(max(arm1, arm2), arm3);
+          
+          float n = fbm(vUv * 8.0 + time * 0.01);
+          arms *= (0.6 + n * 0.4);
+          
+          float dustAngle = atan(centered.y, centered.x);
+          float dustSpiral = sin(dustAngle * 3.0 - dist * 5.0 + time * 0.015) * 0.5 + 0.5;
+          float dust = dustSpiral * smoothstep(0.45, 0.15, dist) * smoothstep(0.05, 0.12, dist);
+          dust *= fbm(vUv * 12.0 - time * 0.005) * 0.4;
+          
+          vec3 armColor1 = vec3(0.4, 0.2, 0.8);
+          vec3 armColor2 = vec3(0.2, 0.4, 0.9);
+          vec3 armColor3 = vec3(0.5, 0.3, 0.7);
+          
+          vec3 color = mix(armColor1, armColor2, dist * 2.0);
+          color = mix(color, armColor3, n * 0.5);
+          
+          float glow = smoothstep(0.5, 0.0, dist) * 0.15;
+          color += vec3(0.3, 0.2, 0.5) * glow;
+          
+          float alpha = arms * 0.35 + glow;
+          alpha -= dust * 0.2;
+          alpha *= smoothstep(0.5, 0.3, dist);
+          
+          alpha = clamp(alpha, 0.0, 0.4);
+          
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      uniforms: {
+        time: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+  }, []);
+  
+  const coreMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float time;
+        varying vec2 vUv;
+        
+        void main() {
+          vec2 centered = vUv - 0.5;
+          float dist = length(centered);
+          
+          float core = smoothstep(0.5, 0.0, dist);
+          core = pow(core, 2.0);
+          
+          float pulse = sin(time * 0.5) * 0.1 + 0.9;
+          core *= pulse;
+          
+          vec3 coreColor = mix(
+            vec3(0.9, 0.8, 1.0),
+            vec3(0.6, 0.4, 0.9),
+            dist * 2.0
+          );
+          
+          float glow = smoothstep(0.5, 0.0, dist) * 0.6;
+          
+          float alpha = core * 0.7 + glow * 0.3;
+          
+          gl_FragColor = vec4(coreColor, alpha);
+        }
+      `,
+      uniforms: {
+        time: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+  }, []);
+  
+  useFrame((state) => {
+    discMaterial.uniforms.time.value = state.clock.elapsedTime;
+    coreMaterial.uniforms.time.value = state.clock.elapsedTime;
+  });
+  
+  return (
+    <group>
+      <mesh ref={discRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, 0]}>
+        <planeGeometry args={[40, 40, 1, 1]} />
+        <primitive object={discMaterial} attach="material" />
+      </mesh>
+      
+      <mesh ref={coreRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.3, 0]}>
+        <planeGeometry args={[8, 8, 1, 1]} />
+        <primitive object={coreMaterial} attach="material" />
+      </mesh>
+    </group>
+  );
+}
+
 function GalaxyScene({
   level,
   households,
@@ -694,6 +943,8 @@ function GalaxyScene({
       
       <GalaxyBackground />
       <ColorfulStarfield count={3500} />
+      
+      {level === 'galaxy' && <GalaxyDisc />}
       
       {level === 'galaxy' && (
         <GalaxyLevelScene

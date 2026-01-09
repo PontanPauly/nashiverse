@@ -481,13 +481,13 @@ function NebulaSparkles({ color, secondaryColor, count, scale, seed, isHovered }
         attribute float size;
         attribute float phase;
         attribute float speed;
-        attribute vec3 particleColor;
+        attribute vec3 starColor;
         uniform float time;
         varying vec3 vColor;
         varying float vAlpha;
         
         void main() {
-          vColor = particleColor;
+          vColor = starColor;
           float twinkle = 0.5 + 0.5 * sin(time * speed + phase);
           vAlpha = 0.3 + twinkle * 0.7;
           
@@ -532,12 +532,155 @@ function NebulaSparkles({ color, secondaryColor, count, scale, seed, isHovered }
     <points ref={pointsRef}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
-        <bufferAttribute attach="attributes-particleColor" count={count} array={colors} itemSize={3} />
+        <bufferAttribute attach="attributes-starColor" count={count} array={colors} itemSize={3} />
         <bufferAttribute attach="attributes-size" count={count} array={sizes} itemSize={1} />
         <bufferAttribute attach="attributes-phase" count={count} array={phases} itemSize={1} />
         <bufferAttribute attach="attributes-speed" count={count} array={speeds} itemSize={1} />
       </bufferGeometry>
       <primitive object={particleMaterial} attach="material" />
+    </points>
+  );
+}
+
+function MemberStars({ memberCount, scale, seed, color, glowColor }) {
+  const pointsRef = useRef();
+  const timeOffset = useMemo(() => seededRandom(seed) * 100, [seed]);
+  
+  const { positions, colors, sizes, phases } = useMemo(() => {
+    const count = Math.max(1, memberCount);
+    const pos = new Float32Array(count * 3);
+    const col = new Float32Array(count * 3);
+    const siz = new Float32Array(count);
+    const pha = new Float32Array(count);
+    
+    const primaryCol = new THREE.Color(color);
+    const glowCol = new THREE.Color(glowColor);
+    
+    const innerRadius = scale * 0.6 * 0.15;
+    const maxRadius = scale * 0.6 * 0.5;
+    const minSeparation = scale * 0.12;
+    
+    const placedPositions = [];
+    
+    for (let i = 0; i < count; i++) {
+      let x, y, z;
+      let attempts = 0;
+      const maxAttempts = 50;
+      
+      do {
+        const theta = seededRandom(seed + '-theta-' + i + '-' + attempts) * Math.PI * 2;
+        const phi = Math.acos(2 * seededRandom(seed + '-phi-' + i + '-' + attempts) - 1);
+        const radiusFactor = seededRandom(seed + '-r-' + i + '-' + attempts);
+        const radius = innerRadius + radiusFactor * (maxRadius - innerRadius);
+        
+        x = radius * Math.sin(phi) * Math.cos(theta);
+        y = radius * Math.sin(phi) * Math.sin(theta) * 0.6;
+        z = radius * Math.cos(phi) * 0.6;
+        
+        let tooClose = false;
+        for (const placed of placedPositions) {
+          const dx = x - placed.x;
+          const dy = y - placed.y;
+          const dz = z - placed.z;
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          if (dist < minSeparation) {
+            tooClose = true;
+            break;
+          }
+        }
+        
+        if (!tooClose || attempts >= maxAttempts - 1) {
+          placedPositions.push({ x, y, z });
+          break;
+        }
+        attempts++;
+      } while (attempts < maxAttempts);
+      
+      pos[i * 3] = x;
+      pos[i * 3 + 1] = y;
+      pos[i * 3 + 2] = z;
+      
+      const colorMix = seededRandom(seed + '-col-' + i) * 0.3;
+      const mixedColor = primaryCol.clone().lerp(glowCol, colorMix);
+      col[i * 3] = mixedColor.r;
+      col[i * 3 + 1] = mixedColor.g;
+      col[i * 3 + 2] = mixedColor.b;
+      
+      siz[i] = 2.5 + seededRandom(seed + '-size-' + i) * 1.5;
+      pha[i] = seededRandom(seed + '-phase-' + i) * Math.PI * 2;
+    }
+    
+    return { positions: pos, colors: col, sizes: siz, phases: pha };
+  }, [memberCount, scale, seed, color, glowColor]);
+  
+  const starMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        attribute float size;
+        attribute float phase;
+        attribute vec3 starColor;
+        uniform float time;
+        varying vec3 vColor;
+        varying float vBrightness;
+        
+        void main() {
+          vColor = starColor;
+          float twinkle = 0.85 + 0.15 * sin(time * 0.8 + phase);
+          vBrightness = twinkle;
+          
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = size * (200.0 / -mvPosition.z) * twinkle;
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        varying float vBrightness;
+        
+        void main() {
+          vec2 center = gl_PointCoord - 0.5;
+          float dist = length(center);
+          
+          float core = 1.0 - smoothstep(0.0, 0.15, dist);
+          float glow = 1.0 - smoothstep(0.0, 0.5, dist);
+          glow = pow(glow, 2.0);
+          
+          float brightness = core * 1.5 + glow * 0.6;
+          vec3 finalColor = vColor * brightness * vBrightness;
+          
+          float alpha = core + glow * 0.5;
+          if (alpha < 0.01) discard;
+          
+          gl_FragColor = vec4(finalColor, alpha);
+        }
+      `,
+      uniforms: {
+        time: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+  }, []);
+  
+  useFrame((state) => {
+    if (pointsRef.current) {
+      pointsRef.current.rotation.y = state.clock.elapsedTime * 0.02 + timeOffset;
+    }
+    starMaterial.uniforms.time.value = state.clock.elapsedTime;
+  });
+  
+  if (memberCount <= 0) return null;
+  
+  return (
+    <points ref={pointsRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={positions.length / 3} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-starColor" count={colors.length / 3} array={colors} itemSize={3} />
+        <bufferAttribute attach="attributes-size" count={sizes.length} array={sizes} itemSize={1} />
+        <bufferAttribute attach="attributes-phase" count={phases.length} array={phases} itemSize={1} />
+      </bufferGeometry>
+      <primitive object={starMaterial} attach="material" />
     </points>
   );
 }
@@ -593,11 +736,23 @@ export default function HouseholdCluster({
   memberCount = 1,
   colorIndex = 0,
   isHovered = false,
+  uniqueness = null,
   onClick,
   onPointerOver,
   onPointerOut,
 }) {
   const groupRef = useRef();
+  
+  const defaultUniqueness = {
+    wispiness: 2.0,
+    turbulence: 1.0,
+    layerCount: 4,
+    colorShift: 0.5,
+    glowIntensity: 1.0,
+    rotationSpeed: 0.5,
+  };
+  
+  const profile = uniqueness || defaultUniqueness;
   
   const colors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
   const baseScale = 3.5 + Math.min(memberCount * 0.4, 1.8);
@@ -605,57 +760,77 @@ export default function HouseholdCluster({
   
   const layers = useMemo(() => {
     const seed = household?.id || 'default';
-    return [
+    const { wispiness, turbulence, layerCount, colorShift, rotationSpeed } = profile;
+    
+    const baseWispiness = wispiness;
+    const baseAnimSpeed = rotationSpeed;
+    const turbMod = turbulence;
+    
+    const allLayers = [
       {
         scale: baseScale * 1.8,
         rotation: seededRandom(seed + '-rot1') * Math.PI,
-        opacity: 0.12,
-        noiseScale: 1.8,
-        distortionAmount: 0.03,
-        animationSpeed: 0.4,
+        opacity: 0.12 * (0.8 + turbMod * 0.4),
+        noiseScale: 1.8 + colorShift * 0.4,
+        distortionAmount: 0.03 * turbMod,
+        animationSpeed: 0.4 * baseAnimSpeed,
         color1: colors.dust,
         color2: colors.secondary,
         color3: colors.primary,
-        wispiness: 1.5,
+        wispiness: baseWispiness - 0.5,
       },
       {
         scale: baseScale * 1.5,
         rotation: seededRandom(seed + '-rot2') * Math.PI + 0.7,
-        opacity: 0.2,
-        noiseScale: 2.2,
-        distortionAmount: 0.025,
-        animationSpeed: 0.6,
+        opacity: 0.2 * (0.8 + turbMod * 0.4),
+        noiseScale: 2.2 + colorShift * 0.3,
+        distortionAmount: 0.025 * turbMod,
+        animationSpeed: 0.6 * baseAnimSpeed,
         color1: colors.secondary,
         color2: colors.primary,
         color3: colors.accent,
-        wispiness: 2.0,
+        wispiness: baseWispiness,
       },
       {
         scale: baseScale * 1.2,
         rotation: seededRandom(seed + '-rot3') * Math.PI + 1.4,
-        opacity: 0.3,
-        noiseScale: 2.8,
-        distortionAmount: 0.02,
-        animationSpeed: 0.3,
+        opacity: 0.3 * (0.8 + turbMod * 0.4),
+        noiseScale: 2.8 + colorShift * 0.2,
+        distortionAmount: 0.02 * turbMod,
+        animationSpeed: 0.3 * baseAnimSpeed,
         color1: colors.primary,
         color2: colors.accent,
         color3: colors.glow,
-        wispiness: 2.5,
+        wispiness: baseWispiness + 0.5,
       },
       {
         scale: baseScale * 0.9,
         rotation: seededRandom(seed + '-rot4') * Math.PI + 2.1,
-        opacity: 0.4,
-        noiseScale: 3.5,
-        distortionAmount: 0.015,
-        animationSpeed: 0.2,
+        opacity: 0.4 * (0.8 + turbMod * 0.4),
+        noiseScale: 3.5 + colorShift * 0.1,
+        distortionAmount: 0.015 * turbMod,
+        animationSpeed: 0.2 * baseAnimSpeed,
         color1: colors.accent,
         color2: colors.glow,
         color3: colors.glow,
-        wispiness: 3.0,
+        wispiness: baseWispiness + 1.0,
+      },
+      {
+        scale: baseScale * 0.7,
+        rotation: seededRandom(seed + '-rot5') * Math.PI + 2.8,
+        opacity: 0.35 * (0.8 + turbMod * 0.4),
+        noiseScale: 4.0 + colorShift * 0.05,
+        distortionAmount: 0.01 * turbMod,
+        animationSpeed: 0.15 * baseAnimSpeed,
+        color1: colors.glow,
+        color2: colors.accent,
+        color3: colors.glow,
+        wispiness: baseWispiness + 1.5,
       },
     ];
-  }, [baseScale, colors, household?.id]);
+    
+    return allLayers.slice(0, layerCount);
+  }, [baseScale, colors, household?.id, profile]);
   
   return (
     <group
@@ -710,7 +885,7 @@ export default function HouseholdCluster({
         haloColor={colors.accent}
         scale={baseScale * 0.6} 
         isHovered={isHovered}
-        intensity={isHovered ? 1.3 : 1}
+        intensity={isHovered ? profile.glowIntensity * 1.3 : profile.glowIntensity}
       />
       
       <NebulaSparkles
@@ -720,6 +895,14 @@ export default function HouseholdCluster({
         scale={baseScale}
         seed={household?.id || 'default'}
         isHovered={isHovered}
+      />
+      
+      <MemberStars
+        memberCount={memberCount}
+        scale={baseScale}
+        seed={`${household?.id}-members`}
+        color={colors.glow}
+        glowColor={colors.accent}
       />
       
       <mesh visible={false}>
