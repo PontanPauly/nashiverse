@@ -228,11 +228,12 @@ function GalaxyBackground() {
 function ColorfulStarfield({ count = 4000 }) {
   const pointsRef = useRef();
   
-  const { positions, colors, sizes, twinkleData } = useMemo(() => {
+  const { positions, colors, sizes, twinkleData, isBrightStar } = useMemo(() => {
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
     const siz = new Float32Array(count);
     const twinkle = new Float32Array(count * 2);
+    const bright = new Float32Array(count);
     
     const starColors = [
       [1.0, 0.98, 0.95],
@@ -262,10 +263,12 @@ function ColorfulStarfield({ count = 4000 }) {
       siz[i] = 0.4 + sizeFactor * 1.2;
       
       twinkle[i * 2] = Math.random() * 100;
-      twinkle[i * 2 + 1] = 0.02 + Math.random() * 0.06;
+      twinkle[i * 2 + 1] = 0.03 + Math.random() * 0.08;
+      
+      bright[i] = Math.random() < 0.1 ? 1.0 : 0.0;
     }
     
-    return { positions: pos, colors: col, sizes: siz, twinkleData: twinkle };
+    return { positions: pos, colors: col, sizes: siz, twinkleData: twinkle, isBrightStar: bright };
   }, [count]);
   
   const starMaterial = useMemo(() => {
@@ -274,9 +277,11 @@ function ColorfulStarfield({ count = 4000 }) {
         attribute vec3 color;
         attribute float size;
         attribute vec2 twinkleData;
+        attribute float isBrightStar;
         uniform float time;
         varying vec3 vColor;
         varying float vBrightness;
+        varying float vIsBright;
         
         float rand(float n) {
           return fract(sin(n) * 43758.5453);
@@ -284,32 +289,48 @@ function ColorfulStarfield({ count = 4000 }) {
         
         void main() {
           vColor = color;
+          vIsBright = isBrightStar;
           
           float phase = twinkleData.x;
           float speed = twinkleData.y;
           
           float t1 = sin(time * speed + phase) * 0.5 + 0.5;
           float t2 = sin(time * speed * 0.7 + phase * 1.3) * 0.5 + 0.5;
-          float twinkle = mix(t1, t2, 0.5);
+          float t3 = sin(time * speed * 1.5 + phase * 0.7) * 0.5 + 0.5;
+          float twinkle = mix(mix(t1, t2, 0.5), t3, 0.3);
           
-          vBrightness = 0.7 + twinkle * 0.3;
+          vBrightness = 0.5 + twinkle * 0.5;
+          
+          float sizeMultiplier = isBrightStar > 0.5 ? 1.8 : 1.0;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * (200.0 / -mvPosition.z);
+          gl_PointSize = size * sizeMultiplier * (200.0 / -mvPosition.z);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
       fragmentShader: `
         varying vec3 vColor;
         varying float vBrightness;
+        varying float vIsBright;
         
         void main() {
           vec2 center = gl_PointCoord - 0.5;
           float dist = length(center);
           float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
           alpha = pow(alpha, 2.0);
+          
+          float spike = 0.0;
+          if (vIsBright > 0.5) {
+            float angle = atan(center.y, center.x);
+            float spikePattern = abs(sin(angle * 2.0));
+            spikePattern = pow(spikePattern, 8.0);
+            float spikeFalloff = exp(-dist * 4.0);
+            spike = spikePattern * spikeFalloff * 0.6;
+            alpha += spike;
+          }
+          
           if (alpha < 0.01) discard;
-          gl_FragColor = vec4(vColor * vBrightness, alpha * vBrightness);
+          gl_FragColor = vec4(vColor * vBrightness * (1.0 + spike * 0.5), alpha * vBrightness);
         }
       `,
       uniforms: {
@@ -352,8 +373,126 @@ function ColorfulStarfield({ count = 4000 }) {
           array={twinkleData}
           itemSize={2}
         />
+        <bufferAttribute
+          attach="attributes-isBrightStar"
+          count={count}
+          array={isBrightStar}
+          itemSize={1}
+        />
       </bufferGeometry>
     </points>
+  );
+}
+
+function SpiralArmParticles({ count = 25000 }) {
+  const groupRef = useRef();
+  
+  const { positions, colors, sizes } = useMemo(() => {
+    const pos = new Float32Array(count * 3);
+    const col = new Float32Array(count * 3);
+    const siz = new Float32Array(count);
+    
+    const centerColor = new THREE.Color('#FFB347');
+    const edgeColor = new THREE.Color('#1E90FF');
+    const tempColor = new THREE.Color();
+    
+    const maxRadius = 28;
+    const armCount = 4;
+    
+    for (let i = 0; i < count; i++) {
+      const branchAngle = ((i % armCount) / armCount) * Math.PI * 2;
+      
+      const radiusRandom = Math.pow(Math.random(), 0.6);
+      const radius = radiusRandom * maxRadius + 0.5;
+      
+      const spinAngle = radius * 1.2;
+      
+      const randomOffsetX = (Math.random() - 0.5) * 2.0 * (1 - radiusRandom * 0.3);
+      const randomOffsetZ = (Math.random() - 0.5) * 2.0 * (1 - radiusRandom * 0.3);
+      const randomOffsetY = (Math.random() - 0.5) * 1.5 * (1 - radiusRandom * 0.5);
+      
+      const x = Math.cos(branchAngle + spinAngle) * radius + randomOffsetX;
+      const z = Math.sin(branchAngle + spinAngle) * radius + randomOffsetZ;
+      const y = randomOffsetY;
+      
+      pos[i * 3] = x;
+      pos[i * 3 + 1] = y;
+      pos[i * 3 + 2] = z;
+      
+      const t = radius / maxRadius;
+      tempColor.copy(centerColor).lerp(edgeColor, t);
+      
+      const brightness = 0.6 + Math.random() * 0.4;
+      col[i * 3] = tempColor.r * brightness;
+      col[i * 3 + 1] = tempColor.g * brightness;
+      col[i * 3 + 2] = tempColor.b * brightness;
+      
+      siz[i] = 0.3 + Math.random() * 0.8 * (1 - t * 0.5);
+    }
+    
+    return { positions: pos, colors: col, sizes: siz };
+  }, [count]);
+  
+  const material = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        attribute vec3 particleColor;
+        attribute float size;
+        uniform float time;
+        varying vec3 vColor;
+        varying float vAlpha;
+        
+        void main() {
+          vColor = particleColor;
+          
+          float twinkle = sin(time * 0.5 + position.x * 0.3 + position.z * 0.3) * 0.2 + 0.8;
+          vAlpha = twinkle;
+          
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = size * (180.0 / -mvPosition.z);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        varying float vAlpha;
+        
+        void main() {
+          vec2 center = gl_PointCoord - 0.5;
+          float dist = length(center);
+          float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
+          alpha = pow(alpha, 1.8);
+          if (alpha < 0.01) discard;
+          gl_FragColor = vec4(vColor, alpha * vAlpha * 0.7);
+        }
+      `,
+      uniforms: {
+        time: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      vertexColors: true,
+    });
+  }, []);
+  
+  useFrame((state) => {
+    material.uniforms.time.value = state.clock.elapsedTime;
+    if (groupRef.current) {
+      groupRef.current.rotation.y += 0.0003;
+    }
+  });
+  
+  return (
+    <group ref={groupRef}>
+      <points material={material}>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
+          <bufferAttribute attach="attributes-particleColor" count={count} array={colors} itemSize={3} />
+          <bufferAttribute attach="attributes-size" count={count} array={sizes} itemSize={1} />
+        </bufferGeometry>
+      </points>
+    </group>
   );
 }
 
@@ -941,6 +1080,8 @@ function GalacticCore() {
 function ImmersiveGalaxy() {
   return (
     <group>
+      <SpiralArmParticles count={25000} />
+      
       <VolumetricDustLayer yOffset={-3} scale={70} opacity={0.3} rotationSpeed={0.3} colorShift={0.0} />
       <VolumetricDustLayer yOffset={-1.5} scale={60} opacity={0.35} rotationSpeed={0.4} colorShift={0.2} />
       <VolumetricDustLayer yOffset={0} scale={55} opacity={0.4} rotationSpeed={0.5} colorShift={0.4} />
@@ -952,6 +1093,19 @@ function ImmersiveGalaxy() {
       <GalacticCore />
     </group>
   );
+}
+
+function FogController() {
+  const { scene } = useThree();
+  
+  useEffect(() => {
+    scene.fog = new THREE.FogExp2('#0a0a15', 0.008);
+    return () => {
+      scene.fog = null;
+    };
+  }, [scene]);
+  
+  return null;
 }
 
 function GalaxyScene({
@@ -991,6 +1145,8 @@ function GalaxyScene({
         controlsRef={controlsRef}
         setAutoRotateEnabled={setAutoRotateEnabled}
       />
+      
+      <FogController />
       
       <ambientLight intensity={0.15} />
       <pointLight position={[30, 30, 30]} intensity={0.25} color="#ffffff" />
