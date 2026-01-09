@@ -98,8 +98,14 @@ class AuthProxy {
     });
     
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Login failed');
+      let errorMessage = 'Login failed';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch {
+        errorMessage = `Login failed (${response.status})`;
+      }
+      throw new Error(errorMessage);
     }
     return response.json();
   }
@@ -113,8 +119,14 @@ class AuthProxy {
     });
     
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Registration failed');
+      let errorMessage = 'Registration failed';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch {
+        errorMessage = `Registration failed (${response.status})`;
+      }
+      throw new Error(errorMessage);
     }
     return response.json();
   }
