@@ -395,12 +395,12 @@ function ImmersiveNebulaVolume({ qualityTier }) {
   );
 }
 
-function NebulaFilaments({ count = 2000, qualityTier }) {
+function NebulaFilaments({ count = 800, qualityTier }) {
   const pointsRef = useRef();
   
   const isHigh = qualityTier.tier === 'high';
   const isMedium = qualityTier.tier === 'medium';
-  const particleCount = isHigh ? 3000 : (isMedium ? 2000 : 1000);
+  const particleCount = isHigh ? 1200 : (isMedium ? 800 : 400);
   
   const { positions, colors, sizes, phases } = useMemo(() => {
     const pos = new Float32Array(particleCount * 3);
