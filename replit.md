@@ -81,3 +81,5 @@ Key tables:
   - Added FogExp2 for atmospheric depth
   - Added gentle rotation animation to spiral arms
   - Simplified household nebulas to 2-layer design with hover effects and labels
+  - **Billboard Nebula Clouds**: 10 overlapping translucent planes with FBM noise shader, gentle rotation and pulsing
+  - **Colored Point Lights**: 3 lights per household (orange/pink/blue) with intensity pulsing for atmospheric illumination
