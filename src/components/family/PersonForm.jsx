@@ -19,8 +19,10 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, AlertCircle, Upload, Sparkles } from "lucide-react";
-import StarCustomizer from "./StarCustomizer";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { X, Plus, AlertCircle, Upload, Sparkles, User, Star } from "lucide-react";
+import StarEditor from "./StarEditor";
+import { DEFAULT_STAR_PROFILE } from "@/lib/starConfig";
 
 export default function PersonForm({ person, households, people, onSuccess, onCancel }) {
   const [formData, setFormData] = useState({
@@ -41,13 +43,14 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
     star_pattern: person?.star_pattern || "classic",
     star_intensity: person?.star_intensity || 5,
     star_flare_count: person?.star_flare_count || 8,
+    star_profile: person?.star_profile || { ...DEFAULT_STAR_PROFILE },
   });
   
   const [newAllergy, setNewAllergy] = useState("");
   const [newDietPref, setNewDietPref] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [showStarCustomizer, setShowStarCustomizer] = useState(false);
+  const [activeTab, setActiveTab] = useState("details");
 
   // Relationship state
   const [parentIds, setParentIds] = useState([]);
@@ -250,6 +253,19 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 bg-slate-800/50">
+          <TabsTrigger value="details" className="data-[state=active]:bg-slate-700 data-[state=active]:text-slate-100">
+            <User className="w-4 h-4 mr-2" />
+            Details
+          </TabsTrigger>
+          <TabsTrigger value="star" className="data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-300">
+            <Star className="w-4 h-4 mr-2" />
+            Customize Star
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="details" className="space-y-6 mt-6">
       {/* Photo */}
       <div className="flex items-center gap-4">
         <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden border-2 border-slate-700">
@@ -589,23 +605,15 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
         )}
       </div>
 
-      {/* Star Customization */}
-      <div className="space-y-2 pt-4 border-t border-slate-700">
-        <Label className="text-slate-300">Constellation Appearance</Label>
-        <Button
-          type="button"
-          onClick={() => setShowStarCustomizer(true)}
-          className="w-full bg-slate-700 hover:bg-slate-600 text-white border border-amber-500/30"
-        >
-          <Sparkles className="w-4 h-4 mr-2" />
-          Customize Star
-        </Button>
-        {formData.star_pattern && (
-          <p className="text-xs text-slate-500 text-center">
-            Pattern: {formData.star_pattern} • Brightness: {formData.star_intensity || 5}/10
-          </p>
-        )}
-      </div>
+        </TabsContent>
+
+        <TabsContent value="star" className="mt-6">
+          <StarEditor
+            value={formData.star_profile}
+            onChange={(starProfile) => setFormData({ ...formData, star_profile: starProfile })}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-4 border-t border-slate-700">
@@ -616,23 +624,6 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
           {loading ? "Saving..." : (person ? "Update Person" : "Add Person")}
         </Button>
       </div>
-
-      {/* Star Customizer Dialog */}
-      <Dialog open={showStarCustomizer} onOpenChange={setShowStarCustomizer}>
-        <DialogContent className="bg-slate-900 border-slate-700">
-          <DialogHeader>
-            <DialogTitle className="text-slate-100">Customize Your Star</DialogTitle>
-          </DialogHeader>
-          <StarCustomizer
-            person={formData}
-            onSave={(starConfig) => {
-              setFormData({ ...formData, ...starConfig });
-              setShowStarCustomizer(false);
-            }}
-            onCancel={() => setShowStarCustomizer(false)}
-          />
-        </DialogContent>
-      </Dialog>
     </form>
   );
 }
