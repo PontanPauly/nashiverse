@@ -1,14 +1,190 @@
-import { createClient } from '@base44/sdk';
-import { appParams } from '@/lib/app-params';
+const API_BASE = '/api';
 
-const { appId, token, functionsVersion, appBaseUrl } = appParams;
+class EntityProxy {
+  constructor(entityType) {
+    this.entityType = entityType;
+  }
 
-//Create a client with authentication required
-export const base44 = createClient({
-  appId,
-  token,
-  functionsVersion,
-  serverUrl: '',
-  requiresAuth: false,
-  appBaseUrl
+  async list(sort, limit) {
+    const params = new URLSearchParams();
+    if (sort) params.append('sort', sort);
+    if (limit) params.append('limit', limit);
+    
+    const url = `${API_BASE}/entities/${this.entityType}${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await fetch(url, { credentials: 'include' });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to list ${this.entityType}`);
+    }
+    return response.json();
+  }
+
+  async filter(filters) {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        params.append(key, value);
+      }
+    });
+    
+    const url = `${API_BASE}/entities/${this.entityType}/filter?${params.toString()}`;
+    const response = await fetch(url, { credentials: 'include' });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to filter ${this.entityType}`);
+    }
+    return response.json();
+  }
+
+  async create(data) {
+    const response = await fetch(`${API_BASE}/entities/${this.entityType}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to create ${this.entityType}`);
+    }
+    return response.json();
+  }
+
+  async update(id, data) {
+    const response = await fetch(`${API_BASE}/entities/${this.entityType}/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to update ${this.entityType}`);
+    }
+    return response.json();
+  }
+
+  async delete(id) {
+    const response = await fetch(`${API_BASE}/entities/${this.entityType}/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to delete ${this.entityType}`);
+    }
+    return response.json();
+  }
+}
+
+class AuthProxy {
+  async me() {
+    const response = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
+    if (!response.ok) {
+      if (response.status === 401) {
+        return null;
+      }
+      throw new Error('Failed to get current user');
+    }
+    return response.json();
+  }
+
+  async login(email, password) {
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, password }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Login failed');
+    }
+    return response.json();
+  }
+
+  async register(email, password, fullName) {
+    const response = await fetch(`${API_BASE}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, password, full_name: fullName }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Registration failed');
+    }
+    return response.json();
+  }
+
+  async logout() {
+    const response = await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    return response.ok;
+  }
+
+  redirectToLogin() {
+    window.location.href = '/login';
+  }
+}
+
+class IntegrationsProxy {
+  constructor() {
+    this.Core = {
+      UploadFile: async ({ file }) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch(`${API_BASE}/upload`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+        
+        if (!response.ok) {
+          throw new Error('File upload failed');
+        }
+        return response.json();
+      }
+    };
+  }
+}
+
+class FunctionsProxy {
+  async invoke(functionName, params = {}) {
+    const response = await fetch(`${API_BASE}/functions/${functionName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(params),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Function ${functionName} failed`);
+    }
+    return response.json();
+  }
+}
+
+const entityTypes = [
+  'Person', 'Trip', 'Household', 'Relationship', 'TripParticipant',
+  'Meal', 'Room', 'Activity', 'Expense', 'PackingItem', 'SharedTripItem',
+  'Moment', 'LoveNote', 'FamilyStory', 'FamilySettings', 'JoinRequest',
+  'Ritual', 'Conversation', 'Message', 'User'
+];
+
+const entities = {};
+entityTypes.forEach(type => {
+  entities[type] = new EntityProxy(type);
 });
+
+export const base44 = {
+  entities,
+  auth: new AuthProxy(),
+  integrations: new IntegrationsProxy(),
+  functions: new FunctionsProxy(),
+};
