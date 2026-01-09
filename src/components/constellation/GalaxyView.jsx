@@ -1474,37 +1474,67 @@ const createNebulaTexture = (colorHex, seed = 0, style = 'cloud') => {
     return val;
   };
   
+  const ridgedFbm = (px, py, octaves) => {
+    let val = 0, amp = 0.5, freq = 1;
+    for (let i = 0; i < octaves; i++) {
+      const n = noise2d(px * freq, py * freq);
+      val += (1 - Math.abs(n * 2 - 1)) * amp;
+      amp *= 0.5;
+      freq *= 2.0;
+    }
+    return val;
+  };
+  
+  const stretchX = 0.6 + hash(seed * 17) * 0.8;
+  const stretchY = 0.6 + hash(seed * 23) * 0.8;
+  const rotation = hash(seed * 31) * Math.PI * 2;
+  const cosR = Math.cos(rotation);
+  const sinR = Math.sin(rotation);
+  
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const dx = (x - center) / center;
-      const dy = (y - center) / center;
+      let dx = (x - center) / center;
+      let dy = (y - center) / center;
+      
+      const rdx = dx * cosR - dy * sinR;
+      const rdy = dx * sinR + dy * cosR;
+      dx = rdx * stretchX;
+      dy = rdy * stretchY;
+      
       const dist = Math.sqrt(dx * dx + dy * dy);
       const angle = Math.atan2(dy, dx);
       
-      const nx = x / size * 4 + seed * 0.1;
-      const ny = y / size * 4 + seed * 0.13;
+      const warpScale = 2.5;
+      const warpX = fbm(x / size * 3 + seed * 0.1, y / size * 3, 3) * warpScale;
+      const warpY = fbm(x / size * 3 + seed * 0.2, y / size * 3 + 10, 3) * warpScale;
+      
+      const nx = x / size * 3 + warpX + seed * 0.1;
+      const ny = y / size * 3 + warpY + seed * 0.13;
       
       let density;
       if (style === 'wispy') {
-        const warp = fbm(nx * 0.5, ny * 0.5, 3) * 2;
-        const filament = fbm(nx + warp, ny + warp, 4);
-        const ridged = 1 - Math.abs(filament * 2 - 1);
-        density = ridged * ridged;
+        const filament = ridgedFbm(nx * 0.8, ny * 0.8, 5);
+        const swirl = fbm(nx * 0.4 + filament, ny * 0.4 + filament * 0.5, 4);
+        density = filament * 0.7 + swirl * 0.4;
+        density = Math.pow(density, 0.8);
       } else if (style === 'core') {
-        const core = fbm(nx * 1.5, ny * 1.5, 5);
-        const bright = Math.pow(core, 0.7);
-        density = bright * (1 - dist * 0.8);
+        const base = fbm(nx * 1.2, ny * 1.2, 5);
+        const bright = ridgedFbm(nx * 0.6, ny * 0.6, 4) * 0.5;
+        const glow = Math.max(0, 1 - dist * 1.2);
+        density = (base * 0.6 + bright * 0.4) * (0.4 + glow * 0.8);
       } else {
-        const cloud = fbm(nx, ny, 4);
-        const detail = fbm(nx * 2, ny * 2, 3) * 0.3;
-        density = cloud + detail;
+        const billows = fbm(nx, ny, 5);
+        const ridges = ridgedFbm(nx * 0.7, ny * 0.7, 4) * 0.4;
+        const detail = fbm(nx * 2.5, ny * 2.5, 3) * 0.2;
+        density = billows * 0.5 + ridges + detail;
       }
       
-      const edgeNoise = fbm(angle * 3 + seed, dist * 2, 3) * 0.25;
-      const irregularEdge = 0.85 + edgeNoise;
-      const falloff = Math.max(0, 1 - Math.pow(dist / irregularEdge, 2.5));
+      const edgeWarp = fbm(angle * 2 + seed, dist * 1.5, 4) * 0.4;
+      const tentacles = ridgedFbm(angle * 3 + seed * 0.5, dist * 2, 3) * 0.3;
+      const irregularEdge = 0.7 + edgeWarp + tentacles * (1 - dist);
+      const falloff = Math.max(0, 1 - Math.pow(dist / Math.max(0.3, irregularEdge), 2.0));
       
-      const alpha = Math.pow(density * falloff, 1.2) * 0.9;
+      const alpha = Math.pow(Math.max(0, density * falloff), 0.9) * 1.2;
       
       const i = (y * size + x) * 4;
       data[i] = r;
@@ -1560,21 +1590,20 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, isHover
     cloud: createNebulaTexture(colors.secondary, colorIndex * 11 + 3, 'cloud'),
     wispy: createNebulaTexture(colors.glow, colorIndex * 13 + 7, 'wispy'),
     outer: createNebulaTexture(colors.primary, colorIndex * 17 + 11, 'cloud'),
+    accent: createNebulaTexture(colors.secondary, colorIndex * 19 + 5, 'wispy'),
   }), [colors, colorIndex]);
   
-  const stretch1 = 1.6 + (colorIndex % 3) * 0.4;
-  const stretch2 = 0.6 + (colorIndex % 4) * 0.2;
-  const stretch3 = 1.2 + (colorIndex % 5) * 0.3;
-  const baseRotation = (colorIndex * 0.7) % (Math.PI * 2);
-  
-  const dimFactor = 0.55;
+  const stretch1 = 1.4 + (colorIndex % 3) * 0.5;
+  const stretch2 = 0.7 + (colorIndex % 4) * 0.25;
+  const stretch3 = 1.1 + (colorIndex % 5) * 0.35;
+  const baseRotation = (colorIndex * 0.9) % (Math.PI * 2);
   
   return (
     <group position={position}>
       <HouseholdLabel name={householdName} isVisible={isHovered} color={colors.primary} />
       
       <sprite 
-        scale={[scale * 7 * stretch1, scale * 4 * stretch2, 1]}
+        scale={[scale * 5 * stretch1, scale * 4 * stretch2, 1]}
         rotation={[0, 0, baseRotation]}
         onClick={onClick}
         onPointerOver={onPointerOver}
@@ -1583,51 +1612,63 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, isHover
         <spriteMaterial
           map={textures.core}
           transparent
-          opacity={opacity * 0.35 * dimFactor}
+          opacity={opacity * 0.7}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
       <sprite 
-        scale={[scale * 10 * stretch2, scale * 8 * stretch3, 1]} 
-        rotation={[0, 0, baseRotation + 0.6]}
+        scale={[scale * 8 * stretch2, scale * 6 * stretch3, 1]} 
+        rotation={[0, 0, baseRotation + 0.7]}
       >
         <spriteMaterial
           map={textures.cloud}
           transparent
-          opacity={opacity * 0.22 * dimFactor}
+          opacity={opacity * 0.5}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
       <sprite 
-        scale={[scale * 13 * stretch3, scale * 6 * stretch1, 1]} 
-        rotation={[0, 0, baseRotation - 0.5]}
+        scale={[scale * 11 * stretch3, scale * 5 * stretch1, 1]} 
+        rotation={[0, 0, baseRotation - 0.6]}
       >
         <spriteMaterial
           map={textures.wispy}
           transparent
-          opacity={opacity * 0.15 * dimFactor}
+          opacity={opacity * 0.35}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
       <sprite 
-        scale={[scale * 16 * stretch2, scale * 14 * stretch3, 1]} 
-        rotation={[0, 0, baseRotation + 1.0]}
+        scale={[scale * 14 * stretch2, scale * 10 * stretch3, 1]} 
+        rotation={[0, 0, baseRotation + 1.2]}
+      >
+        <spriteMaterial
+          map={textures.accent}
+          transparent
+          opacity={opacity * 0.25}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </sprite>
+      <sprite 
+        scale={[scale * 18 * stretch1, scale * 14 * stretch2, 1]} 
+        rotation={[0, 0, baseRotation - 0.3]}
       >
         <spriteMaterial
           map={textures.outer}
           transparent
-          opacity={opacity * 0.08 * dimFactor}
+          opacity={opacity * 0.15}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
       <pointLight 
         color={colors.primary} 
-        intensity={opacity * (isHovered ? 0.18 : 0.1)} 
-        distance={isHovered ? 10 : 8}
+        intensity={opacity * (isHovered ? 0.3 : 0.2)} 
+        distance={isHovered ? 12 : 10}
         decay={2}
       />
     </group>
