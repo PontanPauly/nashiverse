@@ -2,11 +2,10 @@ import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { forceSimulation, forceManyBody, forceCenter, forceCollide } from 'd3-force-3d';
 import { StarInstanced } from './Star';
 import HouseholdCluster, { HOUSEHOLD_COLORS } from './HouseholdCluster';
 import { generateRandomStarProfile } from '@/lib/starConfig';
-import { ChevronRight, ZoomIn, ZoomOut, RotateCcw, ArrowLeft, Home } from 'lucide-react';
+import { ChevronRight, ZoomIn, ZoomOut, RotateCcw, Home } from 'lucide-react';
 
 const seededRandom = (seed) => {
   let hash = 0;
@@ -20,7 +19,7 @@ const seededRandom = (seed) => {
   return x - Math.floor(x);
 };
 
-function useHouseholdForceLayout(households, people) {
+function useSpiralGalaxyLayout(households, people) {
   return useMemo(() => {
     if (!households || households.length === 0) return new Map();
     
@@ -34,35 +33,35 @@ function useHouseholdForceLayout(households, people) {
       }
     });
     
-    const nodes = households.map((household) => {
-      const seed = household.id;
-      return {
-        id: household.id,
-        household,
-        memberCount: householdMemberCounts.get(household.id) || 0,
-        x: (seededRandom(seed + '-x') - 0.5) * 25,
-        y: (seededRandom(seed + '-y') - 0.5) * 15,
-        z: (seededRandom(seed + '-z') - 0.5) * 20,
-      };
-    });
-    
-    const simulation = forceSimulation(nodes, 3)
-      .force('charge', forceManyBody().strength(-25))
-      .force('center', forceCenter(0, 0, 0).strength(0.08))
-      .force('collision', forceCollide().radius(10).strength(0.95))
-      .stop();
-    
-    for (let i = 0; i < 200; i++) {
-      simulation.tick();
-    }
-    
     const positions = new Map();
-    nodes.forEach(node => {
-      positions.set(node.id, {
-        x: node.x,
-        y: node.y,
-        z: node.z,
-        memberCount: node.memberCount,
+    const count = households.length;
+    const galaxyRadius = 12;
+    const spiralTurns = 1.5;
+    const armCount = 2;
+    
+    households.forEach((household, index) => {
+      const seed = household.id;
+      const t = index / Math.max(count - 1, 1);
+      
+      const armIndex = index % armCount;
+      const armOffset = (armIndex / armCount) * Math.PI * 2;
+      
+      const angle = t * Math.PI * 2 * spiralTurns + armOffset;
+      const radius = 1 + t * galaxyRadius;
+      
+      const jitterX = (seededRandom(seed + '-jx') - 0.5) * 1.5;
+      const jitterZ = (seededRandom(seed + '-jz') - 0.5) * 1.5;
+      const jitterY = (seededRandom(seed + '-jy') - 0.5) * 0.8;
+      
+      const x = Math.cos(angle) * radius + jitterX;
+      const z = Math.sin(angle) * radius + jitterZ;
+      const y = jitterY * (1 - t * 0.5);
+      
+      positions.set(household.id, {
+        x,
+        y,
+        z,
+        memberCount: householdMemberCounts.get(household.id) || 0,
       });
     });
     
@@ -185,46 +184,47 @@ function GalaxyBackground() {
   );
 }
 
-function ColorfulStarfield({ count = 6000 }) {
+function ColorfulStarfield({ count = 4000 }) {
   const pointsRef = useRef();
   
-  const { positions, colors, sizes, twinklePhases } = useMemo(() => {
+  const { positions, colors, sizes, twinkleData } = useMemo(() => {
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
     const siz = new Float32Array(count);
-    const phases = new Float32Array(count);
+    const twinkle = new Float32Array(count * 2);
     
     const starColors = [
-      [1.0, 0.98, 0.9],
-      [0.85, 0.9, 1.0],
-      [1.0, 0.85, 0.7],
-      [0.95, 0.8, 1.0],
-      [0.75, 0.92, 1.0],
+      [1.0, 0.98, 0.95],
+      [0.9, 0.95, 1.0],
+      [1.0, 0.9, 0.8],
+      [0.95, 0.85, 1.0],
+      [0.8, 0.95, 1.0],
       [1.0, 1.0, 1.0],
     ];
     
     for (let i = 0; i < count; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const radius = 100 + Math.random() * 120;
+      const radius = 120 + Math.random() * 80;
       
       pos[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
       pos[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
       pos[i * 3 + 2] = radius * Math.cos(phi);
       
       const colorIndex = Math.floor(Math.random() * starColors.length);
-      const brightness = 0.4 + Math.random() * 0.6;
+      const brightness = 0.5 + Math.random() * 0.5;
       col[i * 3] = starColors[colorIndex][0] * brightness;
       col[i * 3 + 1] = starColors[colorIndex][1] * brightness;
       col[i * 3 + 2] = starColors[colorIndex][2] * brightness;
       
-      const sizeFactor = Math.pow(Math.random(), 2.5);
-      siz[i] = 0.3 + sizeFactor * 1.8;
+      const sizeFactor = Math.pow(Math.random(), 2);
+      siz[i] = 0.4 + sizeFactor * 1.2;
       
-      phases[i] = Math.random() * Math.PI * 2;
+      twinkle[i * 2] = Math.random() * 100;
+      twinkle[i * 2 + 1] = 0.02 + Math.random() * 0.06;
     }
     
-    return { positions: pos, colors: col, sizes: siz, twinklePhases: phases };
+    return { positions: pos, colors: col, sizes: siz, twinkleData: twinkle };
   }, [count]);
   
   const starMaterial = useMemo(() => {
@@ -232,31 +232,43 @@ function ColorfulStarfield({ count = 6000 }) {
       vertexShader: `
         attribute vec3 color;
         attribute float size;
-        attribute float twinklePhase;
+        attribute vec2 twinkleData;
         uniform float time;
         varying vec3 vColor;
-        varying float vTwinkle;
+        varying float vBrightness;
+        
+        float rand(float n) {
+          return fract(sin(n) * 43758.5453);
+        }
         
         void main() {
           vColor = color;
-          float twinkle = sin(time * 0.15 + twinklePhase) * 0.15 + 0.85;
-          vTwinkle = twinkle;
+          
+          float phase = twinkleData.x;
+          float speed = twinkleData.y;
+          
+          float t1 = sin(time * speed + phase) * 0.5 + 0.5;
+          float t2 = sin(time * speed * 0.7 + phase * 1.3) * 0.5 + 0.5;
+          float twinkle = mix(t1, t2, 0.5);
+          
+          vBrightness = 0.7 + twinkle * 0.3;
+          
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * twinkle * (250.0 / -mvPosition.z);
+          gl_PointSize = size * (200.0 / -mvPosition.z);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
       fragmentShader: `
         varying vec3 vColor;
-        varying float vTwinkle;
+        varying float vBrightness;
         
         void main() {
           vec2 center = gl_PointCoord - 0.5;
           float dist = length(center);
           float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-          alpha = pow(alpha, 1.8) * vTwinkle;
+          alpha = pow(alpha, 2.0);
           if (alpha < 0.01) discard;
-          gl_FragColor = vec4(vColor * vTwinkle, alpha);
+          gl_FragColor = vec4(vColor * vBrightness, alpha * vBrightness);
         }
       `,
       uniforms: {
@@ -294,10 +306,10 @@ function ColorfulStarfield({ count = 6000 }) {
           itemSize={1}
         />
         <bufferAttribute
-          attach="attributes-twinklePhase"
+          attach="attributes-twinkleData"
           count={count}
-          array={twinklePhases}
-          itemSize={1}
+          array={twinkleData}
+          itemSize={2}
         />
       </bufferGeometry>
     </points>
@@ -385,27 +397,27 @@ function CameraController({
   level, 
   targetPosition, 
   controlsRef,
-  onTransitionComplete 
+  onTransitionComplete,
+  setAutoRotateEnabled
 }) {
   const { camera } = useThree();
-  const targetCamPos = useRef(new THREE.Vector3(0, 35, 100));
+  const targetCamPos = useRef(new THREE.Vector3(20, 25, 45));
   const targetLookAt = useRef(new THREE.Vector3(0, 0, 0));
   const isAnimating = useRef(false);
-  const transitionStarted = useRef(false);
   
   useEffect(() => {
     if (level === 'galaxy') {
-      targetCamPos.current.set(0, 35, 100);
+      targetCamPos.current.set(20, 25, 45);
       targetLookAt.current.set(0, 0, 0);
     } else if (level === 'system') {
-      targetCamPos.current.set(0, 6, 18);
+      targetCamPos.current.set(0, 5, 15);
       targetLookAt.current.set(0, 0, 0);
     }
     isAnimating.current = true;
-    transitionStarted.current = true;
     
     if (controlsRef.current) {
       controlsRef.current.enabled = false;
+      controlsRef.current.autoRotate = false;
     }
   }, [level, targetPosition]);
   
@@ -419,16 +431,22 @@ function CameraController({
       }
       
       const distance = camera.position.distanceTo(targetCamPos.current);
-      if (distance < 0.5) {
+      if (distance < 0.3) {
         isAnimating.current = false;
         
         if (controlsRef.current) {
           controlsRef.current.target.copy(targetLookAt.current);
           controlsRef.current.enabled = true;
+          if (level === 'galaxy') {
+            controlsRef.current.autoRotate = true;
+          }
           controlsRef.current.update();
         }
         
-        transitionStarted.current = false;
+        if (level === 'galaxy') {
+          setAutoRotateEnabled?.(true);
+        }
+        
         onTransitionComplete?.();
       }
     } else if (controlsRef.current) {
@@ -647,6 +665,8 @@ function GalaxyScene({
   onStarHover,
   onBackgroundClick,
   controlsRef,
+  autoRotateEnabled,
+  setAutoRotateEnabled,
 }) {
   const selectedHouseholdPosition = useMemo(() => {
     if (!selectedHousehold) return null;
@@ -664,15 +684,16 @@ function GalaxyScene({
         level={level}
         targetPosition={selectedHouseholdPosition}
         controlsRef={controlsRef}
+        setAutoRotateEnabled={setAutoRotateEnabled}
       />
       
-      <ambientLight intensity={0.1} />
-      <pointLight position={[20, 20, 20]} intensity={0.3} color="#ffffff" />
-      <pointLight position={[-20, -10, -20]} intensity={0.2} color="#8B5CF6" />
-      <pointLight position={[0, 30, 0]} intensity={0.15} color="#3B82F6" />
+      <ambientLight intensity={0.15} />
+      <pointLight position={[30, 30, 30]} intensity={0.25} color="#ffffff" />
+      <pointLight position={[-20, -10, -20]} intensity={0.15} color="#8B5CF6" />
+      <pointLight position={[0, 40, 0]} intensity={0.1} color="#3B82F6" />
       
       <GalaxyBackground />
-      <ColorfulStarfield count={5000} />
+      <ColorfulStarfield count={3500} />
       
       {level === 'galaxy' && (
         <GalaxyLevelScene
@@ -711,16 +732,16 @@ function GalaxyScene({
         enableZoom={true}
         enableRotate={true}
         enableDamping={true}
-        dampingFactor={0.08}
-        minDistance={level === 'system' ? 8 : 40}
-        maxDistance={level === 'system' ? 35 : 150}
-        autoRotate={level === 'galaxy' && !hoveredHouseholdId}
-        autoRotateSpeed={0.05}
-        rotateSpeed={0.4}
-        zoomSpeed={0.6}
-        panSpeed={0.4}
-        minPolarAngle={Math.PI * 0.15}
-        maxPolarAngle={Math.PI * 0.85}
+        dampingFactor={0.06}
+        minDistance={level === 'system' ? 6 : 25}
+        maxDistance={level === 'system' ? 30 : 100}
+        autoRotate={autoRotateEnabled && level === 'galaxy' && !hoveredHouseholdId}
+        autoRotateSpeed={0.08}
+        rotateSpeed={0.35}
+        zoomSpeed={0.5}
+        panSpeed={0.35}
+        minPolarAngle={Math.PI * 0.2}
+        maxPolarAngle={Math.PI * 0.8}
       />
     </>
   );
@@ -840,14 +861,16 @@ export default function GalaxyView({ people = [], relationships = [], households
   const [hoveredHouseholdId, setHoveredHouseholdId] = useState(null);
   const [hoveredStarId, setHoveredStarId] = useState(null);
   const [focusedStarId, setFocusedStarId] = useState(null);
+  const [autoRotateEnabled, setAutoRotateEnabled] = useState(true);
   const controlsRef = useRef(null);
   
-  const householdPositions = useHouseholdForceLayout(households, people);
+  const householdPositions = useSpiralGalaxyLayout(households, people);
   
   const handleHouseholdClick = useCallback((household) => {
     setSelectedHousehold(household);
     setLevel('system');
     setFocusedStarId(null);
+    setAutoRotateEnabled(false);
   }, []);
   
   const handleBackToGalaxy = useCallback(() => {
@@ -921,9 +944,9 @@ export default function GalaxyView({ people = [], relationships = [], households
   return (
     <div className="absolute inset-0">
       <Canvas
-        camera={{ position: [0, 15, 50], fov: 55 }}
+        camera={{ position: [20, 25, 45], fov: 50 }}
         gl={{ antialias: true, alpha: false }}
-        style={{ background: '#050510' }}
+        style={{ background: '#030308' }}
       >
         <GalaxyScene
           level={level}
@@ -941,6 +964,8 @@ export default function GalaxyView({ people = [], relationships = [], households
           onStarHover={setHoveredStarId}
           onBackgroundClick={handleBackgroundClick}
           controlsRef={controlsRef}
+          autoRotateEnabled={autoRotateEnabled}
+          setAutoRotateEnabled={setAutoRotateEnabled}
         />
       </Canvas>
       
