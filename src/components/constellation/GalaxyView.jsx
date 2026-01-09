@@ -1122,12 +1122,6 @@ function NebulaScene({
       <DenseStarField count={qualityTier.starCount} />
       
       {level === 'galaxy' && (
-        <Suspense fallback={null}>
-          <TieredNebulaBackdrop qualityTier={qualityTier} />
-        </Suspense>
-      )}
-      
-      {level === 'galaxy' && (
         <>
           <NebulaGasCloud count={qualityTier.gasCount} />
           <GalaxyLevelScene
