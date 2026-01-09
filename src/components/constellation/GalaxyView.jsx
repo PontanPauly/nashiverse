@@ -224,6 +224,36 @@ function ColorfulStarfield({ count = 8000 }) {
     return { positions: pos, colors: col, sizes: siz };
   }, [count]);
   
+  const starMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        attribute vec3 color;
+        attribute float size;
+        varying vec3 vColor;
+        void main() {
+          vColor = color;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = size * (300.0 / -mvPosition.z);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        void main() {
+          vec2 center = gl_PointCoord - 0.5;
+          float dist = length(center);
+          float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
+          alpha = pow(alpha, 1.5);
+          if (alpha < 0.01) discard;
+          gl_FragColor = vec4(vColor, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+  }, []);
+  
   useFrame((state) => {
     if (pointsRef.current) {
       pointsRef.current.rotation.y = state.clock.elapsedTime * 0.005;
@@ -231,7 +261,7 @@ function ColorfulStarfield({ count = 8000 }) {
   });
   
   return (
-    <points ref={pointsRef}>
+    <points ref={pointsRef} material={starMaterial}>
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
@@ -245,15 +275,13 @@ function ColorfulStarfield({ count = 8000 }) {
           array={colors}
           itemSize={3}
         />
+        <bufferAttribute
+          attach="attributes-size"
+          count={count}
+          array={sizes}
+          itemSize={1}
+        />
       </bufferGeometry>
-      <pointsMaterial
-        size={1.2}
-        transparent
-        opacity={0.9}
-        vertexColors
-        sizeAttenuation
-        blending={THREE.AdditiveBlending}
-      />
     </points>
   );
 }
