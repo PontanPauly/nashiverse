@@ -272,6 +272,204 @@ function MemberStars({ memberCount, scale, seed, color }) {
   );
 }
 
+function BillboardNebulaClouds({ colors, scale, seed }) {
+  const groupRef = useRef();
+  const planesRef = useRef([]);
+  
+  const planeCount = 10;
+  
+  const planeConfigs = useMemo(() => {
+    const configs = [];
+    for (let i = 0; i < planeCount; i++) {
+      configs.push({
+        rotationZ: seededRandom(seed + '-cloud-rot-' + i) * Math.PI * 2,
+        scaleOffset: 0.85 + seededRandom(seed + '-cloud-scale-' + i) * 0.3,
+        positionOffset: [
+          (seededRandom(seed + '-cloud-px-' + i) - 0.5) * scale * 0.15,
+          (seededRandom(seed + '-cloud-py-' + i) - 0.5) * scale * 0.1,
+          (seededRandom(seed + '-cloud-pz-' + i) - 0.5) * scale * 0.15,
+        ],
+        phaseOffset: seededRandom(seed + '-cloud-phase-' + i) * Math.PI * 2,
+        rotationSpeed: 0.02 + seededRandom(seed + '-cloud-rotspeed-' + i) * 0.03,
+      });
+    }
+    return configs;
+  }, [seed, scale]);
+  
+  const cloudMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 cloudColor;
+        uniform vec3 glowColor;
+        uniform float time;
+        uniform float phaseOffset;
+        varying vec2 vUv;
+        
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+        
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
+        
+        float fbm(vec2 p) {
+          float f = 0.0;
+          float w = 0.5;
+          for (int i = 0; i < 4; i++) {
+            f += w * noise(p);
+            p *= 2.0;
+            w *= 0.5;
+          }
+          return f;
+        }
+        
+        void main() {
+          vec2 center = vUv - 0.5;
+          float dist = length(center);
+          
+          vec2 animatedUv = vUv + vec2(
+            sin(time * 0.03 + phaseOffset) * 0.02,
+            cos(time * 0.02 + phaseOffset) * 0.02
+          );
+          
+          float cloud = fbm(animatedUv * 3.0 + time * 0.01);
+          cloud = pow(cloud, 1.5);
+          
+          float radialFade = smoothstep(0.5, 0.1, dist);
+          cloud *= radialFade;
+          
+          float pulse = 0.9 + sin(time * 0.3 + phaseOffset) * 0.1;
+          cloud *= pulse;
+          
+          vec3 color = mix(cloudColor, glowColor, cloud * 0.5);
+          
+          float alpha = cloud * 0.08;
+          alpha = clamp(alpha, 0.0, 0.1);
+          
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      uniforms: {
+        cloudColor: { value: new THREE.Color(colors.primary) },
+        glowColor: { value: new THREE.Color(colors.glow) },
+        time: { value: 0 },
+        phaseOffset: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+  }, [colors]);
+  
+  const materials = useMemo(() => {
+    return planeConfigs.map((config) => {
+      const mat = cloudMaterial.clone();
+      mat.uniforms.phaseOffset.value = config.phaseOffset;
+      return mat;
+    });
+  }, [cloudMaterial, planeConfigs]);
+  
+  useFrame((state) => {
+    const time = state.clock.elapsedTime;
+    
+    planesRef.current.forEach((plane, i) => {
+      if (plane) {
+        plane.lookAt(state.camera.position);
+        plane.rotation.z = planeConfigs[i].rotationZ + time * planeConfigs[i].rotationSpeed;
+      }
+    });
+    
+    materials.forEach((mat) => {
+      mat.uniforms.time.value = time;
+    });
+  });
+  
+  return (
+    <group ref={groupRef}>
+      {planeConfigs.map((config, i) => (
+        <mesh
+          key={i}
+          ref={(el) => (planesRef.current[i] = el)}
+          position={config.positionOffset}
+          raycast={() => null}
+        >
+          <planeGeometry args={[scale * 1.5 * config.scaleOffset, scale * 1.5 * config.scaleOffset]} />
+          <primitive object={materials[i]} attach="material" />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+const POINT_LIGHT_COLORS = ['#FF8C42', '#FF6B9D', '#60A5FA'];
+
+function ColoredPointLights({ scale, seed }) {
+  const lightsRef = useRef([]);
+  
+  const lightConfigs = useMemo(() => {
+    const configs = [];
+    for (let i = 0; i < 3; i++) {
+      const angle = (i / 3) * Math.PI * 2 + seededRandom(seed + '-light-angle-' + i) * 0.5;
+      const radius = scale * 0.2 + seededRandom(seed + '-light-rad-' + i) * scale * 0.1;
+      configs.push({
+        position: [
+          Math.cos(angle) * radius,
+          (seededRandom(seed + '-light-y-' + i) - 0.5) * scale * 0.2,
+          Math.sin(angle) * radius,
+        ],
+        color: POINT_LIGHT_COLORS[i],
+        phaseOffset: seededRandom(seed + '-light-phase-' + i) * Math.PI * 2,
+        baseIntensity: 0.3 + seededRandom(seed + '-light-int-' + i) * 0.2,
+      });
+    }
+    return configs;
+  }, [seed, scale]);
+  
+  useFrame((state) => {
+    const time = state.clock.elapsedTime;
+    
+    lightsRef.current.forEach((light, i) => {
+      if (light) {
+        const config = lightConfigs[i];
+        const pulse = 0.8 + Math.sin(time * 0.5 + config.phaseOffset) * 0.2;
+        light.intensity = config.baseIntensity * pulse;
+      }
+    });
+  });
+  
+  return (
+    <group>
+      {lightConfigs.map((config, i) => (
+        <pointLight
+          key={i}
+          ref={(el) => (lightsRef.current[i] = el)}
+          position={config.position}
+          color={config.color}
+          intensity={config.baseIntensity}
+          distance={scale * 2}
+          decay={2}
+        />
+      ))}
+    </group>
+  );
+}
+
 function HouseholdLabel({ name, isHovered }) {
   if (!isHovered) return null;
   
@@ -340,11 +538,22 @@ export default function HouseholdCluster({
         isHovered={isHovered}
       />
       
+      <BillboardNebulaClouds
+        colors={colors}
+        scale={baseScale}
+        seed={`${household?.id}-clouds`}
+      />
+      
       <SimpleNebulaCore
         color={colors.primary}
         glowColor={colors.glow}
         scale={baseScale * 1.2}
         isHovered={isHovered}
+      />
+      
+      <ColoredPointLights
+        scale={baseScale}
+        seed={`${household?.id}-lights`}
       />
       
       <MemberStars
