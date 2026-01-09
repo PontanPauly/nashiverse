@@ -91,61 +91,14 @@ export default function Layout({ children, currentPageName }) {
           pointer-events: none;
           z-index: 0;
           background-image: 
-            radial-gradient(1.5px 1.5px at 20% 30%, white, transparent),
-            radial-gradient(1.5px 1.5px at 60% 70%, white, transparent),
-            radial-gradient(1px 1px at 50% 50%, white, transparent),
-            radial-gradient(1px 1px at 80% 10%, white, transparent),
-            radial-gradient(1.5px 1.5px at 90% 60%, white, transparent),
-            radial-gradient(1px 1px at 33% 90%, white, transparent),
-            radial-gradient(1px 1px at 15% 60%, white, transparent);
-          background-size: 200% 200%;
-          animation: starTwinkle 8s ease-in-out infinite;
-          opacity: 0.6;
-        }
-
-        @keyframes starTwinkle {
-          0%, 100% { opacity: 0.5; }
-          50% { opacity: 0.8; }
-        }
-
-        .star-field::after {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background-image: 
-            radial-gradient(2px 2px at 40% 20%, rgba(255,255,255,0.8), transparent),
-            radial-gradient(1.5px 1.5px at 70% 80%, rgba(255,255,255,0.6), transparent),
-            radial-gradient(1px 1px at 25% 45%, rgba(255,255,255,0.4), transparent);
-          background-size: 100% 100%;
-          animation: starPulse 4s ease-in-out infinite alternate;
-        }
-
-        @keyframes starPulse {
-          0% { opacity: 0.3; }
-          100% { opacity: 0.7; }
-        }
-
-        @keyframes binaryOrbit {
-          0%   { transform: translate(1.5px, 0px); }
-          25%  { transform: translate(0px, 1.5px); }
-          50%  { transform: translate(-1.5px, 0px); }
-          75%  { transform: translate(0px, -1.5px); }
-          100% { transform: translate(1.5px, 0px); }
-        }
-
-        .binary-orbit {
-          animation: binaryOrbit var(--orbit-dur, 16s) ease-in-out infinite;
-        }
-
-        .binary-orbit.reverse {
-          animation-direction: reverse;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .binary-orbit { animation: none !important; }
+            radial-gradient(1.5px 1.5px at 20% 30%, rgba(255,255,255,0.6), transparent),
+            radial-gradient(1.5px 1.5px at 60% 70%, rgba(255,255,255,0.5), transparent),
+            radial-gradient(1px 1px at 50% 50%, rgba(255,255,255,0.4), transparent),
+            radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.5), transparent),
+            radial-gradient(1.5px 1.5px at 90% 60%, rgba(255,255,255,0.6), transparent),
+            radial-gradient(1px 1px at 33% 90%, rgba(255,255,255,0.4), transparent),
+            radial-gradient(1px 1px at 15% 60%, rgba(255,255,255,0.5), transparent);
+          opacity: 0.5;
         }
 
         .nebula-glow {
@@ -157,15 +110,9 @@ export default function Layout({ children, currentPageName }) {
           pointer-events: none;
           z-index: 1;
           background: 
-            radial-gradient(ellipse at 20% 20%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
-            radial-gradient(ellipse at 80% 70%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
-            radial-gradient(ellipse at 50% 90%, rgba(251, 191, 36, 0.08) 0%, transparent 40%);
-          animation: nebulaShift 30s ease-in-out infinite;
-        }
-
-        @keyframes nebulaShift {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(-5%, -5%) scale(1.1); }
+            radial-gradient(ellipse at 20% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
+            radial-gradient(ellipse at 80% 70%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+            radial-gradient(ellipse at 50% 90%, rgba(251, 191, 36, 0.06) 0%, transparent 40%);
         }
 
         .glass-card {
