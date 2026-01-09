@@ -84,5 +84,11 @@ Key tables:
   - Warm core (orange/pink) → cool edges (blue/cyan/teal) color gradient
   - Jittered ray steps to reduce banding artifacts
   - **NebulaFilaments**: 2000-3000 soft glowing particles throughout volume
-  - Tier-aware quality: High=48 steps, Medium=32, Low=20
+  - Tier-aware quality: High=32 steps, Medium=24, Low=16 (optimized for GPU stability)
   - Removed flat billboard layers in favor of true 3D volumetrics
+- **Star & Nebula Visual Refinements** (Jan 2026):
+  - Rebalanced nebula color palette: reduced cyan/teal saturation, deepened purples
+  - 6 distinct star visual styles: Nebula, Classic, Plasma, Crystal, Pulse, Nova
+  - Organic edge function for irregular star boundaries (no circular cutoffs)
+  - Enlarged billboard geometry (0.9x sprite, 1.4x glow) with proper alpha fade
+  - Reduced shader complexity (ray steps/octaves) to prevent WebGL context loss
