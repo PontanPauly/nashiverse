@@ -1336,8 +1336,8 @@ function UnifiedGalaxyScene({
   );
 }
 
-const createNebulaTexture = (colorHex, seed = 0) => {
-  const size = 128;
+const createNebulaTexture = (colorHex, seed = 0, style = 'cloud') => {
+  const size = 256;
   const data = new Uint8Array(size * size * 4);
   const center = size / 2;
   
@@ -1346,10 +1346,33 @@ const createNebulaTexture = (colorHex, seed = 0) => {
   const g = Math.floor(color.g * 255);
   const b = Math.floor(color.b * 255);
   
-  const noise = (x, y, s) => {
-    const nx = Math.sin(x * 0.1 + s) * Math.cos(y * 0.12 + s * 0.7);
-    const ny = Math.sin(y * 0.08 + s * 1.3) * Math.cos(x * 0.15 + s * 0.5);
-    return (nx + ny + 2) / 4;
+  const hash = (n) => {
+    let x = Math.sin(n + seed) * 43758.5453;
+    return x - Math.floor(x);
+  };
+  
+  const noise2d = (px, py) => {
+    const ix = Math.floor(px);
+    const iy = Math.floor(py);
+    const fx = px - ix;
+    const fy = py - iy;
+    const ux = fx * fx * (3 - 2 * fx);
+    const uy = fy * fy * (3 - 2 * fy);
+    const a = hash(ix + iy * 57);
+    const b = hash(ix + 1 + iy * 57);
+    const c = hash(ix + (iy + 1) * 57);
+    const d = hash(ix + 1 + (iy + 1) * 57);
+    return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+  };
+  
+  const fbm = (px, py, octaves) => {
+    let val = 0, amp = 0.5, freq = 1;
+    for (let i = 0; i < octaves; i++) {
+      val += noise2d(px * freq, py * freq) * amp;
+      amp *= 0.5;
+      freq *= 2.1;
+    }
+    return val;
   };
   
   for (let y = 0; y < size; y++) {
@@ -1357,21 +1380,38 @@ const createNebulaTexture = (colorHex, seed = 0) => {
       const dx = (x - center) / center;
       const dy = (y - center) / center;
       const dist = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx);
       
-      const n1 = noise(x, y, seed);
-      const n2 = noise(x * 2, y * 2, seed + 5);
-      const n3 = noise(x * 0.5, y * 0.5, seed + 10);
-      const noiseVal = (n1 * 0.5 + n2 * 0.3 + n3 * 0.2);
+      const nx = x / size * 4 + seed * 0.1;
+      const ny = y / size * 4 + seed * 0.13;
       
-      const irregularDist = dist + (noiseVal - 0.5) * 0.4;
-      const falloff = Math.max(0, 1 - irregularDist * 1.2);
-      const alpha = falloff * falloff * noiseVal * 0.8;
+      let density;
+      if (style === 'wispy') {
+        const warp = fbm(nx * 0.5, ny * 0.5, 3) * 2;
+        const filament = fbm(nx + warp, ny + warp, 4);
+        const ridged = 1 - Math.abs(filament * 2 - 1);
+        density = ridged * ridged;
+      } else if (style === 'core') {
+        const core = fbm(nx * 1.5, ny * 1.5, 5);
+        const bright = Math.pow(core, 0.7);
+        density = bright * (1 - dist * 0.8);
+      } else {
+        const cloud = fbm(nx, ny, 4);
+        const detail = fbm(nx * 2, ny * 2, 3) * 0.3;
+        density = cloud + detail;
+      }
+      
+      const edgeNoise = fbm(angle * 3 + seed, dist * 2, 3) * 0.25;
+      const irregularEdge = 0.85 + edgeNoise;
+      const falloff = Math.max(0, 1 - Math.pow(dist / irregularEdge, 2.5));
+      
+      const alpha = Math.pow(density * falloff, 1.2) * 0.9;
       
       const i = (y * size + x) * 4;
       data[i] = r;
       data[i + 1] = g;
       data[i + 2] = b;
-      data[i + 3] = Math.floor(Math.min(1, alpha) * 255);
+      data[i + 3] = Math.floor(Math.min(1, Math.max(0, alpha)) * 255);
     }
   }
   
@@ -1384,49 +1424,59 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, onClick
   const colors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
   
   const textures = useMemo(() => ({
-    main: createNebulaTexture(colors.primary, colorIndex * 7),
-    secondary: createNebulaTexture(colors.secondary, colorIndex * 11 + 3),
-    glow: createNebulaTexture(colors.glow, colorIndex * 13 + 7),
+    core: createNebulaTexture(colors.primary, colorIndex * 7, 'core'),
+    cloud: createNebulaTexture(colors.secondary, colorIndex * 11 + 3, 'cloud'),
+    wispy: createNebulaTexture(colors.glow, colorIndex * 13 + 7, 'wispy'),
+    outer: createNebulaTexture(colors.primary, colorIndex * 17 + 11, 'cloud'),
   }), [colors, colorIndex]);
   
   return (
     <group position={position}>
       <sprite 
-        scale={[scale * 5, scale * 5, 1]}
+        scale={[scale * 3.5, scale * 3.5, 1]}
         onClick={onClick}
         onPointerOver={onPointerOver}
         onPointerOut={onPointerOut}
       >
         <spriteMaterial
-          map={textures.main}
+          map={textures.core}
+          transparent
+          opacity={opacity * 0.5}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </sprite>
+      <sprite scale={[scale * 5, scale * 4.5, 1]} rotation={[0, 0, 0.4 + colorIndex * 0.2]}>
+        <spriteMaterial
+          map={textures.cloud}
           transparent
           opacity={opacity * 0.35}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
-      <sprite scale={[scale * 4, scale * 4.5, 1]} rotation={[0, 0, 0.5]}>
+      <sprite scale={[scale * 6, scale * 5, 1]} rotation={[0, 0, -0.3 + colorIndex * 0.15]}>
         <spriteMaterial
-          map={textures.secondary}
+          map={textures.wispy}
           transparent
           opacity={opacity * 0.25}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
-      <sprite scale={[scale * 6, scale * 5.5, 1]} rotation={[0, 0, -0.3]}>
+      <sprite scale={[scale * 7.5, scale * 7, 1]} rotation={[0, 0, 0.7 - colorIndex * 0.1]}>
         <spriteMaterial
-          map={textures.glow}
+          map={textures.outer}
           transparent
-          opacity={opacity * 0.15}
+          opacity={opacity * 0.12}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </sprite>
       <pointLight 
         color={colors.primary} 
-        intensity={opacity * 0.1} 
-        distance={5}
+        intensity={opacity * 0.12} 
+        distance={6}
         decay={2}
       />
     </group>
