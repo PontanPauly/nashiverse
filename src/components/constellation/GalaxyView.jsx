@@ -1028,6 +1028,90 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0) {
   });
 }
 
+function TransitioningNebula({ household, householdPositions, households, onFadeComplete }) {
+  const groupRef = useRef();
+  const startTime = useRef(null);
+  const hasCompleted = useRef(false);
+  const duration = 1.4;
+  
+  const pos = householdPositions.get(household.id);
+  const colorIndex = households.findIndex(h => h.id === household.id);
+  
+  useFrame((state) => {
+    if (hasCompleted.current) return;
+    
+    if (startTime.current === null) {
+      startTime.current = state.clock.elapsedTime;
+    }
+    
+    const elapsed = state.clock.elapsedTime - startTime.current;
+    const progress = Math.min(elapsed / duration, 1);
+    const fadeOut = 1 - Math.pow(progress, 2);
+    
+    if (groupRef.current) {
+      groupRef.current.traverse((child) => {
+        if (child.material) {
+          child.material.opacity = fadeOut;
+          child.material.transparent = true;
+        }
+      });
+      groupRef.current.scale.setScalar(1 + progress * 2);
+    }
+    
+    if (progress >= 1 && !hasCompleted.current) {
+      hasCompleted.current = true;
+      onFadeComplete?.();
+    }
+  });
+  
+  if (!pos) return null;
+  
+  return (
+    <group ref={groupRef}>
+      <HouseholdCluster
+        position={[pos.x, pos.y, pos.z]}
+        household={household}
+        memberCount={pos.memberCount}
+        colorIndex={colorIndex}
+        isHovered={false}
+        onClick={() => {}}
+        onPointerOver={() => {}}
+        onPointerOut={() => {}}
+      />
+    </group>
+  );
+}
+
+function TransitionController({ 
+  isTransitioning, 
+  transitionDirection,
+  onProgress 
+}) {
+  const startTime = useRef(null);
+  const duration = transitionDirection === 'zoom-in' ? 1.4 : 1.2;
+  
+  useFrame((state) => {
+    if (!isTransitioning) {
+      startTime.current = null;
+      return;
+    }
+    
+    if (startTime.current === null) {
+      startTime.current = state.clock.elapsedTime;
+    }
+    
+    const elapsed = state.clock.elapsedTime - startTime.current;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = transitionDirection === 'zoom-in'
+      ? (progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2)
+      : 1 - Math.pow(1 - progress, 4);
+    
+    onProgress(eased, progress >= 1);
+  });
+  
+  return null;
+}
+
 function FadeInGroup({ children, duration = 1.4, delay = 0.3 }) {
   const groupRef = useRef();
   const startTime = useRef(null);
@@ -1175,6 +1259,9 @@ function NebulaScene({
   autoRotateEnabled,
   setAutoRotateEnabled,
   qualityTier,
+  isTransitioning,
+  transitioningHousehold,
+  onTransitionComplete,
 }) {
   const selectedHouseholdPosition = useMemo(() => {
     if (!selectedHousehold) return null;
@@ -1221,19 +1308,29 @@ function NebulaScene({
       )}
       
       {level === 'system' && selectedHousehold && (
-        <FadeInGroup duration={1.2} delay={0.2}>
-          <SystemLevelScene
-            household={selectedHousehold}
-            people={people}
-            relationships={relationships}
-            hoveredStarId={hoveredStarId}
-            focusedStarId={focusedStarId}
-            onStarClick={onStarClick}
-            onStarHover={onStarHover}
-            colorIndex={selectedColorIndex}
-            householdPosition={selectedHouseholdPosition}
-          />
-        </FadeInGroup>
+        <>
+          {isTransitioning && transitioningHousehold && (
+            <TransitioningNebula
+              household={transitioningHousehold}
+              householdPositions={householdPositions}
+              households={households}
+              onFadeComplete={onTransitionComplete}
+            />
+          )}
+          <FadeInGroup duration={1.2} delay={0.4}>
+            <SystemLevelScene
+              household={selectedHousehold}
+              people={people}
+              relationships={relationships}
+              hoveredStarId={hoveredStarId}
+              focusedStarId={focusedStarId}
+              onStarClick={onStarClick}
+              onStarHover={onStarHover}
+              colorIndex={selectedColorIndex}
+              householdPosition={selectedHouseholdPosition}
+            />
+          </FadeInGroup>
+        </>
       )}
       
       <mesh visible={false} onClick={onBackgroundClick}>
@@ -1377,6 +1474,9 @@ export default function GalaxyView({ people = [], relationships = [], households
   const [focusedStarId, setFocusedStarId] = useState(null);
   const [autoRotateEnabled, setAutoRotateEnabled] = useState(true);
   const [contextLost, setContextLost] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionProgress, setTransitionProgress] = useState(0);
+  const [transitioningHousehold, setTransitioningHousehold] = useState(null);
   const controlsRef = useRef(null);
   const rendererRef = useRef(null);
   
@@ -1409,16 +1509,30 @@ export default function GalaxyView({ people = [], relationships = [], households
   
   const handleHouseholdClick = useCallback((household) => {
     setSelectedHousehold(household);
+    setTransitioningHousehold(household);
+    setIsTransitioning(true);
+    setTransitionProgress(0);
     setLevel('system');
     setFocusedStarId(null);
     setAutoRotateEnabled(false);
   }, []);
   
   const handleBackToGalaxy = useCallback(() => {
+    setIsTransitioning(true);
+    setTransitionProgress(0);
     setLevel('galaxy');
-    setSelectedHousehold(null);
     setFocusedStarId(null);
     setHoveredStarId(null);
+    setTimeout(() => {
+      setSelectedHousehold(null);
+      setTransitioningHousehold(null);
+      setIsTransitioning(false);
+    }, 1200);
+  }, []);
+  
+  const handleTransitionComplete = useCallback(() => {
+    setIsTransitioning(false);
+    setTransitioningHousehold(null);
   }, []);
   
   const handleStarClick = useCallback((star) => {
@@ -1518,6 +1632,9 @@ export default function GalaxyView({ people = [], relationships = [], households
           autoRotateEnabled={autoRotateEnabled}
           setAutoRotateEnabled={setAutoRotateEnabled}
           qualityTier={qualityTier}
+          isTransitioning={isTransitioning}
+          transitioningHousehold={transitioningHousehold}
+          onTransitionComplete={handleTransitionComplete}
         />
       </Canvas>
       
