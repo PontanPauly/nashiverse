@@ -174,40 +174,347 @@ function NebulaModel({ url, position, scale, rotation, opacity = 0.4 }) {
   );
 }
 
-function TieredNebulaBackdrop({ qualityTier }) {
-  if (!qualityTier.useGlb) {
-    return null;
-  }
+function VolumetricNebula({ qualityTier }) {
+  const meshRef = useRef();
   
-  const isHighTier = qualityTier.tier === 'high';
+  const nebulaMaterial = useMemo(() => {
+    const isHigh = qualityTier.tier === 'high';
+    const isMedium = qualityTier.tier === 'medium';
+    const octaves = isHigh ? 6 : (isMedium ? 4 : 3);
+    const raySteps = isHigh ? 24 : (isMedium ? 16 : 10);
+    
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec3 vWorldPosition;
+        varying vec3 vLocalPosition;
+        
+        void main() {
+          vLocalPosition = position;
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPos.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPos;
+        }
+      `,
+      fragmentShader: `
+        uniform float time;
+        uniform vec3 cameraPos;
+        
+        varying vec3 vWorldPosition;
+        varying vec3 vLocalPosition;
+        
+        const int OCTAVES = ${octaves};
+        const int RAY_STEPS = ${raySteps};
+        
+        vec3 deepPurple = vec3(0.118, 0.106, 0.294);
+        vec3 vibrantPurple = vec3(0.486, 0.227, 0.929);
+        vec3 teal = vec3(0.035, 0.569, 0.698);
+        vec3 cyan = vec3(0.133, 0.827, 0.847);
+        vec3 warmPink = vec3(0.925, 0.282, 0.6);
+        vec3 deepBlue = vec3(0.118, 0.251, 0.424);
+        
+        float hash(vec3 p) {
+          p = fract(p * 0.3183099 + 0.1);
+          p *= 17.0;
+          return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+        }
+        
+        float noise(vec3 p) {
+          vec3 i = floor(p);
+          vec3 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          
+          return mix(
+            mix(
+              mix(hash(i + vec3(0,0,0)), hash(i + vec3(1,0,0)), f.x),
+              mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x),
+              f.y
+            ),
+            mix(
+              mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x),
+              mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x),
+              f.y
+            ),
+            f.z
+          );
+        }
+        
+        float fbm(vec3 p) {
+          float value = 0.0;
+          float amplitude = 0.5;
+          float frequency = 1.0;
+          for (int i = 0; i < OCTAVES; i++) {
+            value += amplitude * noise(p * frequency);
+            frequency *= 2.0;
+            amplitude *= 0.5;
+          }
+          return value;
+        }
+        
+        float turbulence(vec3 p) {
+          float t = -0.5;
+          float scale = 1.0;
+          for (int i = 0; i < 4; i++) {
+            t += abs(noise(p * scale)) / scale;
+            scale *= 2.0;
+          }
+          return t;
+        }
+        
+        float nebulaField(vec3 p, float t) {
+          vec3 q = p + t * 0.008;
+          
+          float f = fbm(q * 0.15);
+          float turb = turbulence(q * 0.08);
+          
+          f = f * 0.7 + turb * 0.3;
+          
+          float dist = length(p);
+          float falloff = 1.0 - smoothstep(20.0, 80.0, dist);
+          
+          float density = f * falloff;
+          density = pow(max(density - 0.25, 0.0), 1.5);
+          
+          return density;
+        }
+        
+        vec3 nebulaColor(vec3 p, float density, float t) {
+          float n1 = fbm(p * 0.1 + t * 0.003);
+          float n2 = fbm(p * 0.15 - t * 0.002);
+          float n3 = fbm(p * 0.2 + vec3(t * 0.001, 0.0, t * 0.002));
+          
+          vec3 color = deepPurple;
+          
+          color = mix(color, vibrantPurple, smoothstep(0.3, 0.7, n1));
+          color = mix(color, teal, smoothstep(0.4, 0.8, n2) * 0.6);
+          color = mix(color, cyan, smoothstep(0.5, 0.9, n3) * 0.4);
+          color = mix(color, warmPink, smoothstep(0.6, 0.95, n1 * n2) * 0.3);
+          color = mix(color, deepBlue, smoothstep(0.2, 0.5, 1.0 - n3) * 0.4);
+          
+          float brightness = 0.8 + density * 2.0;
+          
+          return color * brightness;
+        }
+        
+        void main() {
+          vec3 rayDir = normalize(vWorldPosition - cameraPos);
+          vec3 rayPos = vLocalPosition;
+          
+          float stepSize = 8.0 / float(RAY_STEPS);
+          vec3 totalColor = vec3(0.0);
+          float totalAlpha = 0.0;
+          
+          for (int i = 0; i < RAY_STEPS; i++) {
+            float density = nebulaField(rayPos, time);
+            
+            if (density > 0.001) {
+              vec3 sampleColor = nebulaColor(rayPos, density, time);
+              float sampleAlpha = density * stepSize * 0.8;
+              
+              totalColor += sampleColor * sampleAlpha * (1.0 - totalAlpha);
+              totalAlpha += sampleAlpha * (1.0 - totalAlpha);
+              
+              if (totalAlpha > 0.95) break;
+            }
+            
+            rayPos += rayDir * stepSize;
+          }
+          
+          totalColor = pow(totalColor, vec3(0.9));
+          
+          gl_FragColor = vec4(totalColor, totalAlpha * 0.85);
+        }
+      `,
+      uniforms: {
+        time: { value: 0 },
+        cameraPos: { value: new THREE.Vector3() },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+  }, [qualityTier.tier]);
+  
+  useFrame((state) => {
+    nebulaMaterial.uniforms.time.value = state.clock.elapsedTime;
+    nebulaMaterial.uniforms.cameraPos.value.copy(state.camera.position);
+  });
+  
+  return (
+    <mesh ref={meshRef} scale={[1.8, 1.8, 1.8]}>
+      <boxGeometry args={[100, 100, 100]} />
+      <primitive object={nebulaMaterial} attach="material" />
+    </mesh>
+  );
+}
+
+function BillboardNebulaLayers({ count = 10 }) {
+  const groupRef = useRef();
+  
+  const layers = useMemo(() => {
+    const result = [];
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2;
+      const radius = 15 + Math.random() * 40;
+      const yOffset = (Math.random() - 0.5) * 30;
+      
+      result.push({
+        position: [
+          Math.cos(angle) * radius + (Math.random() - 0.5) * 20,
+          yOffset,
+          Math.sin(angle) * radius + (Math.random() - 0.5) * 20
+        ],
+        rotation: [
+          Math.random() * Math.PI,
+          Math.random() * Math.PI,
+          Math.random() * Math.PI
+        ],
+        scale: 25 + Math.random() * 35,
+        colorIndex: Math.floor(Math.random() * 5),
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+    return result;
+  }, [count]);
+  
+  const cloudMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float time;
+        uniform float colorIndex;
+        uniform float phase;
+        varying vec2 vUv;
+        
+        vec3 colors[5];
+        
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+        
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+          
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
+        
+        float fbm(vec2 p) {
+          float value = 0.0;
+          float amplitude = 0.5;
+          for (int i = 0; i < 5; i++) {
+            value += amplitude * noise(p);
+            p *= 2.0;
+            amplitude *= 0.5;
+          }
+          return value;
+        }
+        
+        void main() {
+          colors[0] = vec3(0.486, 0.227, 0.929);
+          colors[1] = vec3(0.035, 0.569, 0.698);
+          colors[2] = vec3(0.133, 0.827, 0.847);
+          colors[3] = vec3(0.925, 0.282, 0.6);
+          colors[4] = vec3(0.118, 0.251, 0.424);
+          
+          vec2 center = vUv - 0.5;
+          float dist = length(center);
+          
+          vec2 animated = vUv * 3.0 + time * 0.02 + phase;
+          float n = fbm(animated);
+          n += fbm(animated * 2.0 + time * 0.01) * 0.5;
+          
+          float cloudShape = 1.0 - smoothstep(0.0, 0.5, dist);
+          cloudShape *= n;
+          cloudShape = pow(max(cloudShape - 0.2, 0.0), 1.5);
+          
+          int idx = int(mod(colorIndex, 5.0));
+          vec3 color = colors[idx];
+          
+          int idx2 = int(mod(colorIndex + 1.0, 5.0));
+          color = mix(color, colors[idx2], n * 0.4);
+          
+          float alpha = cloudShape * 0.4;
+          
+          if (alpha < 0.01) discard;
+          
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      uniforms: {
+        time: { value: 0 },
+        colorIndex: { value: 0 },
+        phase: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+  }, []);
+  
+  useFrame((state) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += 0.0001;
+    }
+    cloudMaterial.uniforms.time.value = state.clock.elapsedTime;
+  });
+  
+  return (
+    <group ref={groupRef}>
+      {layers.map((layer, i) => {
+        const mat = cloudMaterial.clone();
+        mat.uniforms.colorIndex.value = layer.colorIndex;
+        mat.uniforms.phase.value = layer.phase;
+        
+        return (
+          <mesh
+            key={i}
+            position={layer.position}
+            rotation={layer.rotation}
+          >
+            <planeGeometry args={[layer.scale, layer.scale]} />
+            <primitive object={mat} attach="material" />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+function TieredNebulaBackdrop({ qualityTier }) {
+  const isHigh = qualityTier.tier === 'high';
+  const isMedium = qualityTier.tier === 'medium';
+  const isLow = qualityTier.tier === 'low';
   
   return (
     <group>
-      <NebulaModel
-        url="/attached_assets/gjptsjoamukljk6vxhg5_1767941334938.glb"
-        position={[0, 0, -15]}
-        scale={[65, 65, 65]}
-        rotation={[0, 0, 0]}
-        opacity={0.5}
-      />
+      <VolumetricNebula qualityTier={qualityTier} />
       
-      {isHighTier && (
-        <>
-          <NebulaModel
-            url="/attached_assets/gjptsjoamukljk6vxhg5_1767941334938.glb"
-            position={[-20, 10, -25]}
-            scale={[50, 50, 50]}
-            rotation={[0.3, Math.PI / 3, 0.1]}
-            opacity={0.3}
-          />
-          <NebulaModel
-            url="/attached_assets/gjptsjoamukljk6vxhg5_1767941334938.glb"
-            position={[25, -8, -30]}
-            scale={[55, 55, 55]}
-            rotation={[-0.2, (Math.PI * 2) / 3, -0.1]}
-            opacity={0.25}
-          />
-        </>
+      {(isHigh || isMedium) && (
+        <BillboardNebulaLayers count={isHigh ? 12 : 8} />
+      )}
+      
+      {isLow && qualityTier.useGlb && (
+        <NebulaModel
+          url="/attached_assets/gjptsjoamukljk6vxhg5_1767941334938.glb"
+          position={[0, 0, -15]}
+          scale={[65, 65, 65]}
+          rotation={[0, 0, 0]}
+          opacity={0.4}
+        />
       )}
     </group>
   );
