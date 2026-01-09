@@ -1283,6 +1283,11 @@ function UnifiedGalaxyScene({
   const focusedScale = 0.3 + focusProgress * 0.7;
   const focusedOpacity = 0.2 + focusProgress * 0.8;
   
+  const hoveredPos = useMemo(() => {
+    if (!hoveredHouseholdId) return null;
+    return householdPositions.get(hoveredHouseholdId);
+  }, [hoveredHouseholdId, householdPositions]);
+  
   return (
     <group>
       {households.map((household, index) => {
@@ -1291,17 +1296,41 @@ function UnifiedGalaxyScene({
         
         const isFocused = household.id === focusedHouseholdId;
         const isHovered = household.id === hoveredHouseholdId;
+        
+        let offsetX = 0, offsetY = 0, offsetZ = 0;
+        let hoverScale = 1;
+        
+        if (hoveredHouseholdId && !focusedHouseholdId) {
+          if (isHovered) {
+            offsetZ = 2;
+            hoverScale = 1.15;
+          } else if (hoveredPos) {
+            const dx = pos.x - hoveredPos.x;
+            const dy = pos.y - hoveredPos.y;
+            const dz = pos.z - hoveredPos.z;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist < 20 && dist > 0) {
+              const pushStrength = (1 - dist / 20) * 1.5;
+              offsetX = (dx / dist) * pushStrength;
+              offsetY = (dy / dist) * pushStrength;
+              offsetZ = (dz / dist) * pushStrength - 0.5;
+            }
+          }
+        }
+        
         const atmosphereOpacity = isFocused 
           ? Math.max(0.1, 1 - focusProgress) 
-          : (focusedHouseholdId ? 0.3 : (isHovered ? 0.9 : 0.6));
+          : (focusedHouseholdId ? 0.3 : (isHovered ? 1 : 0.6));
         
         return (
           <HouseholdAtmosphere
             key={`atmo-${household.id}`}
-            position={[pos.x, pos.y, pos.z]}
+            position={[pos.x + offsetX, pos.y + offsetY, pos.z + offsetZ]}
             colorIndex={index}
             opacity={atmosphereOpacity}
-            scale={isFocused ? 1 + focusProgress * 0.5 : 1}
+            scale={(isFocused ? 1 + focusProgress * 0.5 : 1) * hoverScale}
+            isHovered={isHovered && !focusedHouseholdId}
+            householdName={household.name}
             onClick={() => !focusedHouseholdId && onHouseholdClick(household)}
             onPointerOver={() => !focusedHouseholdId && onHouseholdHover(household.id)}
             onPointerOut={() => onHouseholdHover(null)}
@@ -1420,7 +1449,40 @@ const createNebulaTexture = (colorHex, seed = 0, style = 'cloud') => {
   return texture;
 };
 
-function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, onClick, onPointerOver, onPointerOut }) {
+function HouseholdLabel({ name, isVisible, color }) {
+  if (!isVisible || !name) return null;
+  
+  return (
+    <Html
+      center
+      position={[0, 0, 0]}
+      style={{
+        pointerEvents: 'none',
+        userSelect: 'none',
+      }}
+    >
+      <div style={{
+        background: `linear-gradient(135deg, ${color}22 0%, ${color}44 100%)`,
+        backdropFilter: 'blur(8px)',
+        border: `1px solid ${color}66`,
+        borderRadius: '12px',
+        padding: '8px 16px',
+        color: '#fff',
+        fontSize: '14px',
+        fontWeight: '500',
+        letterSpacing: '0.5px',
+        textShadow: `0 0 10px ${color}, 0 0 20px ${color}88`,
+        boxShadow: `0 0 20px ${color}33, 0 4px 12px rgba(0,0,0,0.3)`,
+        whiteSpace: 'nowrap',
+        animation: 'fadeIn 0.2s ease-out',
+      }}>
+        {name}
+      </div>
+    </Html>
+  );
+}
+
+function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, isHovered = false, householdName = '', onClick, onPointerOver, onPointerOut }) {
   const colors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
   
   const textures = useMemo(() => ({
@@ -1436,6 +1498,8 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, onClick
   
   return (
     <group position={position}>
+      <HouseholdLabel name={householdName} isVisible={isHovered} color={colors.primary} />
+      
       <sprite 
         scale={[scale * 6 * stretch1, scale * 5, 1]}
         rotation={[0, 0, baseRotation]}
@@ -1489,8 +1553,8 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, onClick
       </sprite>
       <pointLight 
         color={colors.primary} 
-        intensity={opacity * 0.15} 
-        distance={8}
+        intensity={opacity * (isHovered ? 0.25 : 0.15)} 
+        distance={isHovered ? 10 : 8}
         decay={2}
       />
     </group>
