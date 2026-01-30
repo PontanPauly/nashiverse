@@ -23,10 +23,14 @@ Nashiverse is a family management application with a cosmic/space theme. It help
    - **Hierarchical navigation**: Galaxy level shows households as glowing nebula clusters, click to zoom into a household to see individual family members as stars
    - Force-directed organic layout using d3-force-3d for household positioning
    - HouseholdCluster component with simplified nebula effects (2-layer design with hover scaling)
-   - 8,640+ unique star combinations (8 shapes × 12 colors × 6 glows × 5 animations × 3 sizes)
+   - **Living Star System** (Simplified Jan 2026):
+     - Single unified shader with spiral arms, color waves, hotspots, and breathing motion
+     - 12 color palettes + energy level (0-1) for customization
+     - personId-based uniqueOffset makes each star visually unique
+     - Removed shape/glow/animation options in favor of one beautiful, alive star style
    - Smooth camera fly-through animations with OrbitControls
    - Navigation UI overlay: zoom +/-, reset view, back to galaxy button, breadcrumb navigation
-   - Editable star profiles per family member
+   - Simplified StarEditor: just color picker grid + energy slider
    - **Galaxy Visual Enhancements (Hubble-inspired)**:
      - SpiralArmParticles: 25,000 particles in 4 logarithmic spiral arms
      - Color gradient: Warm golden core (#FFB347) → cool blue edges (#1E90FF)
