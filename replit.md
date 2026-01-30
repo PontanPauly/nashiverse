@@ -104,13 +104,15 @@ Key tables:
 - **Family Constellation Improvements** (Jan 2026):
   - **Organic Star Appearance**: Redesigned Classic star shader with softer glows, atmospheric falloff, and no hard edges
   - Enlarged star sprites (1.2x) and outer glow (2.0x) for more prominent, soft appearance
-  - **Smart Family Layout**: Parents/couples positioned at center, children arranged in arc below
-  - Uses relationship data (partner/spouse/married) to identify couples
-  - Falls back to role_type (parent/adult/grandparent) when no relationships exist
-  - **Constellation Lines**: Glowing lines connect family members within each household
-  - Lines drawn between related family members using relationship data
-  - Partner lines brighter than parent-child lines
-  - Falls back to connecting all stars to center when no relationships exist
+  - **Solar System Family Layout**: Parents orbit together at center, children orbit around them
+  - Parents placed in tight binary orbit (0.6 radius) to show they're a unit
+  - Children arranged in full circular orbit (3.0 radius) around the parents
+  - Uses relationship data (partner/spouse/married) to identify couples, falls back to role_type
+  - **Visual Orbit Rings**: 
+    - Inner ring (0.8 radius) around parents showing their shared orbit
+    - Outer ring (3.0 radius) showing children's orbit path
+  - **Constellation Lines**: Bright line between partners, softer lines radiating to children
+  - Lines drawn from family center to each child, not between siblings
 - **Production Deployment Fix** (Jan 2026):
   - Changed deployment from static to autoscale so backend runs in production
   - Express server now serves both API endpoints and static files from dist folder

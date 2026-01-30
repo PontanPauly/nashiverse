@@ -1024,7 +1024,8 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
   if (count === 1) {
     return [{
       ...people[0],
-      position: [centerX + 1.5, centerY, centerZ],
+      position: [centerX, centerY, centerZ],
+      isParent: true,
     }];
   }
   
@@ -1035,7 +1036,7 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
   
   const partners = new Set();
   const parents = new Set();
-  const children = new Set();
+  const childrenIds = new Set();
   
   householdRelationships.forEach(rel => {
     const type = (rel.relationship_type || '').toLowerCase();
@@ -1045,23 +1046,23 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
     }
     if (type === 'parent') {
       parents.add(rel.person1_id);
-      children.add(rel.person2_id);
+      childrenIds.add(rel.person2_id);
     }
     if (type === 'child') {
       parents.add(rel.person2_id);
-      children.add(rel.person1_id);
+      childrenIds.add(rel.person1_id);
     }
   });
   
-  let centerPeople = [];
-  let surroundingPeople = [];
+  let parentPair = [];
+  let childrenList = [];
   
   if (partners.size >= 2) {
-    centerPeople = people.filter(p => partners.has(p.id)).slice(0, 2);
-    surroundingPeople = people.filter(p => !centerPeople.includes(p));
+    parentPair = people.filter(p => partners.has(p.id)).slice(0, 2);
+    childrenList = people.filter(p => !parentPair.includes(p));
   } else if (parents.size > 0) {
-    centerPeople = people.filter(p => parents.has(p.id)).slice(0, 2);
-    surroundingPeople = people.filter(p => !centerPeople.includes(p));
+    parentPair = people.filter(p => parents.has(p.id)).slice(0, 2);
+    childrenList = people.filter(p => !parentPair.includes(p));
   } else {
     const adults = people.filter(p => {
       const roleType = (p.role_type || '').toLowerCase();
@@ -1070,63 +1071,71 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
     });
     
     if (adults.length >= 2) {
-      centerPeople = adults.slice(0, 2);
-      surroundingPeople = people.filter(p => !centerPeople.includes(p));
+      parentPair = adults.slice(0, 2);
+      childrenList = people.filter(p => !parentPair.includes(p));
     } else if (adults.length === 1) {
-      centerPeople = adults;
-      surroundingPeople = people.filter(p => !centerPeople.includes(p));
+      parentPair = adults;
+      childrenList = people.filter(p => !parentPair.includes(p));
     } else {
-      centerPeople = people.slice(0, Math.min(2, count));
-      surroundingPeople = people.slice(centerPeople.length);
+      parentPair = people.slice(0, Math.min(2, count));
+      childrenList = people.slice(parentPair.length);
     }
   }
   
   const positioned = [];
-  const partnerSpacing = 1.2;
   
-  if (centerPeople.length >= 2) {
+  const parentOrbitRadius = 0.6;
+  const parentOrbitAngle = Math.PI / 6;
+  
+  if (parentPair.length >= 2) {
     positioned.push({
-      ...centerPeople[0],
-      position: [centerX - partnerSpacing / 2, centerY + 0.3, centerZ],
+      ...parentPair[0],
+      position: [
+        centerX + Math.cos(parentOrbitAngle) * parentOrbitRadius,
+        centerY + 0.15,
+        centerZ + Math.sin(parentOrbitAngle) * parentOrbitRadius
+      ],
+      isParent: true,
     });
     positioned.push({
-      ...centerPeople[1],
-      position: [centerX + partnerSpacing / 2, centerY + 0.3, centerZ],
+      ...parentPair[1],
+      position: [
+        centerX + Math.cos(parentOrbitAngle + Math.PI) * parentOrbitRadius,
+        centerY - 0.15,
+        centerZ + Math.sin(parentOrbitAngle + Math.PI) * parentOrbitRadius
+      ],
+      isParent: true,
     });
-  } else if (centerPeople.length === 1) {
+  } else if (parentPair.length === 1) {
     positioned.push({
-      ...centerPeople[0],
-      position: [centerX, centerY + 0.3, centerZ],
+      ...parentPair[0],
+      position: [centerX, centerY, centerZ],
+      isParent: true,
     });
   }
   
-  const childRadius = 2.5;
-  const startAngle = Math.PI * 1.2;
-  const arcSpan = Math.PI * 0.6;
+  const childOrbitRadius = 3.0;
+  const childCount = childrenList.length;
   
-  surroundingPeople.forEach((person, index) => {
-    const seed = person.id || index;
-    let angle, radius, yOffset;
+  childrenList.forEach((child, index) => {
+    const angleSpread = Math.PI * 2;
+    const startAngle = -Math.PI / 2;
+    const angle = startAngle + (index / Math.max(1, childCount)) * angleSpread;
     
-    if (surroundingPeople.length <= 6) {
-      angle = startAngle + (index / Math.max(1, surroundingPeople.length - 1)) * arcSpan;
-      radius = childRadius + seededRandom(seed + '-rad') * 0.8;
-      yOffset = -0.3 + seededRandom(seed + '-y') * 0.4;
-    } else {
-      const row = Math.floor(index / 6);
-      const col = index % 6;
-      angle = startAngle + (col / 5) * arcSpan;
-      radius = childRadius + row * 1.5 + seededRandom(seed + '-rad') * 0.5;
-      yOffset = -0.3 - row * 0.5 + seededRandom(seed + '-y') * 0.3;
-    }
+    const seed = child.id || index;
+    const radiusVariation = seededRandom(seed + '-rad') * 0.4 - 0.2;
+    const yVariation = seededRandom(seed + '-y') * 0.3 - 0.15;
+    
+    const finalRadius = childOrbitRadius + radiusVariation;
     
     positioned.push({
-      ...person,
+      ...child,
       position: [
-        centerX + Math.cos(angle) * radius,
-        centerY + yOffset,
-        centerZ + Math.sin(angle) * radius,
+        centerX + Math.cos(angle) * finalRadius,
+        centerY + yVariation,
+        centerZ + Math.sin(angle) * finalRadius
       ],
+      isParent: false,
     });
   });
   
@@ -1468,41 +1477,146 @@ function AnimatedHouseholdGroup({
   );
 }
 
+function FamilyOrbitRing({ center, radius, colorIndex, opacity = 0.3 }) {
+  const ringRef = useRef();
+  
+  const points = useMemo(() => {
+    const segments = 64;
+    const pts = [];
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      pts.push(new THREE.Vector3(
+        center[0] + Math.cos(angle) * radius,
+        center[1],
+        center[2] + Math.sin(angle) * radius
+      ));
+    }
+    return pts;
+  }, [center, radius]);
+  
+  const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
+  const ringColor = new THREE.Color(baseColors.glow);
+  
+  return (
+    <line ref={ringRef}>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          count={points.length}
+          array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <lineBasicMaterial
+        color={ringColor}
+        transparent
+        opacity={opacity}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </line>
+  );
+}
+
+function ParentOrbitRing({ center, radius, colorIndex, opacity = 0.5 }) {
+  const ringRef = useRef();
+  
+  const points = useMemo(() => {
+    const segments = 32;
+    const pts = [];
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      pts.push(new THREE.Vector3(
+        center[0] + Math.cos(angle) * radius,
+        center[1],
+        center[2] + Math.sin(angle) * radius
+      ));
+    }
+    return pts;
+  }, [center, radius]);
+  
+  const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
+  const ringColor = new THREE.Color(baseColors.primary);
+  
+  return (
+    <line ref={ringRef}>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          count={points.length}
+          array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <lineBasicMaterial
+        color={ringColor}
+        transparent
+        opacity={opacity}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </line>
+  );
+}
+
 function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 }) {
   const lineRef = useRef();
   
-  const { positions, colors } = useMemo(() => {
-    if (!stars || stars.length < 2 || !relationships) {
-      return { positions: new Float32Array(0), colors: new Float32Array(0) };
+  const { positions, colors, familyCenter, hasParents, hasChildren } = useMemo(() => {
+    if (!stars || stars.length < 2) {
+      return { positions: new Float32Array(0), colors: new Float32Array(0), familyCenter: [0,0,0], hasParents: false, hasChildren: false };
     }
     
     const starMap = new Map();
     stars.forEach(star => {
-      starMap.set(star.id, star.position);
+      starMap.set(star.id, { position: star.position, isParent: star.isParent });
     });
+    
+    const parentStars = stars.filter(s => s.isParent);
+    const childStars = stars.filter(s => !s.isParent);
+    
+    let centerX = 0, centerY = 0, centerZ = 0;
+    if (parentStars.length > 0) {
+      centerX = parentStars.reduce((sum, s) => sum + s.position[0], 0) / parentStars.length;
+      centerY = parentStars.reduce((sum, s) => sum + s.position[1], 0) / parentStars.length;
+      centerZ = parentStars.reduce((sum, s) => sum + s.position[2], 0) / parentStars.length;
+    }
     
     const starIds = new Set(stars.map(s => s.id));
     const lines = [];
     
-    relationships.forEach(rel => {
-      if (starIds.has(rel.person1_id) && starIds.has(rel.person2_id)) {
-        const pos1 = starMap.get(rel.person1_id);
-        const pos2 = starMap.get(rel.person2_id);
-        if (pos1 && pos2) {
-          lines.push({ from: pos1, to: pos2, type: rel.relationship_type });
-        }
-      }
-    });
+    if (parentStars.length >= 2) {
+      lines.push({ 
+        from: parentStars[0].position, 
+        to: parentStars[1].position, 
+        type: 'partner',
+        isPartnerLine: true
+      });
+    }
     
-    if (lines.length === 0 && stars.length >= 2) {
-      const center = stars.find(s => {
-        const pos = s.position;
-        return Math.abs(pos[0]) < 2 && Math.abs(pos[2]) < 2;
-      }) || stars[0];
-      
-      stars.forEach(star => {
-        if (star.id !== center.id) {
-          lines.push({ from: center.position, to: star.position, type: 'family' });
+    const parentIds = new Set(parentStars.map(p => p.id));
+    const mainParent = parentStars[0];
+    
+    if (mainParent && childStars.length > 0) {
+      const parentCenter = [centerX, centerY, centerZ];
+      childStars.forEach(child => {
+        lines.push({
+          from: parentCenter,
+          to: child.position,
+          type: 'parent',
+          isPartnerLine: false
+        });
+      });
+    }
+    
+    if (lines.length === 0 && relationships) {
+      relationships.forEach(rel => {
+        if (starIds.has(rel.person1_id) && starIds.has(rel.person2_id)) {
+          const star1 = starMap.get(rel.person1_id);
+          const star2 = starMap.get(rel.person2_id);
+          if (star1 && star2) {
+            lines.push({ from: star1.position, to: star2.position, type: rel.relationship_type });
+          }
         }
       });
     }
@@ -1522,36 +1636,60 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
       pos[i * 6 + 5] = line.to[2];
       
       const normalizedType = (line.type || '').toLowerCase();
-      const isPartner = normalizedType === 'partner' || normalizedType === 'spouse' || normalizedType === 'married';
-      const brightness = isPartner ? 1.0 : 0.7;
+      const isPartner = line.isPartnerLine || normalizedType === 'partner' || normalizedType === 'spouse' || normalizedType === 'married';
+      const brightness = isPartner ? 1.2 : 0.5;
       col[i * 6] = lineColor.r * brightness;
       col[i * 6 + 1] = lineColor.g * brightness;
       col[i * 6 + 2] = lineColor.b * brightness;
-      col[i * 6 + 3] = lineColor.r * brightness * 0.5;
-      col[i * 6 + 4] = lineColor.g * brightness * 0.5;
-      col[i * 6 + 5] = lineColor.b * brightness * 0.5;
+      col[i * 6 + 3] = lineColor.r * brightness * 0.3;
+      col[i * 6 + 4] = lineColor.g * brightness * 0.3;
+      col[i * 6 + 5] = lineColor.b * brightness * 0.3;
     });
     
-    return { positions: pos, colors: col };
+    return { 
+      positions: pos, 
+      colors: col, 
+      familyCenter: [centerX, centerY, centerZ],
+      hasParents: parentStars.length > 0,
+      hasChildren: childStars.length > 0
+    };
   }, [stars, relationships, colorIndex]);
   
   if (positions.length === 0) return null;
   
   return (
-    <lineSegments ref={lineRef}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={positions.length / 3} array={positions} itemSize={3} />
-        <bufferAttribute attach="attributes-color" count={colors.length / 3} array={colors} itemSize={3} />
-      </bufferGeometry>
-      <lineBasicMaterial 
-        vertexColors 
-        transparent 
-        opacity={opacity} 
-        blending={THREE.AdditiveBlending}
-        depthWrite={false}
-        linewidth={1}
-      />
-    </lineSegments>
+    <group>
+      {hasParents && (
+        <ParentOrbitRing 
+          center={familyCenter} 
+          radius={0.8} 
+          colorIndex={colorIndex} 
+          opacity={0.4}
+        />
+      )}
+      {hasParents && hasChildren && (
+        <FamilyOrbitRing 
+          center={familyCenter} 
+          radius={3.0} 
+          colorIndex={colorIndex} 
+          opacity={0.25}
+        />
+      )}
+      <lineSegments ref={lineRef}>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" count={positions.length / 3} array={positions} itemSize={3} />
+          <bufferAttribute attach="attributes-color" count={colors.length / 3} array={colors} itemSize={3} />
+        </bufferGeometry>
+        <lineBasicMaterial 
+          vertexColors 
+          transparent 
+          opacity={opacity} 
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          linewidth={1}
+        />
+      </lineSegments>
+    </group>
   );
 }
 
