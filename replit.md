@@ -103,7 +103,9 @@ Key tables:
   - Enlarged hitbox (12x scale) for easier household hover detection
 - **Family Constellation Improvements** (Jan 2026):
   - **Organic Star Appearance**: Redesigned Classic star shader with softer glows, atmospheric falloff, and no hard edges
-  - Enlarged star sprites (1.2x) and outer glow (2.0x) for more prominent, soft appearance
+  - **Universal Edge Fade**: All 6 star styles (Nebula, Classic, Plasma, Crystal, Pulse, Nova) now use a universal edge fade function that guarantees smooth alpha falloff to zero before plane edges
+  - Enlarged star sprites (1.6x) and outer glow (2.8x) for more prominent, soft appearance
+  - Tighter organic edge bounds (0.28 max radius) leaving 40% margin for smooth fade
   - **Solar System Family Layout**: Parents orbit together at center, children orbit around them
   - Parents placed in tight binary orbit (0.6 radius) to show they're a unit
   - Children arranged in full circular orbit (3.0 radius) around the parents
