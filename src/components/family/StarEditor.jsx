@@ -7,6 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import { Sparkles, Shuffle, Check } from "lucide-react";
 import Star from "@/components/constellation/Star";
 import {
+  CORE_SHAPES,
   COLOR_PALETTES,
   DEFAULT_STAR_PROFILE,
   generateRandomStarProfile,
@@ -45,20 +46,38 @@ function ColorSwatch({ color, isSelected, onClick, name }) {
       type="button"
       onClick={onClick}
       className={`
-        relative w-12 h-12 rounded-xl transition-all duration-200
+        relative w-10 h-10 rounded-lg transition-all duration-200
         ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-900 scale-110' : 'hover:scale-105'}
       `}
       style={{
         background: `radial-gradient(circle at 30% 30%, ${color.glow} 0%, ${color.primary} 40%, ${color.secondary} 100%)`,
-        boxShadow: isSelected ? `0 0 25px ${color.glow}80` : `0 0 15px ${color.glow}40`,
+        boxShadow: isSelected ? `0 0 20px ${color.glow}80` : `0 0 10px ${color.glow}40`,
       }}
       title={name}
     >
       {isSelected && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <Check className="w-5 h-5 text-white drop-shadow-lg" />
+          <Check className="w-4 h-4 text-white drop-shadow-lg" />
         </div>
       )}
+    </button>
+  );
+}
+
+function ShapeButton({ shape, isSelected, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`
+        px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200
+        ${isSelected 
+          ? 'bg-amber-500/20 text-amber-300 border-2 border-amber-500/50 shadow-lg shadow-amber-500/10' 
+          : 'bg-slate-800/50 text-slate-400 border border-slate-700 hover:bg-slate-700/50 hover:text-slate-300'
+        }
+      `}
+    >
+      {shape.name}
     </button>
   );
 }
@@ -69,6 +88,7 @@ export default function StarEditor({ value, onChange }) {
     ...value,
   }));
 
+  const shapes = useMemo(() => Object.values(CORE_SHAPES), []);
   const colorPalettes = useMemo(() => Object.values(COLOR_PALETTES), []);
 
   const updateProfile = (updates) => {
@@ -101,7 +121,7 @@ export default function StarEditor({ value, onChange }) {
         Create a unique star that represents you in the constellation
       </p>
 
-      <div className="h-64 bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-800/50 rounded-xl overflow-hidden border border-slate-700/50">
+      <div className="h-56 bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-800/50 rounded-xl overflow-hidden border border-slate-700/50">
         <StarPreview starProfile={starProfile} />
         <div className="text-center text-xs text-slate-500 -mt-6 pb-2">
           Live Preview • Drag to rotate
@@ -118,9 +138,26 @@ export default function StarEditor({ value, onChange }) {
         Randomize
       </Button>
 
-      <div className="space-y-4">
-        <Label className="text-slate-300">Choose Your Color</Label>
-        <div className="grid grid-cols-6 gap-3">
+      <div className="space-y-3">
+        <Label className="text-slate-300">Star Style</Label>
+        <div className="flex flex-wrap gap-2">
+          {shapes.map((shape) => (
+            <ShapeButton
+              key={shape.id}
+              shape={shape}
+              isSelected={starProfile.shape === shape.id}
+              onClick={() => updateProfile({ shape: shape.id })}
+            />
+          ))}
+        </div>
+        <p className="text-xs text-slate-500">
+          {CORE_SHAPES[starProfile.shape]?.description || 'Traditional radiant star'}
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <Label className="text-slate-300">Color Palette</Label>
+        <div className="grid grid-cols-6 gap-2">
           {colorPalettes.map((palette) => (
             <ColorSwatch
               key={palette.id}
@@ -136,7 +173,7 @@ export default function StarEditor({ value, onChange }) {
         </p>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label className="text-slate-300">Energy Level</Label>
           <span className="text-sm text-amber-400 font-medium">{energyLabel}</span>

@@ -41,115 +41,322 @@ const noiseLib = `
     }
     return sum;
   }
-`;
-
-const livingStarShader = `
-  uniform vec3 primaryColor;
-  uniform vec3 secondaryColor;
-  uniform vec3 glowColor;
-  uniform vec3 accentColor;
-  uniform float time;
-  uniform float energy;
-  uniform float uniqueOffset;
-  uniform float globalOpacity;
-  varying vec2 vUv;
   
-  ${noiseLib}
-  
-  void main() {
-    vec2 center = vUv - 0.5;
-    float dist = length(center);
-    float angle = atan(center.y, center.x);
-    
-    float t = time * (0.3 + energy * 0.4) + uniqueOffset * 20.0;
-    float slowT = t * 0.3;
-    float fastT = t * 1.5;
-    
-    // === CORE: Bright pulsing center ===
-    float corePulse = 0.8 + 0.2 * sin(t * 2.0) * sin(t * 1.3 + 1.0);
-    float coreSize = 0.06 + 0.02 * sin(t * 1.5);
-    float core = smoothstep(coreSize + 0.03, coreSize * 0.3, dist);
-    core = pow(core, 1.5) * corePulse;
-    
-    // === SPIRAL ARMS: Rotating logarithmic spirals ===
-    float numArms = 3.0 + floor(uniqueOffset * 3.0);
-    float spiralTightness = 2.0 + uniqueOffset * 1.5;
-    float spiralAngle = angle + log(dist + 0.01) * spiralTightness - slowT * 0.5;
-    float spiral = sin(spiralAngle * numArms) * 0.5 + 0.5;
-    spiral = pow(spiral, 2.0);
-    
-    // Spiral brightness falls off with distance
-    float spiralFade = smoothstep(0.4, 0.08, dist);
-    spiral *= spiralFade;
-    
-    // Add rotation to the whole thing
-    float rotation = slowT * 0.2;
-    vec2 rotatedCenter = vec2(
-      center.x * cos(rotation) - center.y * sin(rotation),
-      center.x * sin(rotation) + center.y * cos(rotation)
-    );
-    
-    // === FLOWING COLOR WAVES ===
-    float wave1 = sin(angle * 2.0 + dist * 8.0 - t * 1.2) * 0.5 + 0.5;
-    float wave2 = sin(angle * 3.0 - dist * 6.0 + t * 0.8 + uniqueOffset * 5.0) * 0.5 + 0.5;
-    float wave3 = sin(dist * 12.0 - t * 2.0) * 0.5 + 0.5;
-    
-    // Combine waves with noise for organic feel
-    float noiseWarp = fbm(rotatedCenter * 4.0 + t * 0.1, 4) * 0.5 + 0.5;
-    float colorWave = (wave1 + wave2 * 0.7 + wave3 * 0.5) / 2.2;
-    colorWave = mix(colorWave, noiseWarp, 0.4);
-    
-    // === FLICKERING HOTSPOTS ===
-    float hotspotNoise = fbm(vec2(angle * 2.0 + uniqueOffset * 10.0, dist * 5.0 + fastT * 0.3), 3);
-    float hotspots = smoothstep(0.3, 0.8, hotspotNoise) * smoothstep(0.35, 0.1, dist);
-    hotspots *= (0.5 + 0.5 * sin(fastT * 3.0 + hotspotNoise * 10.0));
-    
-    // === ORGANIC BREATHING ===
-    float breathe = 0.85 + 0.15 * sin(t * 0.8) * sin(t * 0.5 + 2.0);
-    float asyncBreath = 0.9 + 0.1 * sin(t * 1.3 + uniqueOffset * 8.0);
-    breathe *= asyncBreath;
-    
-    // === WISPY OUTER TENDRILS ===
-    float tendrilNoise = fbm(vec2(angle * 4.0 + slowT * 0.5, uniqueOffset * 15.0), 4);
-    float tendrils = smoothstep(0.2, 0.5, tendrilNoise);
-    float tendrilFade = smoothstep(0.45, 0.15, dist) * smoothstep(0.05, 0.2, dist);
-    tendrils *= tendrilFade * 0.6;
-    
-    // === EDGE FADE ===
-    float edgeFade = 1.0 - smoothstep(0.2, 0.48, dist);
-    edgeFade = pow(edgeFade, 1.5);
-    
-    // === COLOR MIXING ===
-    vec3 hotWhite = vec3(1.0, 0.98, 0.95);
-    vec3 baseColor = mix(primaryColor, secondaryColor, colorWave);
-    baseColor = mix(baseColor, accentColor, wave2 * 0.3 * energy);
-    baseColor = mix(baseColor, glowColor, tendrils * 0.5);
-    
-    // Core is white-hot
-    vec3 finalColor = mix(baseColor, hotWhite, core * 0.9);
-    
-    // Hotspots add bright pops
-    finalColor = mix(finalColor, hotWhite, hotspots * 0.7);
-    
-    // Spiral structure affects brightness
-    float brightness = 0.4 + spiral * 0.4 + core * 1.2 + hotspots * 0.5 + tendrils * 0.3;
-    brightness *= breathe;
-    brightness *= (0.7 + energy * 0.6);
-    
-    finalColor *= brightness;
-    
-    // Add glow bloom
-    float bloom = exp(-dist * 4.0) * 0.3;
-    finalColor += glowColor * bloom;
-    
-    float alpha = edgeFade * globalOpacity;
-    alpha *= smoothstep(0.0, 0.15, brightness);
-    
-    if (alpha < 0.01) discard;
-    
-    gl_FragColor = vec4(finalColor, alpha);
+  float universalEdgeFade(float dist) {
+    float fade = 1.0 - smoothstep(0.28, 0.48, dist);
+    return fade * fade;
   }
 `;
+
+const shaders = {
+  nebula: `
+    uniform vec3 primaryColor;
+    uniform vec3 secondaryColor;
+    uniform vec3 glowColor;
+    uniform vec3 accentColor;
+    uniform float time;
+    uniform float energy;
+    uniform float uniqueOffset;
+    uniform float globalOpacity;
+    varying vec2 vUv;
+    
+    ${noiseLib}
+    
+    void main() {
+      vec2 center = vUv - 0.5;
+      float dist = length(center);
+      float angle = atan(center.y, center.x);
+      float t = time * (0.2 + energy * 0.3) + uniqueOffset * 20.0;
+      
+      // Swirling spiral structure
+      float numArms = 3.0 + floor(uniqueOffset * 2.0);
+      float spiral = sin(angle * numArms + log(dist + 0.01) * 3.0 - t * 0.4) * 0.5 + 0.5;
+      spiral = pow(spiral, 1.5) * smoothstep(0.4, 0.05, dist);
+      
+      // Turbulent clouds
+      vec2 warp = center * 4.0;
+      float warpX = fbm(warp + t * 0.1, 4);
+      float warpY = fbm(warp + vec2(5.0, 3.0) + t * 0.08, 4);
+      vec2 warped = warp + vec2(warpX, warpY) * 0.5;
+      float clouds = fbm(warped * 0.8, 5) * 0.5 + 0.5;
+      
+      // Bright core
+      float core = exp(-dist * 8.0);
+      
+      // Breathing
+      float breath = 0.85 + 0.15 * sin(t * 0.7) * sin(t * 0.5 + 1.0);
+      
+      // Color mixing
+      vec3 col = mix(primaryColor, secondaryColor, clouds);
+      col = mix(col, accentColor, spiral * 0.4);
+      col = mix(col, glowColor, smoothstep(0.3, 0.0, dist) * 0.5);
+      col = mix(col, vec3(1.0), core * 0.8);
+      
+      float intensity = (clouds * 0.5 + spiral * 0.6 + core * 1.2) * breath * (0.7 + energy * 0.5);
+      
+      float alpha = universalEdgeFade(dist) * globalOpacity * smoothstep(0.0, 0.1, intensity);
+      if (alpha < 0.01) discard;
+      
+      gl_FragColor = vec4(col * intensity, alpha);
+    }
+  `,
+  
+  classic: `
+    uniform vec3 primaryColor;
+    uniform vec3 secondaryColor;
+    uniform vec3 glowColor;
+    uniform vec3 accentColor;
+    uniform float time;
+    uniform float energy;
+    uniform float uniqueOffset;
+    uniform float globalOpacity;
+    varying vec2 vUv;
+    
+    ${noiseLib}
+    
+    void main() {
+      vec2 center = vUv - 0.5;
+      float dist = length(center);
+      float angle = atan(center.y, center.x);
+      float t = time * (0.3 + energy * 0.4) + uniqueOffset * 15.0;
+      
+      // Radiant rays with variation
+      float numRays = 6.0 + floor(uniqueOffset * 4.0);
+      float rayAngle = angle + t * 0.1 + snoise(vec2(dist * 3.0, t * 0.2)) * 0.3;
+      float rays = pow(abs(sin(rayAngle * numRays)), 3.0 + uniqueOffset * 2.0);
+      rays *= smoothstep(0.4, 0.1, dist);
+      
+      // Glowing core with pulse
+      float corePulse = 0.9 + 0.1 * sin(t * 2.0) * sin(t * 1.3);
+      float core = exp(-dist * 10.0) * corePulse;
+      
+      // Atmospheric halo
+      float halo = exp(-dist * 3.0) * 0.6;
+      
+      // Shimmer
+      float shimmer = snoise(vec2(angle * 4.0 + t, dist * 5.0)) * 0.15 + 0.85;
+      
+      // Color
+      vec3 col = mix(primaryColor, secondaryColor, dist * 2.0);
+      col = mix(col, glowColor, rays * 0.4);
+      col = mix(col, vec3(1.0, 0.98, 0.95), core * 0.9);
+      
+      float intensity = (halo + rays * 0.5 + core * 1.5) * shimmer * (0.7 + energy * 0.5);
+      
+      float alpha = universalEdgeFade(dist) * globalOpacity * smoothstep(0.0, 0.08, intensity);
+      if (alpha < 0.01) discard;
+      
+      gl_FragColor = vec4(col * intensity, alpha);
+    }
+  `,
+  
+  plasma: `
+    uniform vec3 primaryColor;
+    uniform vec3 secondaryColor;
+    uniform vec3 glowColor;
+    uniform vec3 accentColor;
+    uniform float time;
+    uniform float energy;
+    uniform float uniqueOffset;
+    uniform float globalOpacity;
+    varying vec2 vUv;
+    
+    ${noiseLib}
+    
+    void main() {
+      vec2 center = vUv - 0.5;
+      float dist = length(center);
+      float angle = atan(center.y, center.x);
+      float t = time * (0.4 + energy * 0.5) + uniqueOffset * 25.0;
+      
+      // Electric tendrils
+      float tendrils = 0.0;
+      for (float i = 0.0; i < 5.0; i++) {
+        float tendrilAngle = i * 1.257 + uniqueOffset * 6.28 + t * 0.3;
+        float angleDiff = abs(mod(angle - tendrilAngle + 3.14159, 6.28318) - 3.14159);
+        float wiggle = snoise(vec2(dist * 8.0 + t, i)) * 0.3;
+        float tendril = exp(-angleDiff * angleDiff / (0.15 + wiggle * 0.1));
+        tendril *= smoothstep(0.35, 0.1, dist);
+        tendrils += tendril * 0.4;
+      }
+      
+      // Crackling energy
+      float crackle = snoise(vec2(angle * 6.0 + t * 2.0, dist * 10.0));
+      crackle = smoothstep(0.3, 0.8, crackle) * smoothstep(0.35, 0.1, dist);
+      
+      // Hot core
+      float core = exp(-dist * 12.0);
+      float corePulse = 0.8 + 0.2 * sin(t * 3.0);
+      core *= corePulse;
+      
+      // Color
+      vec3 col = mix(primaryColor, accentColor, tendrils);
+      col = mix(col, glowColor, crackle * 0.6);
+      col = mix(col, vec3(1.0), core * 0.85);
+      
+      float intensity = (tendrils * 0.8 + crackle * 0.5 + core * 1.3) * (0.7 + energy * 0.6);
+      
+      float alpha = universalEdgeFade(dist) * globalOpacity * smoothstep(0.0, 0.1, intensity);
+      if (alpha < 0.01) discard;
+      
+      gl_FragColor = vec4(col * intensity, alpha);
+    }
+  `,
+  
+  crystal: `
+    uniform vec3 primaryColor;
+    uniform vec3 secondaryColor;
+    uniform vec3 glowColor;
+    uniform vec3 accentColor;
+    uniform float time;
+    uniform float energy;
+    uniform float uniqueOffset;
+    uniform float globalOpacity;
+    varying vec2 vUv;
+    
+    ${noiseLib}
+    
+    void main() {
+      vec2 center = vUv - 0.5;
+      float dist = length(center);
+      float angle = atan(center.y, center.x);
+      float t = time * (0.2 + energy * 0.3) + uniqueOffset * 18.0;
+      
+      // Faceted geometry
+      float numFacets = 6.0 + floor(uniqueOffset * 3.0);
+      float facetAngle = mod(angle + 3.14159, 6.28318 / numFacets);
+      float facets = 1.0 - smoothstep(0.0, 0.15, abs(facetAngle - 3.14159 / numFacets));
+      facets *= smoothstep(0.35, 0.15, dist);
+      
+      // Internal refraction
+      float refract = snoise(vec2(angle * numFacets + t * 0.5, dist * 6.0));
+      refract = refract * 0.5 + 0.5;
+      
+      // Sparkle points
+      float sparkle = snoise(vec2(angle * 12.0 + t * 3.0, dist * 15.0 + t));
+      sparkle = smoothstep(0.6, 1.0, sparkle) * smoothstep(0.3, 0.1, dist);
+      
+      // Core glow
+      float core = exp(-dist * 8.0);
+      float pulse = 0.9 + 0.1 * sin(t * 1.5);
+      
+      // Color
+      vec3 col = mix(primaryColor, secondaryColor, refract);
+      col = mix(col, accentColor, facets * 0.3);
+      col = mix(col, glowColor, sparkle);
+      col = mix(col, vec3(1.0), core * 0.7);
+      
+      float intensity = (refract * 0.4 + facets * 0.5 + sparkle * 0.8 + core * 1.2) * pulse * (0.7 + energy * 0.5);
+      
+      float alpha = universalEdgeFade(dist) * globalOpacity * smoothstep(0.0, 0.1, intensity);
+      if (alpha < 0.01) discard;
+      
+      gl_FragColor = vec4(col * intensity, alpha);
+    }
+  `,
+  
+  pulse: `
+    uniform vec3 primaryColor;
+    uniform vec3 secondaryColor;
+    uniform vec3 glowColor;
+    uniform vec3 accentColor;
+    uniform float time;
+    uniform float energy;
+    uniform float uniqueOffset;
+    uniform float globalOpacity;
+    varying vec2 vUv;
+    
+    ${noiseLib}
+    
+    void main() {
+      vec2 center = vUv - 0.5;
+      float dist = length(center);
+      float angle = atan(center.y, center.x);
+      float t = time * (0.5 + energy * 0.6) + uniqueOffset * 12.0;
+      
+      // Expanding rings
+      float ringSpeed = 0.8 + uniqueOffset * 0.4;
+      float rings = sin(dist * 20.0 - t * ringSpeed * 3.0);
+      rings = smoothstep(0.3, 1.0, rings) * smoothstep(0.4, 0.1, dist);
+      
+      // Heartbeat core
+      float heartbeat = sin(t * 2.5) * 0.5 + 0.5;
+      heartbeat = pow(heartbeat, 2.0);
+      float coreSize = 0.08 + heartbeat * 0.04;
+      float core = smoothstep(coreSize + 0.05, coreSize * 0.3, dist);
+      
+      // Ambient glow
+      float glow = exp(-dist * 4.0);
+      
+      // Ripple distortion
+      float ripple = snoise(vec2(angle * 3.0, dist * 8.0 - t * 2.0)) * 0.2;
+      
+      // Color
+      vec3 col = mix(primaryColor, secondaryColor, dist * 2.0 + ripple);
+      col = mix(col, accentColor, rings * 0.5);
+      col = mix(col, vec3(1.0), core * 0.9);
+      
+      float intensity = (glow * 0.6 + rings * 0.5 + core * 1.4) * (0.7 + energy * 0.5);
+      
+      float alpha = universalEdgeFade(dist) * globalOpacity * smoothstep(0.0, 0.08, intensity);
+      if (alpha < 0.01) discard;
+      
+      gl_FragColor = vec4(col * intensity, alpha);
+    }
+  `,
+  
+  nova: `
+    uniform vec3 primaryColor;
+    uniform vec3 secondaryColor;
+    uniform vec3 glowColor;
+    uniform vec3 accentColor;
+    uniform float time;
+    uniform float energy;
+    uniform float uniqueOffset;
+    uniform float globalOpacity;
+    varying vec2 vUv;
+    
+    ${noiseLib}
+    
+    void main() {
+      vec2 center = vUv - 0.5;
+      float dist = length(center);
+      float angle = atan(center.y, center.x);
+      float t = time * (0.3 + energy * 0.4) + uniqueOffset * 22.0;
+      
+      // Explosive rays
+      float numRays = 8.0 + floor(uniqueOffset * 6.0);
+      float rayNoise = snoise(vec2(angle * 2.0 + t * 0.3, uniqueOffset * 10.0)) * 0.5;
+      float rays = pow(abs(sin((angle + rayNoise) * numRays + t * 0.2)), 4.0);
+      rays *= smoothstep(0.45, 0.05, dist);
+      
+      // Expanding shockwave
+      float shockwave = sin(dist * 15.0 - t * 2.0);
+      shockwave = smoothstep(0.5, 1.0, shockwave) * smoothstep(0.4, 0.15, dist);
+      
+      // Blazing core
+      float corePulse = 0.85 + 0.15 * sin(t * 2.5) * sin(t * 1.8);
+      float core = exp(-dist * 15.0) * corePulse;
+      
+      // Debris particles
+      float debris = snoise(vec2(angle * 8.0 + t, dist * 12.0 - t * 3.0));
+      debris = smoothstep(0.4, 0.9, debris) * smoothstep(0.4, 0.15, dist);
+      
+      // Color - hot center to cool edges
+      vec3 col = mix(secondaryColor, primaryColor, dist * 2.5);
+      col = mix(col, accentColor, rays * 0.4 + shockwave * 0.3);
+      col = mix(col, glowColor, debris * 0.5);
+      col = mix(col, vec3(1.0, 0.95, 0.9), core * 0.9);
+      
+      float intensity = (rays * 0.7 + shockwave * 0.4 + core * 1.5 + debris * 0.3) * (0.7 + energy * 0.6);
+      
+      float alpha = universalEdgeFade(dist) * globalOpacity * smoothstep(0.0, 0.1, intensity);
+      if (alpha < 0.01) discard;
+      
+      gl_FragColor = vec4(col * intensity, alpha);
+    }
+  `,
+};
 
 const outerGlowShader = `
   uniform vec3 glowColor;
@@ -166,35 +373,30 @@ const outerGlowShader = `
     vec2 center = vUv - 0.5;
     float dist = length(center);
     float angle = atan(center.y, center.x);
-    
     float t = time * 0.3 + uniqueOffset * 10.0;
     
-    // Soft exponential glow
     float glow = exp(-dist * 3.5);
     glow = pow(glow, 1.8);
     
-    // Breathing
     float breath = 0.85 + 0.15 * sin(t * 0.8 + uniqueOffset * 5.0);
-    
-    // Wispy variations
     float wisp = snoise(vec2(angle * 3.0, dist * 4.0 + t * 0.2)) * 0.2 + 0.8;
     glow *= wisp * breath;
     
-    // Edge fade
     float edgeFade = 1.0 - smoothstep(0.3, 0.5, dist);
     
     vec3 color = mix(glowColor, secondaryColor, dist * 2.0);
     
     float alpha = glow * 0.4 * globalOpacity * edgeFade * (0.6 + energy * 0.4);
-    
     if (alpha < 0.01) discard;
     
     gl_FragColor = vec4(color, alpha);
   }
 `;
 
-function StarSprite({ colors, energy, uniqueOffset, globalOpacity = 1.0 }) {
+function StarSprite({ shape, colors, energy, uniqueOffset, globalOpacity = 1.0 }) {
   const materialRef = useRef();
+  
+  const shaderCode = shaders[shape] || shaders.classic;
   
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -205,7 +407,7 @@ function StarSprite({ colors, energy, uniqueOffset, globalOpacity = 1.0 }) {
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
-      fragmentShader: livingStarShader,
+      fragmentShader: shaderCode,
       uniforms: {
         primaryColor: { value: new THREE.Color(colors.primary) },
         secondaryColor: { value: new THREE.Color(colors.secondary) },
@@ -221,7 +423,7 @@ function StarSprite({ colors, energy, uniqueOffset, globalOpacity = 1.0 }) {
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
-  }, [colors, energy, uniqueOffset]);
+  }, [shaderCode, colors, energy, uniqueOffset]);
   
   useFrame((state) => {
     if (materialRef.current) {
@@ -331,6 +533,7 @@ export default function Star({
           globalOpacity={globalOpacity}
         />
         <StarSprite
+          shape={visuals.shape}
           colors={visuals.colors}
           energy={visuals.energy}
           uniqueOffset={visuals.uniqueOffset}
@@ -380,7 +583,7 @@ export function StarInstanced({
         
         return (
           <group 
-            key={star.personId} 
+            key={star.personId || star.id || Math.random().toString()} 
             position={star.position}
             scale={[scale, scale, scale]}
           >

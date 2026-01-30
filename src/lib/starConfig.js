@@ -1,3 +1,36 @@
+export const CORE_SHAPES = {
+  nebula: {
+    id: 'nebula',
+    name: 'Nebula',
+    description: 'Swirling cosmic clouds',
+  },
+  classic: {
+    id: 'classic',
+    name: 'Classic',
+    description: 'Traditional radiant star',
+  },
+  plasma: {
+    id: 'plasma',
+    name: 'Plasma',
+    description: 'Electric plasma ball',
+  },
+  crystal: {
+    id: 'crystal',
+    name: 'Crystal',
+    description: 'Crystalline faceted gem',
+  },
+  pulse: {
+    id: 'pulse',
+    name: 'Pulse',
+    description: 'Rhythmic pulsing orb',
+  },
+  nova: {
+    id: 'nova',
+    name: 'Nova',
+    description: 'Explosive burst of light',
+  },
+};
+
 export const COLOR_PALETTES = {
   celestial: {
     id: 'celestial',
@@ -98,6 +131,7 @@ export const COLOR_PALETTES = {
 };
 
 export const DEFAULT_STAR_PROFILE = {
+  shape: 'classic',
   colorPalette: 'celestial',
   energy: 0.5,
 };
@@ -122,12 +156,14 @@ const pickRandom = (obj, seed) => {
 export function getStarVisuals(starProfile, personId = 'default') {
   const profile = { ...DEFAULT_STAR_PROFILE, ...starProfile };
   
+  const shape = CORE_SHAPES[profile.shape] || CORE_SHAPES.classic;
   const palette = COLOR_PALETTES[profile.colorPalette] || COLOR_PALETTES.celestial;
   
   const seed = personId;
   const uniqueOffset = seededRandom(seed);
   
   return {
+    shape: shape.id,
     colors: {
       primary: palette.primary,
       secondary: palette.secondary,
@@ -143,6 +179,7 @@ export function generateRandomStarProfile(personId = null) {
   const seed = personId || `${Date.now()}-${Math.random()}`;
   
   return {
+    shape: pickRandom(CORE_SHAPES, seed + '-shape'),
     colorPalette: pickRandom(COLOR_PALETTES, seed + '-color'),
     energy: 0.3 + seededRandom(seed + '-energy') * 0.5,
   };
