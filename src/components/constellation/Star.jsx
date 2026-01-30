@@ -70,21 +70,28 @@ const noiseLib = `
   }
   
   // Organic edge function - creates irregular, wispy boundaries
-  // Uses scaled UV space (0.35 max) so content fits within larger plane geometry
+  // Uses scaled UV space (0.28 max) so content fits within larger plane geometry
   float organicEdge(vec2 center, float baseRadius, float time, float uniqueOffset) {
     float angle = atan(center.y, center.x);
     
-    // Noise layers for natural variation (operates in 0-0.35 range)
-    float edgeNoise1 = snoise(vec2(angle * 2.5 + uniqueOffset * 10.0, time * 0.15)) * 0.06;
-    float edgeNoise2 = snoise(vec2(angle * 5.0 - uniqueOffset * 5.0, time * 0.25)) * 0.04;
-    float edgeNoise3 = snoise(vec2(angle * 9.0 + time * 0.08, uniqueOffset * 3.0)) * 0.02;
+    // Noise layers for natural variation (operates in smaller range)
+    float edgeNoise1 = snoise(vec2(angle * 2.5 + uniqueOffset * 10.0, time * 0.15)) * 0.04;
+    float edgeNoise2 = snoise(vec2(angle * 5.0 - uniqueOffset * 5.0, time * 0.25)) * 0.03;
+    float edgeNoise3 = snoise(vec2(angle * 9.0 + time * 0.08, uniqueOffset * 3.0)) * 0.015;
     
     // Shape deformation
-    float shapeWarp = snoise(vec2(angle * 1.5 + uniqueOffset * 8.0, 0.3)) * 0.05;
+    float shapeWarp = snoise(vec2(angle * 1.5 + uniqueOffset * 8.0, 0.3)) * 0.03;
     
     float irregularRadius = baseRadius + edgeNoise1 + edgeNoise2 + edgeNoise3 + shapeWarp;
-    // Clamp to stay well within plane bounds (leave margin for smooth fade)
-    return min(irregularRadius, 0.35);
+    // Clamp to stay well within plane bounds (leave big margin for smooth fade)
+    return min(irregularRadius, 0.28);
+  }
+  
+  // Universal edge fade - guarantees smooth falloff to zero at plane edges
+  float universalEdgeFade(float dist) {
+    // Start fading at 0.3, reach zero well before 0.5 edge
+    float fade = 1.0 - smoothstep(0.25, 0.42, dist);
+    return fade * fade; // Quadratic falloff for softer edge
   }
 `;
 
@@ -194,6 +201,7 @@ const nebulaShader = `
     finalColor += cyan * pow(filaments2, 3.0) * 0.25;
     
     float alpha = (structure * 0.4 + filamentGlow * 0.85 + coreGlow * 1.1 + tendrils * 0.6) * edgeFade;
+    alpha *= universalEdgeFade(dist);
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.6);
     
     gl_FragColor = vec4(finalColor * globalOpacity, alpha * globalOpacity);
@@ -272,7 +280,7 @@ const classicShader = `
     
     // Very soft alpha falloff - no hard edges
     float alpha = core * 1.0 + corona * 0.8 + halo * 0.4 + atmosphere * 0.5 + rays * 0.3;
-    alpha *= 1.0 - smoothstep(0.3, 0.5, dist);
+    alpha *= universalEdgeFade(dist);
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.6);
     
     if (alpha < 0.005) discard;
@@ -359,6 +367,7 @@ const plasmaShader = `
     finalColor += hotWhite * arcs * 0.35;
     
     float alpha = (intensity * 0.65 + core * 0.8 + plasmaTendrils * 0.5) * edgeFade;
+    alpha *= universalEdgeFade(dist);
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.65);
     
     gl_FragColor = vec4(finalColor * globalOpacity, alpha * globalOpacity);
@@ -449,6 +458,7 @@ const crystalShader = `
     vec3 finalColor = gemColor * intensity;
     
     float alpha = 0.55 * crystalBody + facetEdge * 0.2 + core * 0.6 + sparkle * 0.3 + outerGlow;
+    alpha *= universalEdgeFade(dist);
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.7);
     
     if (alpha < 0.01) discard;
@@ -531,6 +541,7 @@ const pulseShader = `
     finalColor *= brightness;
     
     float alpha = (core * 1.1 + innerGlow * 0.6 + halo * 0.35 + rings * 0.7) * edgeFade;
+    alpha *= universalEdgeFade(dist);
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.65);
     
     gl_FragColor = vec4(finalColor * globalOpacity, alpha * globalOpacity);
@@ -635,6 +646,7 @@ const novaShader = `
     float edgeFade = 1.0 - smoothstep(edgeRadius - 0.1, edgeRadius + 0.15, dist);
     edgeFade = max(edgeFade, rays * 0.7 + debris * 0.5);
     alpha *= edgeFade;
+    alpha *= universalEdgeFade(dist);
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.6);
     
     if (alpha < 0.01) discard;
@@ -716,7 +728,7 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOp
     }
   });
   
-  const spriteSize = 1.2 * scale;
+  const spriteSize = 1.6 * scale;
   
   return (
     <mesh ref={meshRef}>
@@ -751,8 +763,7 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, 
           float angle = atan(center.y, center.x);
           
           // Organic glow boundary
-          float edgeRadius = organicEdge(center, 0.32, time * 0.2, uniqueOffset);
-          if (dist > edgeRadius + 0.1) discard;
+          float edgeRadius = organicEdge(center, 0.25, time * 0.2, uniqueOffset);
           
           float glow = 1.0 - smoothstep(0.0, edgeRadius, dist);
           glow = pow(glow, 2.8);
@@ -767,6 +778,9 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, 
           vec3 color = mix(glowColor, secondaryColor, dist * 1.8);
           
           float alpha = glow * intensity * breath * 0.45 * globalOpacity;
+          alpha *= universalEdgeFade(dist);
+          
+          if (alpha < 0.005) discard;
           
           gl_FragColor = vec4(color * 1.15 * globalOpacity, alpha);
         }
@@ -798,7 +812,7 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, 
     }
   });
   
-  const glowSize = 2.0 * scale;
+  const glowSize = 2.8 * scale;
   
   return (
     <mesh ref={meshRef}>
