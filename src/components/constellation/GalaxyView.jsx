@@ -1018,7 +1018,7 @@ function CameraController({
   return null;
 }
 
-function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0) {
+function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, relationships = []) {
   const count = people.length;
   if (count === 0) return [];
   if (count === 1) {
@@ -1028,21 +1028,109 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0) {
     }];
   }
   
-  return people.map((person, index) => {
-    const seed = person.id || index;
-    const angle = seededRandom(seed + '-angle') * Math.PI * 2;
-    const radius = 1.5 + seededRandom(seed + '-radius') * 3;
-    const yOffset = (seededRandom(seed + '-y') - 0.5) * 1.5;
+  const personIds = new Set(people.map(p => p.id));
+  const householdRelationships = relationships.filter(r => 
+    personIds.has(r.person1_id) && personIds.has(r.person2_id)
+  );
+  
+  const partners = new Set();
+  const parents = new Set();
+  const children = new Set();
+  
+  householdRelationships.forEach(rel => {
+    const type = (rel.relationship_type || '').toLowerCase();
+    if (type === 'partner' || type === 'spouse' || type === 'married') {
+      partners.add(rel.person1_id);
+      partners.add(rel.person2_id);
+    }
+    if (type === 'parent') {
+      parents.add(rel.person1_id);
+      children.add(rel.person2_id);
+    }
+    if (type === 'child') {
+      parents.add(rel.person2_id);
+      children.add(rel.person1_id);
+    }
+  });
+  
+  let centerPeople = [];
+  let surroundingPeople = [];
+  
+  if (partners.size >= 2) {
+    centerPeople = people.filter(p => partners.has(p.id)).slice(0, 2);
+    surroundingPeople = people.filter(p => !centerPeople.includes(p));
+  } else if (parents.size > 0) {
+    centerPeople = people.filter(p => parents.has(p.id)).slice(0, 2);
+    surroundingPeople = people.filter(p => !centerPeople.includes(p));
+  } else {
+    const adults = people.filter(p => {
+      const roleType = (p.role_type || '').toLowerCase();
+      return roleType.includes('parent') || roleType.includes('adult') || 
+             roleType.includes('head') || roleType.includes('grandparent');
+    });
     
-    return {
+    if (adults.length >= 2) {
+      centerPeople = adults.slice(0, 2);
+      surroundingPeople = people.filter(p => !centerPeople.includes(p));
+    } else if (adults.length === 1) {
+      centerPeople = adults;
+      surroundingPeople = people.filter(p => !centerPeople.includes(p));
+    } else {
+      centerPeople = people.slice(0, Math.min(2, count));
+      surroundingPeople = people.slice(centerPeople.length);
+    }
+  }
+  
+  const positioned = [];
+  const partnerSpacing = 1.2;
+  
+  if (centerPeople.length >= 2) {
+    positioned.push({
+      ...centerPeople[0],
+      position: [centerX - partnerSpacing / 2, centerY + 0.3, centerZ],
+    });
+    positioned.push({
+      ...centerPeople[1],
+      position: [centerX + partnerSpacing / 2, centerY + 0.3, centerZ],
+    });
+  } else if (centerPeople.length === 1) {
+    positioned.push({
+      ...centerPeople[0],
+      position: [centerX, centerY + 0.3, centerZ],
+    });
+  }
+  
+  const childRadius = 2.5;
+  const startAngle = Math.PI * 1.2;
+  const arcSpan = Math.PI * 0.6;
+  
+  surroundingPeople.forEach((person, index) => {
+    const seed = person.id || index;
+    let angle, radius, yOffset;
+    
+    if (surroundingPeople.length <= 6) {
+      angle = startAngle + (index / Math.max(1, surroundingPeople.length - 1)) * arcSpan;
+      radius = childRadius + seededRandom(seed + '-rad') * 0.8;
+      yOffset = -0.3 + seededRandom(seed + '-y') * 0.4;
+    } else {
+      const row = Math.floor(index / 6);
+      const col = index % 6;
+      angle = startAngle + (col / 5) * arcSpan;
+      radius = childRadius + row * 1.5 + seededRandom(seed + '-rad') * 0.5;
+      yOffset = -0.3 - row * 0.5 + seededRandom(seed + '-y') * 0.3;
+    }
+    
+    positioned.push({
       ...person,
       position: [
         centerX + Math.cos(angle) * radius,
         centerY + yOffset,
         centerZ + Math.sin(angle) * radius,
       ],
-    };
+    });
   });
+  
+  return positioned;
 }
 
 function TransitioningNebula({ household, householdPositions, households, opacity = 1, onFadeComplete }) {
@@ -1239,6 +1327,7 @@ function AnimatedHouseholdGroup({
   focusedHouseholdId,
   hoveredPos,
   stars,
+  relationships = [],
   onStarClick,
   onStarHover,
   hoveredStarId,
@@ -1359,6 +1448,12 @@ function AnimatedHouseholdGroup({
         onPointerOver={onPointerOver}
         onPointerOut={onPointerOut}
       />
+      <ConstellationLines
+        stars={localStars}
+        relationships={relationships}
+        colorIndex={colorIndex}
+        opacity={starRenderOpacity * 0.5}
+      />
       <StarInstanced
         stars={localStars}
         onStarClick={focusedHouseholdId ? onStarClick : (star) => onClick()}
@@ -1373,10 +1468,98 @@ function AnimatedHouseholdGroup({
   );
 }
 
+function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 }) {
+  const lineRef = useRef();
+  
+  const { positions, colors } = useMemo(() => {
+    if (!stars || stars.length < 2 || !relationships) {
+      return { positions: new Float32Array(0), colors: new Float32Array(0) };
+    }
+    
+    const starMap = new Map();
+    stars.forEach(star => {
+      starMap.set(star.id, star.position);
+    });
+    
+    const starIds = new Set(stars.map(s => s.id));
+    const lines = [];
+    
+    relationships.forEach(rel => {
+      if (starIds.has(rel.person1_id) && starIds.has(rel.person2_id)) {
+        const pos1 = starMap.get(rel.person1_id);
+        const pos2 = starMap.get(rel.person2_id);
+        if (pos1 && pos2) {
+          lines.push({ from: pos1, to: pos2, type: rel.relationship_type });
+        }
+      }
+    });
+    
+    if (lines.length === 0 && stars.length >= 2) {
+      const center = stars.find(s => {
+        const pos = s.position;
+        return Math.abs(pos[0]) < 2 && Math.abs(pos[2]) < 2;
+      }) || stars[0];
+      
+      stars.forEach(star => {
+        if (star.id !== center.id) {
+          lines.push({ from: center.position, to: star.position, type: 'family' });
+        }
+      });
+    }
+    
+    const pos = new Float32Array(lines.length * 6);
+    const col = new Float32Array(lines.length * 6);
+    
+    const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
+    const lineColor = new THREE.Color(baseColors.glow);
+    
+    lines.forEach((line, i) => {
+      pos[i * 6] = line.from[0];
+      pos[i * 6 + 1] = line.from[1];
+      pos[i * 6 + 2] = line.from[2];
+      pos[i * 6 + 3] = line.to[0];
+      pos[i * 6 + 4] = line.to[1];
+      pos[i * 6 + 5] = line.to[2];
+      
+      const normalizedType = (line.type || '').toLowerCase();
+      const isPartner = normalizedType === 'partner' || normalizedType === 'spouse' || normalizedType === 'married';
+      const brightness = isPartner ? 1.0 : 0.7;
+      col[i * 6] = lineColor.r * brightness;
+      col[i * 6 + 1] = lineColor.g * brightness;
+      col[i * 6 + 2] = lineColor.b * brightness;
+      col[i * 6 + 3] = lineColor.r * brightness * 0.5;
+      col[i * 6 + 4] = lineColor.g * brightness * 0.5;
+      col[i * 6 + 5] = lineColor.b * brightness * 0.5;
+    });
+    
+    return { positions: pos, colors: col };
+  }, [stars, relationships, colorIndex]);
+  
+  if (positions.length === 0) return null;
+  
+  return (
+    <lineSegments ref={lineRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={positions.length / 3} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-color" count={colors.length / 3} array={colors} itemSize={3} />
+      </bufferGeometry>
+      <lineBasicMaterial 
+        vertexColors 
+        transparent 
+        opacity={opacity} 
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        linewidth={1}
+      />
+    </lineSegments>
+  );
+}
+
 function UnifiedGalaxyScene({
   households,
   householdPositions,
   people,
+  relationships = [],
   focusedHouseholdId,
   hoveredHouseholdId,
   hoveredStarId,
@@ -1394,7 +1577,7 @@ function UnifiedGalaxyScene({
       if (!pos) return;
       
       const householdPeople = people.filter(p => p.household_id === household.id);
-      const positionedPeople = arrangeStarsInCluster(householdPeople, pos.x, pos.y, pos.z);
+      const positionedPeople = arrangeStarsInCluster(householdPeople, pos.x, pos.y, pos.z, relationships);
       
       const stars = positionedPeople.map(person => ({
         id: person.id,
@@ -1409,7 +1592,7 @@ function UnifiedGalaxyScene({
       map.set(household.id, stars);
     });
     return map;
-  }, [households, householdPositions, people]);
+  }, [households, householdPositions, people, relationships]);
   
   const hoveredPos = useMemo(() => {
     if (!hoveredHouseholdId) return null;
@@ -1438,6 +1621,7 @@ function UnifiedGalaxyScene({
             focusedHouseholdId={focusedHouseholdId}
             hoveredPos={hoveredPos}
             stars={householdStars}
+            relationships={relationships}
             onStarClick={onStarClick}
             onStarHover={onStarHover}
             hoveredStarId={hoveredStarId}
@@ -1780,6 +1964,7 @@ function NebulaScene({
         households={households}
         householdPositions={householdPositions}
         people={people}
+        relationships={relationships}
         focusedHouseholdId={effectiveFocusedId}
         hoveredHouseholdId={hoveredHouseholdId}
         hoveredStarId={hoveredStarId}

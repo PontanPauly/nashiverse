@@ -200,7 +200,7 @@ const nebulaShader = `
   }
 `;
 
-// Style 2: Classic - Radiant star with organic diffraction spikes
+// Style 2: Classic - Soft radiant star with gentle organic glow
 const classicShader = `
   uniform vec3 primaryColor;
   uniform vec3 glowColor;
@@ -220,67 +220,62 @@ const classicShader = `
     float angle = atan(center.y, center.x);
     float t = time + uniqueOffset * 10.0;
     
-    // Core with organic edge
-    float coreRadius = 0.06 + styleVariant * 0.03;
-    float coreNoise = snoise(vec2(angle * 8.0, t * 0.5)) * 0.015;
-    float core = 1.0 - smoothstep(0.0, coreRadius + coreNoise, dist);
-    core = pow(core, 1.2);
+    // Very soft inner core
+    float coreRadius = 0.04 + styleVariant * 0.02;
+    float core = 1.0 - smoothstep(0.0, coreRadius * 2.0, dist);
+    core = pow(core, 0.8);
     
-    // Corona with irregular shape
-    float coronaNoise = snoise(vec2(angle * 4.0 + uniqueOffset * 5.0, t * 0.2)) * 0.05;
-    float corona = 1.0 - smoothstep(0.0, 0.18 + coronaNoise, dist);
-    corona = pow(corona, 2.0);
+    // Soft corona - main body of the star
+    float coronaNoise = snoise(vec2(angle * 3.0 + uniqueOffset * 5.0, t * 0.15)) * 0.03;
+    float corona = 1.0 - smoothstep(0.0, 0.15 + coronaNoise, dist);
+    corona = pow(corona, 1.5);
     
-    // Halo
-    float haloNoise = snoise(vec2(angle * 3.0, t * 0.15)) * 0.08;
+    // Extended soft halo
+    float haloNoise = snoise(vec2(angle * 2.0, t * 0.1)) * 0.05;
     float halo = 1.0 - smoothstep(0.0, 0.35 + haloNoise, dist);
-    halo = pow(halo, 3.2);
+    halo = pow(halo, 2.5);
     
-    // Organic diffraction spikes with varying lengths
+    // Outer atmospheric glow
+    float atmosphere = 1.0 - smoothstep(0.0, 0.5, dist);
+    atmosphere = pow(atmosphere, 4.0) * 0.3;
+    
+    // Soft subtle rays (not harsh spikes)
     float rays = 0.0;
     float numRays = rayCount;
-    for (float i = 0.0; i < 12.0; i++) {
+    for (float i = 0.0; i < 8.0; i++) {
       if (i >= numRays) break;
       float rayAngle = i * 6.28318 / numRays + uniqueOffset * 3.14159;
-      float rayLengthVar = 0.8 + snoise(vec2(i, uniqueOffset * 10.0)) * 0.4;
-      float rayWidthVar = 0.8 + snoise(vec2(i * 2.0, uniqueOffset * 5.0)) * 0.4;
+      float rayLengthVar = 0.7 + snoise(vec2(i, uniqueOffset * 10.0)) * 0.3;
       
-      float spikeIntensity = pow(abs(cos((angle - rayAngle) * numRays * 0.5)), 50.0 * rayWidthVar + styleVariant * 30.0);
-      spikeIntensity *= exp(-dist * (2.5 / rayLengthVar - styleVariant * 0.5));
+      float angleDiff = abs(mod(angle - rayAngle + 3.14159, 6.28318) - 3.14159);
+      float spikeIntensity = exp(-angleDiff * angleDiff * (15.0 + styleVariant * 10.0));
+      spikeIntensity *= exp(-dist * (3.0 / rayLengthVar));
+      spikeIntensity *= (0.8 + snoise(vec2(dist * 5.0, i + t * 0.2)) * 0.2);
       
-      // Wispy ray edges
-      float rayNoise = snoise(vec2(dist * 10.0, i + t * 0.3)) * 0.3;
-      spikeIntensity *= (0.7 + rayNoise);
-      
-      float taper = 1.0 - pow(dist * 1.8, 1.2);
-      spikeIntensity *= max(taper, 0.0);
-      rays += spikeIntensity;
+      rays += spikeIntensity * 0.3;
     }
     
-    // Shimmer
-    float shimmer = 0.88 + 0.12 * sin(t * 2.5) * sin(t * 3.7 + 1.5);
-    shimmer *= 0.92 + 0.08 * sin(t * 4.1 + angle * 2.0);
+    // Gentle shimmer
+    float shimmer = 0.92 + 0.08 * sin(t * 1.8) * sin(t * 2.7 + 1.5);
     
-    // Colors
+    // Colors - warm core fading to cooler edges
     vec3 hotWhite = vec3(1.0, 0.995, 0.97);
-    vec3 warmCore = vec3(1.0, 0.95, 0.88);
-    vec3 coreColor = mix(warmCore, hotWhite, core * 0.9);
-    vec3 rayColor = mix(glowColor, hotWhite, 0.45);
+    vec3 warmCore = vec3(1.0, 0.96, 0.9);
+    vec3 coreColor = mix(warmCore, hotWhite, core * 0.8);
     
-    vec3 finalColor = coreColor * core * 2.5;
-    finalColor += primaryColor * corona * 0.8;
-    finalColor += mix(primaryColor, glowColor, 0.3) * halo * 0.4;
-    finalColor += rayColor * rays * 0.75;
+    vec3 finalColor = coreColor * core * 2.0;
+    finalColor += mix(primaryColor, hotWhite, 0.3) * corona * 1.2;
+    finalColor += mix(primaryColor, glowColor, 0.4) * halo * 0.6;
+    finalColor += glowColor * atmosphere;
+    finalColor += mix(glowColor, hotWhite, 0.3) * rays;
     finalColor *= brightness * shimmer;
     
-    float alpha = core * 1.2 + corona * 0.7 + halo * 0.35 + rays * 0.55;
+    // Very soft alpha falloff - no hard edges
+    float alpha = core * 1.0 + corona * 0.8 + halo * 0.4 + atmosphere * 0.5 + rays * 0.3;
+    alpha *= 1.0 - smoothstep(0.3, 0.5, dist);
+    alpha = pow(clamp(alpha, 0.0, 1.0), 0.6);
     
-    // Soft organic edge fade
-    float edgeRadius = organicEdge(center, 0.3, t, uniqueOffset);
-    alpha *= 1.0 - smoothstep(edgeRadius - 0.15, edgeRadius + 0.1, dist);
-    alpha = pow(clamp(alpha, 0.0, 1.0), 0.7);
-    
-    if (alpha < 0.01) discard;
+    if (alpha < 0.005) discard;
     
     gl_FragColor = vec4(finalColor * globalOpacity, alpha * globalOpacity);
   }
@@ -721,7 +716,7 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOp
     }
   });
   
-  const spriteSize = 0.9 * scale;
+  const spriteSize = 1.2 * scale;
   
   return (
     <mesh ref={meshRef}>
@@ -803,7 +798,7 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, 
     }
   });
   
-  const glowSize = 1.4 * scale;
+  const glowSize = 2.0 * scale;
   
   return (
     <mesh ref={meshRef}>
