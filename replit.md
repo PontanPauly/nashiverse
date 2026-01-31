@@ -111,6 +111,11 @@ Key tables:
     - AtmosphericHaze component (5x scale) for very wide, soft glow that bleeds into surrounding space
     - DiffractionSpikes component with 4-point primary and 6-point secondary light rays
     - Extra effects render only on hover/focus to prevent GPU overload
+  - **Improved Hover Interactions**:
+    - Enlarged star hitboxes (0.6-0.7x scale) for easier detection
+    - 3D sphere hitboxes for households instead of flat sprites (better raycasting from any angle)
+    - Cursor pointer feedback on hover for clear affordance
+    - Event handlers on hitbox meshes for precise detection
   - **Solar System Family Layout**: Parents orbit together at center, children orbit around them
   - Parents placed in tight binary orbit (0.6 radius) to show they're a unit
   - Children arranged in full circular orbit (3.0 radius) around the parents
