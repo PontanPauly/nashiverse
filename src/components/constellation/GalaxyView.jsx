@@ -1471,7 +1471,7 @@ function AnimatedHouseholdGroup({
         focusedId={focusedHouseholdId ? focusedStarId : null}
         globalOpacity={starRenderOpacity}
         globalScale={1}
-        animated={false}
+        animated={isFocused}
       />
     </group>
   );
