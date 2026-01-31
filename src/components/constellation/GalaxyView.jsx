@@ -1905,20 +1905,29 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, isHover
   const stretch2 = 0.8 + (colorIndex % 4) * 0.15;
   const baseRotation = (colorIndex * 0.7) % (Math.PI * 2);
   
-  const hitboxSize = scale * 12;
+  const hitboxRadius = scale * 5;
   
   return (
     <group position={position}>
       <HouseholdLabel name={householdName} isVisible={isHovered} color={colors.primary} />
       
-      <sprite
-        scale={[hitboxSize, hitboxSize, 1]}
+      {/* 3D sphere hitbox for better raycasting from any angle */}
+      <mesh
+        visible={false}
         onClick={onClick}
-        onPointerOver={onPointerOver}
-        onPointerOut={onPointerOut}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          document.body.style.cursor = 'pointer';
+          onPointerOver?.(e);
+        }}
+        onPointerOut={(e) => {
+          document.body.style.cursor = 'default';
+          onPointerOut?.(e);
+        }}
       >
-        <spriteMaterial transparent opacity={0} depthWrite={false} />
-      </sprite>
+        <sphereGeometry args={[hitboxRadius, 16, 16]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
       
       <sprite 
         scale={[scale * 6 * stretch1, scale * 5, 1]}

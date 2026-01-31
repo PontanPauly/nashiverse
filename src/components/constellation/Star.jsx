@@ -1200,9 +1200,6 @@ export default function Star({
       <group 
         ref={groupRef} 
         position={position}
-        onClick={onClick}
-        onPointerOver={onPointerOver}
-        onPointerOut={onPointerOut}
       >
         <StarLabel name={personName} isVisible={isHovered || isFocused} />
         
@@ -1248,8 +1245,24 @@ export default function Star({
           frozen={true}
         />
         
-        <mesh visible={false}>
-          <sphereGeometry args={[0.2 * activeScale, 6, 6]} />
+        {/* Larger invisible hitbox for easier hover detection */}
+        <mesh 
+          visible={false}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            document.body.style.cursor = 'pointer';
+            onPointerOver?.(e);
+          }}
+          onPointerOut={(e) => {
+            document.body.style.cursor = 'default';
+            onPointerOut?.(e);
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick?.(e);
+          }}
+        >
+          <sphereGeometry args={[0.6 * activeScale, 8, 8]} />
           <meshBasicMaterial transparent opacity={0} />
         </mesh>
       </group>
@@ -1260,9 +1273,6 @@ export default function Star({
     <group 
       ref={groupRef} 
       position={position}
-      onClick={onClick}
-      onPointerOver={onPointerOver}
-      onPointerOut={onPointerOut}
     >
       <StarLabel name={personName} isVisible={isHovered || isFocused} />
       
@@ -1304,8 +1314,24 @@ export default function Star({
         globalOpacity={globalOpacity}
       />
       
-      <mesh visible={false}>
-        <sphereGeometry args={[0.25 * activeScale, 8, 8]} />
+      {/* Larger invisible hitbox for easier hover detection */}
+      <mesh 
+        visible={false}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          document.body.style.cursor = 'pointer';
+          onPointerOver?.(e);
+        }}
+        onPointerOut={(e) => {
+          document.body.style.cursor = 'default';
+          onPointerOut?.(e);
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick?.(e);
+        }}
+      >
+        <sphereGeometry args={[0.7 * activeScale, 8, 8]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
     </group>
