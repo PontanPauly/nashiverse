@@ -25,7 +25,28 @@ const entityToTable = {
   Ritual: 'rituals',
   Conversation: 'conversations',
   Message: 'messages',
-  User: 'users'
+  User: 'users',
+  // Lowercase versions for direct table access
+  people: 'people',
+  trips: 'trips',
+  households: 'households',
+  relationships: 'relationships',
+  trip_participants: 'trip_participants',
+  meals: 'meals',
+  rooms: 'rooms',
+  activities: 'activities',
+  expenses: 'expenses',
+  packing_items: 'packing_items',
+  shared_trip_items: 'shared_trip_items',
+  moments: 'moments',
+  love_notes: 'love_notes',
+  family_stories: 'family_stories',
+  family_settings: 'family_settings',
+  join_requests: 'join_requests',
+  rituals: 'rituals',
+  conversations: 'conversations',
+  messages: 'messages',
+  users: 'users'
 };
 
 function getTableName(entityType) {
