@@ -2353,6 +2353,7 @@ function NebulaScene({
   transitioningHousehold,
   onTransitionComplete,
   viewMode = 'nebula',
+  filters = {},
 }) {
   const [transitionProgress, setTransitionProgress] = useState(0);
   const [transitionDirection, setTransitionDirection] = useState(null);
@@ -3107,6 +3108,7 @@ export default function GalaxyView({ people = [], relationships = [], households
           transitioningHousehold={transitioningHousehold}
           onTransitionComplete={handleTransitionComplete}
           viewMode={viewMode}
+          filters={filters}
         />
       </Canvas>
       
