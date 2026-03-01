@@ -6,10 +6,12 @@ Nashiverse is a family management application with a cosmic/space theme. It help
 ## Architecture
 
 ### Backend (Express.js + PostgreSQL)
-- **Server**: Express.js running on port 3001
-- **Database**: PostgreSQL with 20 tables
-- **Authentication**: Session-based using express-session and bcrypt
+- **Server**: Express.js running on port 3001 (dev) / port 5000 (production)
+- **Database**: PostgreSQL with 21 tables (including calendar_events and session)
+- **Authentication**: Session-based using express-session + connect-pg-simple (PostgreSQL session store) + bcrypt
 - **File Uploads**: Multer-based file upload to `/uploads` directory
+- **Security**: Column whitelisting per entity, CORS restrictions, security headers (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection), SameSite cookies
+- **Migrations**: Auto-run on startup via `server/db/migrate.js` (ALTER TABLE ADD COLUMN IF NOT EXISTS)
 
 ### Frontend (React + Vite)
 - **Framework**: React with Vite
@@ -20,112 +22,71 @@ Nashiverse is a family management application with a cosmic/space theme. It help
 ### Key Features
 1. **Family Galaxy** - 3D WebGL-powered family constellation with customizable stars
    - React Three Fiber + Three.js rendering
-   - **Hierarchical navigation**: Galaxy level shows households as glowing nebula clusters, click to zoom into a household to see individual family members as stars
-   - Force-directed organic layout using d3-force-3d for household positioning
-   - HouseholdCluster component with simplified nebula effects (2-layer design with hover scaling)
+   - **Dual View Modes**: "Nebula Mode" (volumetric nebula clusters) and "Star Map Mode" (NMS-inspired star points)
+   - **Star Classification System**: Households color-coded by member count (F=Yellow 1-2, K=Red 3-4, E=Green 5-7, O=Blue 8+)
+   - **Connection Lines**: Faint lines between related households, highlighted on hover
+   - **NMS-Style HUD**: Top bar with coordinate readout, filter toggles, minimap, corner-bracket framed panels
+   - **Warp Transitions**: Visual warp streaks when zooming into a household system
+   - Force-directed organic layout for household positioning
    - 8,640+ unique star combinations (8 shapes × 12 colors × 6 glows × 5 animations × 3 sizes)
    - Smooth camera fly-through animations with OrbitControls
-   - Navigation UI overlay: zoom +/-, reset view, back to galaxy button, breadcrumb navigation
    - Editable star profiles per family member
-   - **Galaxy Visual Enhancements (Hubble-inspired)**:
-     - SpiralArmParticles: 25,000 particles in 4 logarithmic spiral arms
-     - Color gradient: Warm golden core (#FFB347) → cool blue edges (#1E90FF)
-     - Enhanced starfield with diffraction spikes for bright stars
-     - FogExp2 atmospheric depth effect
-     - Gentle galaxy rotation animation
-     - VolumetricDustLayers with FBM noise for cosmic clouds
+   - Solar system family layout: parents orbit at center, children orbit around them
 2. **Trip Planning** - Full trip management with participants, rooms, meals, activities, budgets
 3. **Love Notes** - Gratitude messages between family members
 4. **Moments** - Photo/memory sharing
 5. **Family Stories** - Story preservation
 6. **Traditions/Rituals** - Family rituals tracking
-7. **Calendar** - Family events and birthdays
+7. **Calendar** - Family events and birthdays (CalendarEvent entity)
 8. **Messaging** - Family communication
 
 ## Database Schema
 Key tables:
-- `users` - Authentication and user accounts
-- `people` - Family members
-- `households` - Family households
+- `users` - Authentication and user accounts (with role column)
+- `people` - Family members (with star_profile JSONB, about, medical_notes)
+- `households` - Family households (with description)
 - `relationships` - Relationships between people (parent/partner/sibling)
-- `trips` - Trip planning
+- `trips` - Trip planning (with visibility, status)
 - `trip_participants`, `meals`, `rooms`, `activities`, `expenses` - Trip details
+- `calendar_events` - Calendar events with date, event_type, person_ids, is_recurring, color
 - `moments` - Photo memories
 - `love_notes` - Gratitude messages
 - `family_stories` - Family narratives
+- `family_settings` - App configuration (with tagline, admin_emails, planner_emails)
+- `join_requests` - Family join requests (with reviewed_by_email)
 - `rituals` - Family traditions
 - `conversations`, `messages` - Family messaging
+- `session` - PostgreSQL session store for connect-pg-simple
 
 ## API Routes
 - `/api/auth/*` - Authentication (register, login, logout, me)
-- `/api/entities/:type` - Generic CRUD for all entity types
+- `/api/entities/:type` - Secured CRUD with column whitelisting (no users table access)
+- `/api/functions/:functionName` - Backend functions (exportFamilyData, makeAdmin, cleanupTestData, getFamilyInsights)
 - `/api/upload` - File uploads
+- `/api/health` - Health check endpoint
+
+## Security
+- Entity type whitelist (unknown types return 403)
+- Column whitelist per entity (prevents SQL injection via column names)
+- Users table excluded from generic CRUD
+- Sessions stored in PostgreSQL (survives restarts/scaling)
+- cleanupTestData gated behind NODE_ENV !== 'production'
+- Security headers: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection
+- SameSite cookies (strict in production, lax in development)
 
 ## Development Setup
 1. Frontend runs on port 5000 (proxies API requests to backend)
 2. Backend runs on port 3001
 3. Database uses PostgreSQL via DATABASE_URL env var
+4. Migrations run automatically on server startup
 
-## Recent Changes
-- Migrated from Base44 backend-as-a-service to self-contained PostgreSQL + Express.js
-- Implemented session-based authentication with login/register pages
-- Created custom API client that preserves Base44 SDK patterns for minimal frontend changes
-- Added 3D Galaxy View for family visualization using React Three Fiber
-- Created star customization system with 8,640+ unique combinations
-- Added StarEditor component for personalized star profiles
-- Seeded database with 58-member Nash-Martinez extended family across 5 generations
-- **Immersive 3D Nebula Volume** (Jan 2026):
-  - **ImmersiveNebulaVolume**: True volumetric raymarching through a 120-radius sphere
-  - Camera positioned INSIDE the volume for immersive experience
-  - Ray-sphere intersection for proper depth sampling
-  - Multi-scale noise: large clouds + ridged FBM for filaments + fine detail
-  - Anisotropic stretching (0.6 Y-axis) for elongated cloud structures
-  - Beer-Lambert attenuation for realistic light absorption
-  - Warm core (orange/pink) → cool edges (blue/cyan/teal) color gradient
-  - Jittered ray steps to reduce banding artifacts
-  - **NebulaFilaments**: 2000-3000 soft glowing particles throughout volume
-  - Tier-aware quality: High=32 steps, Medium=24, Low=16 (optimized for GPU stability)
-  - Removed flat billboard layers in favor of true 3D volumetrics
-- **Star & Nebula Visual Refinements** (Jan 2026):
-  - Rebalanced nebula color palette: reduced cyan/teal saturation, deepened purples
-  - 6 distinct star visual styles: Nebula, Classic, Plasma, Crystal, Pulse, Nova
-  - Organic edge function for irregular star boundaries (no circular cutoffs)
-  - Enlarged billboard geometry (0.9x sprite, 1.4x glow) with proper alpha fade
-  - Reduced shader complexity (ray steps/octaves) to prevent WebGL context loss
-  - Unified galaxy and household view backdrops for visual consistency
-  - Smooth camera fly-through animation when clicking household nebulas (zooms to actual position)
-- **Focus/Blur State Management** (Jan 2026):
-  - CameraController uses consistent 1.6s easeInOutCubic for both zoom-in and zoom-out transitions
-  - Added `effectiveFocusProgress` that computes 0→1 for zoom-in, 1→0 for zoom-out, and static values for idle state
-  - Added `effectiveFocusedId` that preserves focus target during zoom-out transition for smooth fade restoration
-  - CameraController fires `onProgressUpdate(1, 'idle')` when animation completes to properly reset state
-  - Households now smoothly fade during zoom-in and fully restore brightness during zoom-out
-  - Enlarged hitbox (12x scale) for easier household hover detection
-- **Family Constellation Improvements** (Jan 2026):
-  - **Organic Star Appearance**: Redesigned Classic star shader with softer glows, atmospheric falloff, and no hard edges
-  - **Universal Edge Fade**: All 6 star styles (Nebula, Classic, Plasma, Crystal, Pulse, Nova) now use a universal edge fade function that guarantees smooth alpha falloff to zero before plane edges
-  - Enlarged star sprites (1.6x) and outer glow (3.5x) for more prominent, soft appearance
-  - Tighter organic edge bounds (0.28 max radius) leaving 40% margin for smooth fade
-  - **Atmospheric Blending Layers**:
-    - Multi-layer OuterGlow with inner/mid/outer radii and color transitions toward space-blue at edges
-    - AtmosphericHaze component (5x scale) for very wide, soft glow that bleeds into surrounding space
-    - DiffractionSpikes component with 4-point primary and 6-point secondary light rays
-    - Extra effects render only on hover/focus to prevent GPU overload
-  - **Improved Hover Interactions**:
-    - Enlarged star hitboxes (0.6-0.7x scale) for easier detection
-    - 3D sphere hitboxes for households instead of flat sprites (better raycasting from any angle)
-    - Cursor pointer feedback on hover for clear affordance
-    - Event handlers on hitbox meshes for precise detection
-  - **Solar System Family Layout**: Parents orbit together at center, children orbit around them
-  - Parents placed in tight binary orbit (0.6 radius) to show they're a unit
-  - Children arranged in full circular orbit (3.0 radius) around the parents
-  - Uses relationship data (partner/spouse/married) to identify couples, falls back to role_type
-  - **Visual Orbit Rings**: 
-    - Inner ring (0.8 radius) around parents showing their shared orbit
-    - Outer ring (3.0 radius) showing children's orbit path
-  - **Constellation Lines**: Bright line between partners, softer lines radiating to children
-  - Lines drawn from family center to each child, not between siblings
-- **Production Deployment Fix** (Jan 2026):
-  - Changed deployment from static to autoscale so backend runs in production
-  - Express server now serves both API endpoints and static files from dist folder
-  - Server uses port 5000 in production, port 3001 in development
+## Key Files
+- `server/index.js` - Express server setup with security, sessions, routes
+- `server/db/migrate.js` - Auto-migration script (runs on startup)
+- `server/routes/entities.js` - Secured generic CRUD with column whitelisting
+- `server/routes/functions.js` - Backend function handlers
+- `src/api/base44Client.js` - Frontend API client
+- `src/lib/starClassification.js` - NMS-style star classification + household edge computation
+- `src/components/constellation/GalaxyView.jsx` - Main 3D galaxy scene
+- `src/components/constellation/HouseholdCluster.jsx` - Household visuals (nebula + star map modes)
+- `src/components/constellation/Star.jsx` - Individual star rendering with 6 shader styles

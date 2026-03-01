@@ -186,7 +186,7 @@ const entityTypes = [
   'Person', 'Trip', 'Household', 'Relationship', 'TripParticipant',
   'Meal', 'Room', 'Activity', 'Expense', 'PackingItem', 'SharedTripItem',
   'Moment', 'LoveNote', 'FamilyStory', 'FamilySettings', 'JoinRequest',
-  'Ritual', 'Conversation', 'Message', 'User'
+  'Ritual', 'Conversation', 'Message', 'CalendarEvent'
 ];
 
 const entities = {};

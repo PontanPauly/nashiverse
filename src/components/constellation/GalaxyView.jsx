@@ -2,8 +2,9 @@ import React, { useMemo, useState, useRef, useCallback, useEffect, Suspense, cre
 import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
 import { OrbitControls, Html, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
-import HouseholdCluster, { HOUSEHOLD_COLORS } from './HouseholdCluster';
-import { ChevronRight, ZoomIn, ZoomOut, RotateCcw, Home } from 'lucide-react';
+import HouseholdCluster, { HOUSEHOLD_COLORS, StarMapCluster } from './HouseholdCluster';
+import { classifyHousehold, computeHouseholdEdges } from '@/lib/starClassification';
+import { ChevronRight, ZoomIn, ZoomOut, RotateCcw, Home, Sparkles, Cloud, Eye, EyeOff } from 'lucide-react';
 import { generateRandomStarProfile } from '@/lib/starConfig';
 import { StarInstanced } from './Star';
 
@@ -26,11 +27,11 @@ function useQualityTier() {
     const isLowEnd = cores <= 4 || screenPixels > 6000000;
     
     if (isHighEnd) {
-      return { tier: 'high', starCount: 12000, gasCount: 3000, useGlb: true };
+      return { tier: 'high', starCount: 70000, gasCount: 2000, useGlb: true };
     } else if (isLowEnd) {
-      return { tier: 'low', starCount: 6000, gasCount: 1000, useGlb: false };
+      return { tier: 'low', starCount: 40000, gasCount: 600, useGlb: false };
     } else {
-      return { tier: 'medium', starCount: 8000, gasCount: 1500, useGlb: true };
+      return { tier: 'medium', starCount: 55000, gasCount: 1000, useGlb: true };
     }
   }, []);
 }
@@ -69,7 +70,7 @@ function generateUniquenessProfile(seed) {
   };
 }
 
-function useOrganicClusterLayout(households, people) {
+function useOrganicClusterLayout(households, people, viewMode = 'nebula') {
   return useMemo(() => {
     if (!households || households.length === 0) return new Map();
     
@@ -86,25 +87,27 @@ function useOrganicClusterLayout(households, people) {
     const positions = new Map();
     const placedPositions = [];
     const count = households.length;
-    const minSeparation = 12.0;
-    const nebulaRadius = 40;
+    const minSeparation = viewMode === 'starmap' ? 20.0 : 12.0;
+    const nebulaRadius = viewMode === 'starmap' ? 60 : 40;
     
     households.forEach((household, index) => {
       const seed = household.id;
       
       const clusterIndex = Math.floor(seededRandom(seed + '-cluster') * 5);
+      const scaleFactor = viewMode === 'starmap' ? 1.5 : 1.0;
       const clusterCenters = [
         { x: 0, y: 0, z: 0 },
-        { x: -22, y: 5, z: 15 },
-        { x: 18, y: -3, z: -18 },
-        { x: -15, y: -6, z: -20 },
-        { x: 25, y: 8, z: 10 },
+        { x: -22 * scaleFactor, y: 5 * scaleFactor, z: 15 * scaleFactor },
+        { x: 18 * scaleFactor, y: -3 * scaleFactor, z: -18 * scaleFactor },
+        { x: -15 * scaleFactor, y: -6 * scaleFactor, z: -20 * scaleFactor },
+        { x: 25 * scaleFactor, y: 8 * scaleFactor, z: 10 * scaleFactor },
       ];
       const cluster = clusterCenters[clusterIndex];
       
-      const spreadX = (seededRandom(seed + '-spreadX') - 0.5) * 18;
-      const spreadY = (seededRandom(seed + '-spreadY') - 0.5) * 10;
-      const spreadZ = (seededRandom(seed + '-spreadZ') - 0.5) * 18;
+      const spreadMult = viewMode === 'starmap' ? 1.4 : 1.0;
+      const spreadX = (seededRandom(seed + '-spreadX') - 0.5) * 18 * spreadMult;
+      const spreadY = (seededRandom(seed + '-spreadY') - 0.5) * 10 * spreadMult;
+      const spreadZ = (seededRandom(seed + '-spreadZ') - 0.5) * 18 * spreadMult;
       
       let x = cluster.x + spreadX;
       let y = cluster.y + spreadY;
@@ -146,7 +149,7 @@ function useOrganicClusterLayout(households, people) {
     });
     
     return positions;
-  }, [households, people]);
+  }, [households, people, viewMode]);
 }
 
 function NebulaModel({ url, position, scale, rotation, opacity = 0.4 }) {
@@ -310,9 +313,9 @@ function ImmersiveNebulaVolume({ qualityTier }) {
           float density = combined * edgeFalloff;
           density *= mix(1.0, 0.3, coreFalloff * 0.5);
           
-          density = pow(max(density - 0.15, 0.0), 1.2);
+          density = pow(max(density - 0.25, 0.0), 1.5);
           
-          return density * 0.8;
+          return density * 0.18;
         }
         
         vec3 nebulaColor(vec3 p, float density, float t) {
@@ -379,7 +382,7 @@ function ImmersiveNebulaVolume({ qualityTier }) {
           
           totalColor = pow(totalColor, vec3(0.85));
           
-          gl_FragColor = vec4(totalColor, totalAlpha * 0.9);
+          gl_FragColor = vec4(totalColor, totalAlpha * 0.35);
         }
       `,
       uniforms: {
@@ -410,7 +413,7 @@ function NebulaFilaments({ count = 800, qualityTier }) {
   
   const isHigh = qualityTier.tier === 'high';
   const isMedium = qualityTier.tier === 'medium';
-  const particleCount = isHigh ? 1200 : (isMedium ? 800 : 400);
+  const particleCount = isHigh ? 400 : (isMedium ? 250 : 150);
   
   const { positions, colors, sizes, phases } = useMemo(() => {
     const pos = new Float32Array(particleCount * 3);
@@ -446,7 +449,7 @@ function NebulaFilaments({ count = 800, qualityTier }) {
       col[i * 3 + 1] = c.g * brightness;
       col[i * 3 + 2] = c.b * brightness;
       
-      siz[i] = 3 + Math.random() * 8;
+      siz[i] = 2 + Math.random() * 5;
       pha[i] = Math.random() * Math.PI * 2;
     }
     
@@ -467,7 +470,7 @@ function NebulaFilaments({ count = 800, qualityTier }) {
           vColor = particleColor;
           
           float drift = sin(time * 0.15 + phase) * 0.2 + 0.8;
-          vAlpha = 0.15 * drift;
+          vAlpha = 0.04 * drift;
           
           vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * (150.0 / -mvPos.z);
@@ -584,24 +587,30 @@ function NebulaBackground() {
         void main() {
           vec3 dir = normalize(vPosition);
           
-          float n1 = fbm(dir * 2.0 + time * 0.002);
-          float n2 = fbm(dir * 3.0 - time * 0.001);
-          float n3 = fbm(dir * 4.0 + time * 0.003);
+          float n1 = fbm(dir * 2.0 + time * 0.001);
+          float n2 = fbm(dir * 3.0 - time * 0.0008);
+          float n3 = fbm(dir * 1.5 + time * 0.0005);
+          float n4 = fbm(dir * 0.8 + time * 0.0003);
           
-          vec3 deepPurple = vec3(0.118, 0.106, 0.294);
-          vec3 deepBlue = vec3(0.118, 0.251, 0.424);
-          vec3 teal = vec3(0.035, 0.569, 0.698);
-          vec3 deepSpace = vec3(0.01, 0.01, 0.03);
-          vec3 vibrantPurple = vec3(0.486, 0.227, 0.929);
+          vec3 deepSpace = vec3(0.008, 0.008, 0.02);
+          vec3 softPink = vec3(0.18, 0.04, 0.08);
+          vec3 softPurple = vec3(0.08, 0.03, 0.15);
+          vec3 softBlue = vec3(0.03, 0.06, 0.15);
+          vec3 softTeal = vec3(0.02, 0.08, 0.10);
+          
+          vec3 baseColor = deepSpace;
+          
+          float zone1 = smoothstep(0.35, 0.65, n3);
+          float zone2 = smoothstep(0.4, 0.7, n4);
+          float zone3 = smoothstep(0.45, 0.75, fbm(dir * 1.2 - time * 0.0004));
+          
+          baseColor = mix(baseColor, softPink, zone1 * 0.25);
+          baseColor = mix(baseColor, softPurple, zone2 * 0.3);
+          baseColor = mix(baseColor, softBlue, zone3 * 0.25);
+          baseColor = mix(baseColor, softTeal, smoothstep(0.5, 0.8, n1) * 0.15);
           
           float yFactor = (dir.y + 1.0) * 0.5;
-          vec3 baseColor = mix(deepSpace, deepPurple, yFactor * 0.6);
-          baseColor = mix(baseColor, deepBlue, n1 * 0.4);
-          baseColor = mix(baseColor, teal, n2 * 0.15);
-          
-          float nebulaIntensity = pow(n3, 2.0) * 0.2;
-          vec3 nebulaGlow = mix(vibrantPurple, teal, n1);
-          baseColor += nebulaGlow * nebulaIntensity;
+          baseColor = mix(baseColor, softPurple * 0.5, yFactor * 0.15);
           
           gl_FragColor = vec4(baseColor, 1.0);
         }
@@ -625,7 +634,7 @@ function NebulaBackground() {
   );
 }
 
-function DenseStarField({ count = 55000 }) {
+function DenseStarField({ count = 70000 }) {
   const pointsRef = useRef(null);
   
   const { positions, colors, sizes, twinklePhases, brightStars } = useMemo(() => {
@@ -642,12 +651,10 @@ function DenseStarField({ count = 55000 }) {
       [0.85, 0.9, 1.0],
       [1.0, 0.9, 0.95],
       [0.95, 0.98, 1.0],
-      [0.486, 0.227, 0.929],
-      [0.035, 0.569, 0.698],
     ];
     
-    const farCount = Math.floor(count * 0.6);
-    const midCount = Math.floor(count * 0.3);
+    const farCount = Math.floor(count * 0.7);
+    const midCount = Math.floor(count * 0.25);
     const closeCount = count - farCount - midCount;
     
     for (let i = 0; i < count; i++) {
@@ -656,7 +663,7 @@ function DenseStarField({ count = 55000 }) {
       
       let radius;
       if (i < farCount) {
-        radius = 150 + Math.random() * 100;
+        radius = 150 + Math.random() * 120;
       } else if (i < farCount + midCount) {
         radius = 80 + Math.random() * 70;
       } else {
@@ -668,22 +675,31 @@ function DenseStarField({ count = 55000 }) {
       pos[i * 3 + 2] = radius * Math.cos(phi);
       
       const colorIndex = Math.floor(Math.random() * starColors.length);
-      const brightness = 0.4 + Math.random() * 0.6;
+      const dimFactor = Math.pow(Math.random(), 1.8);
+      const brightness = 0.15 + dimFactor * 0.45;
       col[i * 3] = starColors[colorIndex][0] * brightness;
       col[i * 3 + 1] = starColors[colorIndex][1] * brightness;
       col[i * 3 + 2] = starColors[colorIndex][2] * brightness;
       
-      const sizeFactor = Math.pow(Math.random(), 2.5);
+      const sizeFactor = Math.pow(Math.random(), 3.5);
       if (i < farCount) {
-        siz[i] = 0.3 + sizeFactor * 0.6;
+        siz[i] = 0.15 + sizeFactor * 0.35;
       } else if (i < farCount + midCount) {
-        siz[i] = 0.5 + sizeFactor * 1.0;
+        siz[i] = 0.2 + sizeFactor * 0.6;
       } else {
-        siz[i] = 0.8 + sizeFactor * 1.5;
+        siz[i] = 0.3 + sizeFactor * 0.8;
       }
       
       phases[i] = Math.random() * Math.PI * 2;
-      bright[i] = Math.random() < 0.008 ? 1.0 : 0.0;
+      bright[i] = Math.random() < 0.002 ? 1.0 : 0.0;
+      
+      if (bright[i] > 0.5) {
+        siz[i] = 1.5 + Math.random() * 2.5;
+        const b = 0.7 + Math.random() * 0.3;
+        col[i * 3] = starColors[colorIndex][0] * b;
+        col[i * 3 + 1] = starColors[colorIndex][1] * b;
+        col[i * 3 + 2] = starColors[colorIndex][2] * b;
+      }
     }
     
     return { 
@@ -838,7 +854,7 @@ function NebulaGasCloud({ count = 8000 }) {
           vColor = gasColor;
           
           float drift = sin(time * 0.08 + phase) * 0.2;
-          vAlpha = 0.08 + drift * 0.04;
+          vAlpha = 0.03 + drift * 0.015;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * (200.0 / -mvPosition.z);
@@ -899,6 +915,102 @@ function VignetteOverlay() {
         background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.4) 100%)',
       }}
     />
+  );
+}
+
+function WarpOverlay({ active, direction }) {
+  const [phase, setPhase] = useState('idle');
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (active && direction === 'zoom-in') {
+      setPhase('warping');
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setPhase('flash'), 1100);
+    } else if (!active && phase !== 'idle') {
+      setPhase('fading');
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setPhase('idle'), 600);
+    }
+    return () => clearTimeout(timerRef.current);
+  }, [active, direction]);
+
+  if (phase === 'idle') return null;
+
+  return (
+    <div className="absolute inset-0 pointer-events-none z-[45]">
+      {phase === 'warping' && (
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'radial-gradient(ellipse at center, transparent 5%, transparent 20%, rgba(140,180,255,0.06) 35%, rgba(80,140,255,0.12) 55%, rgba(40,80,200,0.18) 75%, rgba(10,20,60,0.5) 100%)',
+            animation: 'warpStreaks 1.2s ease-in forwards',
+          }}
+        />
+      )}
+      {phase === 'warping' && (
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `
+              repeating-conic-gradient(
+                from 0deg at 50% 50%,
+                transparent 0deg,
+                rgba(180,220,255,0.04) 1.5deg,
+                transparent 3deg,
+                transparent 7deg,
+                rgba(120,180,255,0.03) 8.5deg,
+                transparent 10deg
+              )
+            `,
+            animation: 'warpRotate 1.2s linear forwards',
+            filter: 'blur(1px)',
+          }}
+        />
+      )}
+      {phase === 'warping' && (
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'radial-gradient(ellipse at center, transparent 0%, transparent 60%, rgba(0,0,0,0.6) 100%)',
+            animation: 'warpTunnel 1.2s ease-in forwards',
+          }}
+        />
+      )}
+      {(phase === 'flash' || phase === 'fading') && (
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'radial-gradient(ellipse at center, rgba(200,230,255,0.9) 0%, rgba(100,160,255,0.4) 30%, transparent 70%)',
+            animation: 'warpFlash 0.5s ease-out forwards',
+          }}
+        />
+      )}
+      <style>{`
+        @keyframes warpStreaks {
+          0% { opacity: 0; transform: scale(1); filter: blur(0px); }
+          30% { opacity: 1; transform: scale(1.02); filter: blur(0px); }
+          70% { opacity: 1; transform: scale(1.05); filter: blur(2px); }
+          100% { opacity: 1; transform: scale(1.15); filter: blur(6px); }
+        }
+        @keyframes warpRotate {
+          0% { opacity: 0; transform: rotate(0deg) scale(1); }
+          20% { opacity: 0.6; }
+          60% { opacity: 1; transform: rotate(15deg) scale(1.3); }
+          100% { opacity: 0.8; transform: rotate(40deg) scale(2); }
+        }
+        @keyframes warpTunnel {
+          0% { opacity: 0; }
+          40% { opacity: 0.3; }
+          100% { opacity: 1; }
+        }
+        @keyframes warpFlash {
+          0% { opacity: 1; }
+          30% { opacity: 0.6; }
+          100% { opacity: 0; }
+        }
+      `}</style>
+    </div>
   );
 }
 
@@ -1275,6 +1387,45 @@ function FadeInGroup({ children, duration = 1.4, delay = 0.3 }) {
   );
 }
 
+function SystemCenterGlow({ position, color, intensity = 0.4 }) {
+  const spriteRef = useRef();
+  
+  const glowTex = useMemo(() => {
+    const size = 64;
+    const data = new Uint8Array(size * size * 4);
+    const center = size / 2;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const dx = (x - center) / center;
+        const dy = (y - center) / center;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const alpha = Math.pow(Math.max(0, 1 - dist), 3);
+        const i = (y * size + x) * 4;
+        data[i] = 255;
+        data[i + 1] = 255;
+        data[i + 2] = 255;
+        data[i + 3] = Math.floor(alpha * 255);
+      }
+    }
+    const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+    tex.needsUpdate = true;
+    return tex;
+  }, []);
+
+  return (
+    <sprite ref={spriteRef} position={position} scale={[2.5, 2.5, 1]}>
+      <spriteMaterial
+        map={glowTex}
+        color={color}
+        transparent
+        opacity={intensity}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </sprite>
+  );
+}
+
 function SystemLevelScene({
   household,
   people,
@@ -1313,6 +1464,11 @@ function SystemLevelScene({
   
   return (
     <group>
+      <SystemCenterGlow
+        position={[centerX, centerY, centerZ]}
+        color={colors.glow}
+        intensity={0.25 * fadeOpacity}
+      />
       <StarInstanced
         stars={starsWithProfiles}
         onStarClick={onStarClick}
@@ -1343,7 +1499,11 @@ function AnimatedHouseholdGroup({
   focusedStarId,
   onClick, 
   onPointerOver, 
-  onPointerOut 
+  onPointerOut,
+  viewMode = 'nebula',
+  memberCount = 0,
+  starClass,
+  showLabels = true,
 }) {
   const groupRef = useRef();
   const { camera } = useThree();
@@ -1445,23 +1605,37 @@ function AnimatedHouseholdGroup({
   
   return (
     <group ref={groupRef}>
-      <HouseholdAtmosphere
-        position={[0, 0, 0]}
-        colorIndex={colorIndex}
-        opacity={renderOpacity}
-        scale={1}
-        isHovered={isHovered && !focusedHouseholdId}
-        householdName={household.name}
-        isFocusedView={!!focusedHouseholdId}
-        onClick={onClick}
-        onPointerOver={onPointerOver}
-        onPointerOut={onPointerOut}
-      />
+      {viewMode === 'starmap' ? (
+        <StarMapCluster
+          position={[0, 0, 0]}
+          household={household}
+          memberCount={memberCount}
+          starClass={starClass}
+          isHovered={isHovered && !focusedHouseholdId}
+          onClick={onClick}
+          onPointerOver={onPointerOver}
+          onPointerOut={onPointerOut}
+          showLabels={showLabels}
+        />
+      ) : (
+        <HouseholdAtmosphere
+          position={[0, 0, 0]}
+          colorIndex={colorIndex}
+          opacity={renderOpacity}
+          scale={1}
+          isHovered={showLabels && isHovered && !focusedHouseholdId}
+          householdName={household.name}
+          isFocusedView={!!focusedHouseholdId}
+          onClick={onClick}
+          onPointerOver={onPointerOver}
+          onPointerOut={onPointerOut}
+        />
+      )}
       <ConstellationLines
         stars={localStars}
         relationships={relationships}
         colorIndex={colorIndex}
-        opacity={starRenderOpacity * 0.5}
+        opacity={starRenderOpacity * (isFocused ? 0.8 : 0.5)}
       />
       <StarInstanced
         stars={localStars}
@@ -1480,41 +1654,66 @@ function AnimatedHouseholdGroup({
 function FamilyOrbitRing({ center, radius, colorIndex, opacity = 0.3 }) {
   const ringRef = useRef();
   
-  const points = useMemo(() => {
-    const segments = 64;
+  const { points, dashPoints } = useMemo(() => {
+    const segments = 128;
     const pts = [];
+    const dPts = [];
     for (let i = 0; i <= segments; i++) {
       const angle = (i / segments) * Math.PI * 2;
-      pts.push(new THREE.Vector3(
-        center[0] + Math.cos(angle) * radius,
-        center[1],
-        center[2] + Math.sin(angle) * radius
+      const x = center[0] + Math.cos(angle) * radius;
+      const y = center[1];
+      const z = center[2] + Math.sin(angle) * radius;
+      pts.push(new THREE.Vector3(x, y, z));
+      const tickRadius = radius + 0.08;
+      dPts.push(new THREE.Vector3(
+        center[0] + Math.cos(angle) * tickRadius,
+        y,
+        center[2] + Math.sin(angle) * tickRadius
       ));
     }
-    return pts;
+    return { points: pts, dashPoints: dPts };
   }, [center, radius]);
   
   const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
   const ringColor = new THREE.Color(baseColors.glow);
   
   return (
-    <line ref={ringRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={points.length}
-          array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
-          itemSize={3}
+    <group>
+      <line ref={ringRef}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={points.length}
+            array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <lineBasicMaterial
+          color={ringColor}
+          transparent
+          opacity={opacity * 1.4}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
         />
-      </bufferGeometry>
-      <lineBasicMaterial
-        color={ringColor}
-        transparent
-        opacity={opacity}
-        blending={THREE.AdditiveBlending}
-        depthWrite={false}
-      />
-    </line>
+      </line>
+      <line>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={dashPoints.length}
+            array={new Float32Array(dashPoints.flatMap(p => [p.x, p.y, p.z]))}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <lineBasicMaterial
+          color={ringColor}
+          transparent
+          opacity={opacity * 0.3}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </line>
+    </group>
   );
 }
 
@@ -1522,7 +1721,7 @@ function ParentOrbitRing({ center, radius, colorIndex, opacity = 0.5 }) {
   const ringRef = useRef();
   
   const points = useMemo(() => {
-    const segments = 32;
+    const segments = 48;
     const pts = [];
     for (let i = 0; i <= segments; i++) {
       const angle = (i / segments) * Math.PI * 2;
@@ -1539,23 +1738,36 @@ function ParentOrbitRing({ center, radius, colorIndex, opacity = 0.5 }) {
   const ringColor = new THREE.Color(baseColors.primary);
   
   return (
-    <line ref={ringRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={points.length}
-          array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
-          itemSize={3}
+    <group>
+      <line ref={ringRef}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={points.length}
+            array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <lineBasicMaterial
+          color={ringColor}
+          transparent
+          opacity={opacity * 1.3}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
         />
-      </bufferGeometry>
-      <lineBasicMaterial
-        color={ringColor}
-        transparent
-        opacity={opacity}
-        blending={THREE.AdditiveBlending}
-        depthWrite={false}
-      />
-    </line>
+      </line>
+      <mesh position={[center[0], center[1], center[2]]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[radius - 0.02, radius + 0.02, 48]} />
+        <meshBasicMaterial
+          color={ringColor}
+          transparent
+          opacity={opacity * 0.15}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -1664,7 +1876,7 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
           center={familyCenter} 
           radius={0.8} 
           colorIndex={colorIndex} 
-          opacity={0.4}
+          opacity={0.55}
         />
       )}
       {hasParents && hasChildren && (
@@ -1672,7 +1884,7 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
           center={familyCenter} 
           radius={3.0} 
           colorIndex={colorIndex} 
-          opacity={0.25}
+          opacity={0.35}
         />
       )}
       <lineSegments ref={lineRef}>
@@ -1693,6 +1905,104 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
   );
 }
 
+function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId }) {
+  const linesRef = useRef();
+
+  const { positions, colors, hoverMask } = useMemo(() => {
+    if (!edges || edges.length === 0) {
+      return { positions: new Float32Array(0), colors: new Float32Array(0), hoverMask: [] };
+    }
+
+    const pos = new Float32Array(edges.length * 6);
+    const col = new Float32Array(edges.length * 6);
+    const mask = [];
+
+    edges.forEach((edge, i) => {
+      const fromPos = householdPositions.get(edge.from);
+      const toPos = householdPositions.get(edge.to);
+      if (!fromPos || !toPos) {
+        pos[i * 6] = 0; pos[i * 6 + 1] = 0; pos[i * 6 + 2] = 0;
+        pos[i * 6 + 3] = 0; pos[i * 6 + 4] = 0; pos[i * 6 + 5] = 0;
+        col[i * 6] = 0; col[i * 6 + 1] = 0; col[i * 6 + 2] = 0;
+        col[i * 6 + 3] = 0; col[i * 6 + 4] = 0; col[i * 6 + 5] = 0;
+        mask.push({ from: null, to: null });
+        return;
+      }
+
+      pos[i * 6] = fromPos.x;
+      pos[i * 6 + 1] = fromPos.y;
+      pos[i * 6 + 2] = fromPos.z;
+      pos[i * 6 + 3] = toPos.x;
+      pos[i * 6 + 4] = toPos.y;
+      pos[i * 6 + 5] = toPos.z;
+
+      const baseColor = 0.25;
+      col[i * 6] = baseColor;
+      col[i * 6 + 1] = baseColor;
+      col[i * 6 + 2] = baseColor;
+      col[i * 6 + 3] = baseColor;
+      col[i * 6 + 4] = baseColor;
+      col[i * 6 + 5] = baseColor;
+
+      mask.push({ from: edge.from, to: edge.to });
+    });
+
+    return { positions: pos, colors: col, hoverMask: mask };
+  }, [edges, householdPositions]);
+
+  useFrame(() => {
+    if (!linesRef.current || !linesRef.current.geometry) return;
+    const colorAttr = linesRef.current.geometry.getAttribute('color');
+    if (!colorAttr) return;
+
+    let needsUpdate = false;
+    for (let i = 0; i < hoverMask.length; i++) {
+      const edge = hoverMask[i];
+      if (!edge.from) continue;
+
+      const isHighlighted = hoveredHouseholdId && (edge.from === hoveredHouseholdId || edge.to === hoveredHouseholdId);
+      const r = isHighlighted ? 0.7 : 0.25;
+      const g = isHighlighted ? 0.8 : 0.25;
+      const b = isHighlighted ? 1.0 : 0.25;
+
+      const ci = i * 6;
+      if (colorAttr.array[ci] !== r || colorAttr.array[ci + 1] !== g || colorAttr.array[ci + 2] !== b) {
+        colorAttr.array[ci] = r;
+        colorAttr.array[ci + 1] = g;
+        colorAttr.array[ci + 2] = b;
+        colorAttr.array[ci + 3] = r;
+        colorAttr.array[ci + 4] = g;
+        colorAttr.array[ci + 5] = b;
+        needsUpdate = true;
+      }
+    }
+    if (needsUpdate) {
+      colorAttr.needsUpdate = true;
+    }
+
+    linesRef.current.material.opacity = hoveredHouseholdId ? 0.5 : 0.15;
+  });
+
+  if (positions.length === 0) return null;
+
+  return (
+    <lineSegments ref={linesRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={positions.length / 3} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-color" count={colors.length / 3} array={colors} itemSize={3} />
+      </bufferGeometry>
+      <lineBasicMaterial
+        vertexColors
+        transparent
+        opacity={0.15}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        linewidth={1}
+      />
+    </lineSegments>
+  );
+}
+
 function UnifiedGalaxyScene({
   households,
   householdPositions,
@@ -1707,6 +2017,8 @@ function UnifiedGalaxyScene({
   onStarClick,
   onStarHover,
   focusProgress = 0,
+  viewMode = 'nebula',
+  filters = {},
 }) {
   const starsByHousehold = useMemo(() => {
     const map = new Map();
@@ -1732,6 +2044,10 @@ function UnifiedGalaxyScene({
     return map;
   }, [households, householdPositions, people, relationships]);
   
+  const householdEdges = useMemo(() => {
+    return computeHouseholdEdges(relationships, people);
+  }, [relationships, people]);
+
   const hoveredPos = useMemo(() => {
     if (!hoveredHouseholdId) return null;
     return householdPositions.get(hoveredHouseholdId);
@@ -1739,6 +2055,13 @@ function UnifiedGalaxyScene({
   
   return (
     <group>
+      {!focusedHouseholdId && filters.showLines !== false && (
+        <HouseholdConnectionLines
+          edges={householdEdges}
+          householdPositions={householdPositions}
+          hoveredHouseholdId={hoveredHouseholdId}
+        />
+      )}
       {households.map((household, index) => {
         const pos = householdPositions.get(household.id);
         if (!pos) return null;
@@ -1747,6 +2070,9 @@ function UnifiedGalaxyScene({
         const isHovered = household.id === hoveredHouseholdId;
         const householdStars = starsByHousehold.get(household.id) || [];
         
+        const mc = pos.memberCount || 0;
+        const sc = classifyHousehold(mc);
+
         return (
           <AnimatedHouseholdGroup
             key={`household-${household.id}`}
@@ -1767,6 +2093,10 @@ function UnifiedGalaxyScene({
             onClick={() => !focusedHouseholdId && onHouseholdClick(household)}
             onPointerOver={() => !focusedHouseholdId && onHouseholdHover(household.id)}
             onPointerOut={() => onHouseholdHover(null)}
+            viewMode={viewMode}
+            memberCount={mc}
+            starClass={sc}
+            showLabels={filters.showLabels !== false}
           />
         );
       })}
@@ -1991,7 +2321,7 @@ function FogController() {
   const { scene } = useThree();
   
   useEffect(() => {
-    scene.fog = new THREE.FogExp2('#050510', 0.006);
+    scene.fog = new THREE.FogExp2('#050510', 0.003);
     return () => {
       scene.fog = null;
     };
@@ -2022,6 +2352,7 @@ function NebulaScene({
   isTransitioning,
   transitioningHousehold,
   onTransitionComplete,
+  viewMode = 'nebula',
 }) {
   const [transitionProgress, setTransitionProgress] = useState(0);
   const [transitionDirection, setTransitionDirection] = useState(null);
@@ -2121,6 +2452,8 @@ function NebulaScene({
         onStarClick={onStarClick}
         onStarHover={onStarHover}
         focusProgress={effectiveFocusProgress}
+        viewMode={viewMode}
+        filters={filters}
       />
       
       <mesh visible={false} onClick={onBackgroundClick}>
@@ -2149,65 +2482,345 @@ function NebulaScene({
   );
 }
 
-function NavigationUI({
-  level,
-  selectedHousehold,
-  onBackToGalaxy,
-  onResetView,
-  onZoomIn,
-  onZoomOut,
-}) {
+function CameraTracker({ onCameraUpdate }) {
+  const { camera } = useThree();
+  
+  useFrame(() => {
+    onCameraUpdate?.({
+      x: camera.position.x,
+      y: camera.position.y,
+      z: camera.position.z,
+    });
+  });
+  
+  return null;
+}
+
+function ScanlineOverlay() {
   return (
-    <>
-      <div className="absolute top-4 left-4 z-50">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900/90 border border-purple-500/30 backdrop-blur-md">
+    <div
+      className="absolute inset-0 pointer-events-none z-[1]"
+      style={{
+        background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,255,0.015) 2px, rgba(0,255,255,0.015) 4px)',
+        mixBlendMode: 'overlay',
+      }}
+    />
+  );
+}
+
+function CornerBrackets({ children, className = '' }) {
+  return (
+    <div className={`relative ${className}`}>
+      <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-cyan-400/60" />
+      <div className="absolute top-0 right-0 w-3 h-3 border-t border-r border-cyan-400/60" />
+      <div className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-cyan-400/60" />
+      <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-cyan-400/60" />
+      {children}
+      <ScanlineOverlay />
+    </div>
+  );
+}
+
+function HoverTooltip({ household, memberCount, starClass, mousePos }) {
+  if (!household || !mousePos) return null;
+
+  return (
+    <div
+      className="fixed z-[60] pointer-events-none"
+      style={{ left: mousePos.x + 16, top: mousePos.y - 12 }}
+    >
+      <CornerBrackets className="bg-slate-950/90 backdrop-blur-md px-3 py-2 min-w-[140px]">
+        <div className="text-[11px] uppercase tracking-[0.15em] text-cyan-400/70 mb-1">System Detected</div>
+        <div className="text-sm font-semibold text-slate-100 tracking-wide">{household.name}</div>
+        <div className="flex items-center gap-3 mt-1.5">
+          <span className="text-xs text-slate-400">{memberCount} {memberCount === 1 ? 'body' : 'bodies'}</span>
+          <span className="flex items-center gap-1 text-xs">
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: starClass?.colors?.inner || '#fff' }}
+            />
+            <span className="text-slate-300">{starClass?.label || 'Unknown'}</span>
+          </span>
+        </div>
+      </CornerBrackets>
+    </div>
+  );
+}
+
+function SystemInfoPanel({ household, memberCount, starClass, people, onClose }) {
+  if (!household) return null;
+
+  const members = people.filter(p => p.household_id === household.id);
+
+  return (
+    <div className="absolute bottom-6 left-6 z-50 w-[320px] max-w-[calc(100vw-3rem)]">
+      <CornerBrackets className="bg-slate-950/90 backdrop-blur-xl p-4">
+        <div className="flex justify-between items-start mb-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-400/60 mb-1">System Overview</div>
+            <h3 className="text-lg font-bold text-slate-100 tracking-wide">{household.name}</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1 text-slate-500 hover:text-white transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent mb-3" />
+
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="bg-slate-800/40 rounded px-2 py-1.5">
+            <div className="text-[9px] uppercase tracking-widest text-slate-500">Star Class</div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span
+                className="w-2.5 h-2.5 rounded-full shadow-lg"
+                style={{
+                  backgroundColor: starClass?.colors?.inner || '#fff',
+                  boxShadow: `0 0 6px ${starClass?.colors?.glow || '#fff'}`,
+                }}
+              />
+              <span className="text-sm font-medium text-slate-200">{starClass?.label}</span>
+            </div>
+          </div>
+          <div className="bg-slate-800/40 rounded px-2 py-1.5">
+            <div className="text-[9px] uppercase tracking-widest text-slate-500">Bodies</div>
+            <div className="text-sm font-medium text-slate-200 mt-0.5">{memberCount}</div>
+          </div>
+        </div>
+
+        {starClass?.description && (
+          <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1.5">{starClass.description}</div>
+        )}
+
+        {members.length > 0 && (
+          <div className="space-y-1 max-h-[120px] overflow-y-auto pr-1">
+            {members.map(m => (
+              <div key={m.id} className="flex items-center gap-2 text-xs text-slate-400">
+                <span className="w-1 h-1 rounded-full bg-cyan-400/50" />
+                <span className="text-slate-300">{m.name}</span>
+                {m.role_type && <span className="text-slate-600">· {m.role_type}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </CornerBrackets>
+    </div>
+  );
+}
+
+function TopBar({ level, selectedHousehold, cameraPos, onBackToGalaxy }) {
+  const coordStr = cameraPos
+    ? `${cameraPos.x.toFixed(1)} · ${cameraPos.y.toFixed(1)} · ${cameraPos.z.toFixed(1)}`
+    : '0.0 · 0.0 · 0.0';
+
+  return (
+    <div className="absolute top-0 left-0 right-0 z-50 pointer-events-none">
+      <div className="flex items-center justify-between px-4 py-3">
+        <div className="pointer-events-auto flex items-center gap-3">
           <button
             onClick={onBackToGalaxy}
-            className={`flex items-center gap-1 text-sm transition-colors ${
-              level === 'galaxy' 
-                ? 'text-purple-400 font-medium' 
-                : 'text-slate-400 hover:text-white'
-            }`}
+            className="flex items-center gap-2 group"
           >
-            <Home className="w-4 h-4" />
-            Galaxy
+            <Home className="w-4 h-4 text-cyan-400/70 group-hover:text-cyan-300 transition-colors" />
+            <span
+              className={`text-xs uppercase tracking-[0.2em] font-medium transition-colors ${
+                level === 'galaxy' ? 'text-cyan-400' : 'text-slate-500 group-hover:text-slate-300'
+              }`}
+            >
+              Galaxy Map
+            </span>
           </button>
-          
           {level === 'system' && selectedHousehold && (
             <>
-              <ChevronRight className="w-4 h-4 text-slate-600" />
-              <span className="text-sm text-cyan-400 font-medium">
-                {selectedHousehold.name}
+              <ChevronRight className="w-3 h-3 text-slate-600" />
+              <span className="text-xs uppercase tracking-[0.2em] font-medium text-cyan-400">
+                System Map
               </span>
             </>
           )}
         </div>
+
+        <div className="flex items-center gap-4">
+          <div className="text-[10px] font-mono tracking-wider text-slate-500">
+            <span className="text-slate-600 mr-1">POS</span>
+            {coordStr}
+          </div>
+          {level === 'system' && selectedHousehold && (
+            <span className="text-[10px] uppercase tracking-[0.15em] text-cyan-400/50 border border-cyan-400/20 px-2 py-0.5 rounded">
+              {selectedHousehold.name}
+            </span>
+          )}
+        </div>
       </div>
-      
-      <div className="absolute bottom-6 right-6 z-50 flex flex-col gap-2">
+      <div className="h-px bg-gradient-to-r from-cyan-500/20 via-cyan-500/10 to-transparent" />
+    </div>
+  );
+}
+
+function FilterToggles({
+  viewMode,
+  onToggleViewMode,
+  filters,
+  onToggleFilter,
+}) {
+  const classButtons = [
+    { key: 'F', label: 'F', color: '#FFD700', desc: 'Yellow' },
+    { key: 'K', label: 'K', color: '#FF6B4A', desc: 'Red' },
+    { key: 'E', label: 'E', color: '#50C878', desc: 'Green' },
+    { key: 'O', label: 'O', color: '#4DA6FF', desc: 'Blue' },
+  ];
+
+  return (
+    <div className="absolute top-16 left-4 z-50">
+      <CornerBrackets className="bg-slate-950/80 backdrop-blur-md p-2.5 space-y-2.5">
+        <div className="text-[9px] uppercase tracking-[0.2em] text-slate-500 px-1">Filters</div>
+
+        <div className="flex gap-1">
+          {classButtons.map(cls => {
+            const active = filters.starClasses[cls.key];
+            return (
+              <button
+                key={cls.key}
+                onClick={() => onToggleFilter('starClass', cls.key)}
+                className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold border transition-all ${
+                  active
+                    ? 'border-current'
+                    : 'border-slate-700 opacity-30'
+                }`}
+                style={{ color: cls.color, borderColor: active ? cls.color + '66' : undefined }}
+                title={`${cls.desc} Stars (${cls.label})`}
+              >
+                {cls.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="space-y-1">
+          <button
+            onClick={() => onToggleFilter('showLines')}
+            className={`flex items-center gap-2 text-[10px] uppercase tracking-wider px-1 py-0.5 w-full rounded transition-colors ${
+              filters.showLines ? 'text-cyan-400' : 'text-slate-600'
+            }`}
+          >
+            {filters.showLines ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+            Lines
+          </button>
+          <button
+            onClick={() => onToggleFilter('showLabels')}
+            className={`flex items-center gap-2 text-[10px] uppercase tracking-wider px-1 py-0.5 w-full rounded transition-colors ${
+              filters.showLabels ? 'text-cyan-400' : 'text-slate-600'
+            }`}
+          >
+            {filters.showLabels ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+            Labels
+          </button>
+        </div>
+
+        <div className="h-px bg-slate-700/50" />
+
         <button
-          onClick={onZoomIn}
-          className="p-3 rounded-lg bg-slate-800/90 border border-cyan-500/30 backdrop-blur-md text-white hover:bg-slate-700/90 transition-colors"
-          title="Zoom In"
+          onClick={onToggleViewMode}
+          className="flex items-center gap-2 px-1 py-0.5 text-[10px] uppercase tracking-wider text-slate-400 hover:text-white transition-colors w-full"
+          title={viewMode === 'nebula' ? 'Switch to Star Map' : 'Switch to Nebula Mode'}
         >
-          <ZoomIn className="w-5 h-5" />
+          {viewMode === 'nebula' ? (
+            <>
+              <Sparkles className="w-3 h-3 text-cyan-400" />
+              Star Map
+            </>
+          ) : (
+            <>
+              <Cloud className="w-3 h-3 text-purple-400" />
+              Nebula
+            </>
+          )}
         </button>
-        <button
-          onClick={onZoomOut}
-          className="p-3 rounded-lg bg-slate-800/90 border border-cyan-500/30 backdrop-blur-md text-white hover:bg-slate-700/90 transition-colors"
-          title="Zoom Out"
-        >
-          <ZoomOut className="w-5 h-5" />
-        </button>
-        <button
-          onClick={onResetView}
-          className="p-3 rounded-lg bg-slate-800/90 border border-cyan-500/30 backdrop-blur-md text-white hover:bg-slate-700/90 transition-colors"
-          title="Reset View"
-        >
-          <RotateCcw className="w-5 h-5" />
-        </button>
-      </div>
-    </>
+      </CornerBrackets>
+    </div>
+  );
+}
+
+function Minimap({ cameraPos, householdPositions, households }) {
+  const size = 80;
+  const mapRange = 100;
+
+  const toMapCoord = (worldX, worldZ) => ({
+    x: ((worldX + mapRange) / (mapRange * 2)) * size,
+    y: ((worldZ + mapRange) / (mapRange * 2)) * size,
+  });
+
+  const cam = cameraPos ? toMapCoord(cameraPos.x, cameraPos.z) : { x: size / 2, y: size / 2 };
+
+  return (
+    <div className="absolute bottom-6 right-6 z-50">
+      <CornerBrackets className="bg-slate-950/80 backdrop-blur-md p-1">
+        <svg width={size} height={size} className="block">
+          <rect width={size} height={size} fill="transparent" />
+          {households.map(h => {
+            const pos = householdPositions.get(h.id);
+            if (!pos) return null;
+            const pt = toMapCoord(pos.x, pos.z);
+            return (
+              <circle
+                key={h.id}
+                cx={Math.max(2, Math.min(size - 2, pt.x))}
+                cy={Math.max(2, Math.min(size - 2, pt.y))}
+                r={1.5}
+                fill="rgba(100,200,255,0.5)"
+              />
+            );
+          })}
+          <rect
+            x={Math.max(0, cam.x - 4)}
+            y={Math.max(0, cam.y - 4)}
+            width={8}
+            height={8}
+            fill="none"
+            stroke="rgba(0,255,255,0.7)"
+            strokeWidth={1}
+          />
+          <circle
+            cx={cam.x}
+            cy={cam.y}
+            r={1.5}
+            fill="#00ffff"
+          />
+        </svg>
+      </CornerBrackets>
+    </div>
+  );
+}
+
+function ZoomControls({ onZoomIn, onZoomOut, onResetView }) {
+  return (
+    <div className="absolute bottom-24 right-6 z-50 flex flex-col gap-1.5">
+      <button
+        onClick={onZoomIn}
+        className="p-2 bg-slate-950/70 border border-cyan-500/20 text-slate-400 hover:text-cyan-300 hover:border-cyan-500/40 transition-colors rounded"
+        title="Zoom In"
+      >
+        <ZoomIn className="w-4 h-4" />
+      </button>
+      <button
+        onClick={onZoomOut}
+        className="p-2 bg-slate-950/70 border border-cyan-500/20 text-slate-400 hover:text-cyan-300 hover:border-cyan-500/40 transition-colors rounded"
+        title="Zoom Out"
+      >
+        <ZoomOut className="w-4 h-4" />
+      </button>
+      <button
+        onClick={onResetView}
+        className="p-2 bg-slate-950/70 border border-cyan-500/20 text-slate-400 hover:text-cyan-300 hover:border-cyan-500/40 transition-colors rounded"
+        title="Reset View"
+      >
+        <RotateCcw className="w-4 h-4" />
+      </button>
+    </div>
   );
 }
 
@@ -2267,11 +2880,72 @@ export default function GalaxyView({ people = [], relationships = [], households
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionProgress, setTransitionProgress] = useState(0);
   const [transitioningHousehold, setTransitioningHousehold] = useState(null);
+  const [warpDirection, setWarpDirection] = useState(null);
+  const [viewMode, setViewMode] = useState('nebula');
+  const [cameraPos, setCameraPos] = useState(null);
+  const [mousePos, setMousePos] = useState(null);
+  const [filters, setFilters] = useState({
+    starClasses: { F: true, K: true, E: true, O: true },
+    showLines: true,
+    showLabels: true,
+  });
   const controlsRef = useRef(null);
   const rendererRef = useRef(null);
+  const cameraPosRef = useRef(null);
   
   const qualityTier = useQualityTier();
-  const householdPositions = useOrganicClusterLayout(households, people);
+  const householdPositions = useOrganicClusterLayout(households, people, viewMode);
+
+  const handleCameraUpdate = useCallback((pos) => {
+    cameraPosRef.current = pos;
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (cameraPosRef.current) {
+        setCameraPos({ ...cameraPosRef.current });
+      }
+    }, 200);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleToggleViewMode = useCallback(() => {
+    setViewMode(prev => prev === 'nebula' ? 'starmap' : 'nebula');
+  }, []);
+
+  const handleToggleFilter = useCallback((type, value) => {
+    setFilters(prev => {
+      if (type === 'starClass') {
+        return { ...prev, starClasses: { ...prev.starClasses, [value]: !prev.starClasses[value] } };
+      }
+      return { ...prev, [type]: !prev[type] };
+    });
+  }, []);
+
+  const handleMouseMove = useCallback((e) => {
+    if (hoveredHouseholdId) {
+      setMousePos({ x: e.clientX, y: e.clientY });
+    }
+  }, [hoveredHouseholdId]);
+
+  const hoveredHousehold = useMemo(() => {
+    if (!hoveredHouseholdId) return null;
+    return households.find(h => h.id === hoveredHouseholdId);
+  }, [hoveredHouseholdId, households]);
+
+  const hoveredHouseholdInfo = useMemo(() => {
+    if (!hoveredHouseholdId) return null;
+    const pos = householdPositions.get(hoveredHouseholdId);
+    const mc = pos?.memberCount || 0;
+    return { memberCount: mc, starClass: classifyHousehold(mc) };
+  }, [hoveredHouseholdId, householdPositions]);
+
+  const selectedHouseholdInfo = useMemo(() => {
+    if (!selectedHousehold) return null;
+    const pos = householdPositions.get(selectedHousehold.id);
+    const mc = pos?.memberCount || 0;
+    return { memberCount: mc, starClass: classifyHousehold(mc) };
+  }, [selectedHousehold, householdPositions]);
   
   const handleCanvasCreated = useCallback(({ gl }) => {
     rendererRef.current = gl;
@@ -2303,6 +2977,7 @@ export default function GalaxyView({ people = [], relationships = [], households
     setTransitionProgress(0);
     setFocusedStarId(null);
     setAutoRotateEnabled(false);
+    setWarpDirection('zoom-in');
   }, []);
   
   const handleBackToGalaxy = useCallback(() => {
@@ -2311,15 +2986,18 @@ export default function GalaxyView({ people = [], relationships = [], households
     setLevel('galaxy');
     setFocusedStarId(null);
     setHoveredStarId(null);
+    setWarpDirection('zoom-out');
     setTimeout(() => {
       setSelectedHousehold(null);
       setTransitioningHousehold(null);
       setIsTransitioning(false);
+      setWarpDirection(null);
     }, 1200);
   }, []);
   
   const handleTransitionComplete = useCallback(() => {
     setIsTransitioning(false);
+    setWarpDirection(null);
     if (transitioningHousehold) {
       setSelectedHousehold(transitioningHousehold);
       setLevel('system');
@@ -2389,7 +3067,7 @@ export default function GalaxyView({ people = [], relationships = [], households
   }
   
   return (
-    <div className="absolute inset-0">
+    <div className="absolute inset-0" onMouseMove={handleMouseMove}>
       {contextLost && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/90">
           <div className="text-center">
@@ -2405,6 +3083,7 @@ export default function GalaxyView({ people = [], relationships = [], households
         dpr={[1, 1.5]}
         onCreated={handleCanvasCreated}
       >
+        <CameraTracker onCameraUpdate={handleCameraUpdate} />
         <NebulaScene
           level={level}
           households={households}
@@ -2427,19 +3106,59 @@ export default function GalaxyView({ people = [], relationships = [], households
           isTransitioning={isTransitioning}
           transitioningHousehold={transitioningHousehold}
           onTransitionComplete={handleTransitionComplete}
+          viewMode={viewMode}
         />
       </Canvas>
       
       <VignetteOverlay />
+      <WarpOverlay active={isTransitioning} direction={warpDirection} />
       
-      <NavigationUI
+      <TopBar
         level={level}
         selectedHousehold={selectedHousehold}
+        cameraPos={cameraPos}
         onBackToGalaxy={handleBackToGalaxy}
-        onResetView={handleResetView}
+      />
+
+      {level === 'galaxy' && (
+        <FilterToggles
+          viewMode={viewMode}
+          onToggleViewMode={handleToggleViewMode}
+          filters={filters}
+          onToggleFilter={handleToggleFilter}
+        />
+      )}
+
+      <ZoomControls
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
+        onResetView={handleResetView}
       />
+
+      <Minimap
+        cameraPos={cameraPos}
+        householdPositions={householdPositions}
+        households={households}
+      />
+
+      {level === 'galaxy' && hoveredHousehold && hoveredHouseholdInfo && (
+        <HoverTooltip
+          household={hoveredHousehold}
+          memberCount={hoveredHouseholdInfo.memberCount}
+          starClass={hoveredHouseholdInfo.starClass}
+          mousePos={mousePos}
+        />
+      )}
+
+      {level === 'system' && selectedHousehold && selectedHouseholdInfo && (
+        <SystemInfoPanel
+          household={selectedHousehold}
+          memberCount={selectedHouseholdInfo.memberCount}
+          starClass={selectedHouseholdInfo.starClass}
+          people={people}
+          onClose={handleBackToGalaxy}
+        />
+      )}
       
       {level === 'system' && (
         <PersonDetailPanel
