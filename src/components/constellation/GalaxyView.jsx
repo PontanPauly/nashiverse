@@ -1256,7 +1256,7 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
     
     const seed = child.id || index;
     const radiusVariation = seededRandom(seed + '-rad') * 0.8 - 0.4;
-    const yVariation = seededRandom(seed + '-y') * 0.6 - 0.3;
+    const yVariation = seededRandom(seed + '-y') * 4.0 - 2.0;
     
     const finalRadius = childOrbitRadius + radiusVariation;
     
@@ -1524,6 +1524,7 @@ function AnimatedHouseholdGroup({
   memberCount = 0,
   starClass,
   showLabels = true,
+  householdGroupRefs,
 }) {
   const groupRef = useRef();
   const { camera } = useThree();
@@ -1614,6 +1615,10 @@ function AnimatedHouseholdGroup({
       basePosition.z + curr.offsetZ
     );
     groupRef.current.scale.setScalar(curr.scale);
+    
+    if (householdGroupRefs) {
+      householdGroupRefs.current.set(household.id, groupRef.current);
+    }
     
     if (Math.abs(curr.opacity - renderOpacity) > 0.01) {
       setRenderOpacity(curr.opacity);
@@ -1832,50 +1837,51 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
   );
 }
 
-function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold }) {
+function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold, householdGroupRefs }) {
   const linesRef = useRef();
 
-  const { positions, colors, hoverMask } = useMemo(() => {
+  const { edgeData, colors, hoverMask } = useMemo(() => {
     if (!edges || edges.length === 0) {
-      return { positions: new Float32Array(0), colors: new Float32Array(0), hoverMask: [] };
+      return { edgeData: [], colors: new Float32Array(0), hoverMask: [] };
     }
 
-    const pos = new Float32Array(edges.length * 6);
     const col = new Float32Array(edges.length * 6);
     const mask = [];
+    const data = [];
 
     edges.forEach((edge, i) => {
       const fromPos = householdPositions.get(edge.from);
       const toPos = householdPositions.get(edge.to);
       if (!fromPos || !toPos) {
-        pos[i * 6] = 0; pos[i * 6 + 1] = 0; pos[i * 6 + 2] = 0;
-        pos[i * 6 + 3] = 0; pos[i * 6 + 4] = 0; pos[i * 6 + 5] = 0;
         col[i * 6] = 0; col[i * 6 + 1] = 0; col[i * 6 + 2] = 0;
         col[i * 6 + 3] = 0; col[i * 6 + 4] = 0; col[i * 6 + 5] = 0;
         mask.push({ from: null, to: null });
+        data.push(null);
         return;
       }
 
-      pos[i * 6] = fromPos.x;
-      pos[i * 6 + 1] = fromPos.y;
-      pos[i * 6 + 2] = fromPos.z;
-
-      let endX = toPos.x, endY = toPos.y, endZ = toPos.z;
+      let childLocalOffset = null;
       if (edge.childPersonId && starsByHousehold) {
         const targetStars = starsByHousehold.get(edge.to);
         if (targetStars) {
           const childStar = targetStars.find(s => s.id === edge.childPersonId);
           if (childStar && childStar.position) {
-            endX = childStar.position[0];
-            endY = childStar.position[1];
-            endZ = childStar.position[2];
+            childLocalOffset = [
+              childStar.position[0] - toPos.x,
+              childStar.position[1] - toPos.y,
+              childStar.position[2] - toPos.z
+            ];
           }
         }
       }
 
-      pos[i * 6 + 3] = endX;
-      pos[i * 6 + 4] = endY;
-      pos[i * 6 + 5] = endZ;
+      data.push({
+        fromHouseholdId: edge.from,
+        toHouseholdId: edge.to,
+        fromBase: { x: fromPos.x, y: fromPos.y, z: fromPos.z },
+        toBase: { x: toPos.x, y: toPos.y, z: toPos.z },
+        childLocalOffset,
+      });
 
       const baseColor = 0.25;
       col[i * 6] = baseColor;
@@ -1888,15 +1894,68 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
       mask.push({ from: edge.from, to: edge.to });
     });
 
-    return { positions: pos, colors: col, hoverMask: mask };
+    return { edgeData: data, colors: col, hoverMask: mask };
   }, [edges, householdPositions, starsByHousehold]);
+
+  const positions = useMemo(() => {
+    return new Float32Array(edges.length * 6);
+  }, [edges.length]);
 
   useFrame(() => {
     if (!linesRef.current || !linesRef.current.geometry) return;
+    
+    const posAttr = linesRef.current.geometry.getAttribute('position');
     const colorAttr = linesRef.current.geometry.getAttribute('color');
-    if (!colorAttr) return;
+    if (!posAttr || !colorAttr) return;
 
-    let needsUpdate = false;
+    const groupRefs = householdGroupRefs?.current;
+    let posNeedsUpdate = false;
+
+    for (let i = 0; i < edgeData.length; i++) {
+      const edge = edgeData[i];
+      if (!edge) continue;
+
+      let fromX = edge.fromBase.x, fromY = edge.fromBase.y, fromZ = edge.fromBase.z;
+      let toX = edge.toBase.x, toY = edge.toBase.y, toZ = edge.toBase.z;
+
+      if (groupRefs) {
+        const fromGroup = groupRefs.get(edge.fromHouseholdId);
+        if (fromGroup) {
+          fromX = fromGroup.position.x;
+          fromY = fromGroup.position.y;
+          fromZ = fromGroup.position.z;
+        }
+
+        const toGroup = groupRefs.get(edge.toHouseholdId);
+        if (toGroup) {
+          const scale = toGroup.scale.x;
+          if (edge.childLocalOffset) {
+            toX = toGroup.position.x + edge.childLocalOffset[0] * scale;
+            toY = toGroup.position.y + edge.childLocalOffset[1] * scale;
+            toZ = toGroup.position.z + edge.childLocalOffset[2] * scale;
+          } else {
+            toX = toGroup.position.x;
+            toY = toGroup.position.y;
+            toZ = toGroup.position.z;
+          }
+        }
+      }
+
+      const pi = i * 6;
+      posAttr.array[pi] = fromX;
+      posAttr.array[pi + 1] = fromY;
+      posAttr.array[pi + 2] = fromZ;
+      posAttr.array[pi + 3] = toX;
+      posAttr.array[pi + 4] = toY;
+      posAttr.array[pi + 5] = toZ;
+      posNeedsUpdate = true;
+    }
+
+    if (posNeedsUpdate) {
+      posAttr.needsUpdate = true;
+    }
+
+    let colorNeedsUpdate = false;
     for (let i = 0; i < hoverMask.length; i++) {
       const edge = hoverMask[i];
       if (!edge.from) continue;
@@ -1914,10 +1973,10 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         colorAttr.array[ci + 3] = r;
         colorAttr.array[ci + 4] = g;
         colorAttr.array[ci + 5] = b;
-        needsUpdate = true;
+        colorNeedsUpdate = true;
       }
     }
-    if (needsUpdate) {
+    if (colorNeedsUpdate) {
       colorAttr.needsUpdate = true;
     }
 
@@ -1961,6 +2020,7 @@ function UnifiedGalaxyScene({
   viewMode = 'nebula',
   filters = {},
 }) {
+  const householdGroupRefs = useRef(new Map());
   const starsByHousehold = useMemo(() => {
     const map = new Map();
     households.forEach((household, householdIndex) => {
@@ -2003,6 +2063,7 @@ function UnifiedGalaxyScene({
           householdPositions={householdPositions}
           hoveredHouseholdId={hoveredHouseholdId}
           starsByHousehold={starsByHousehold}
+          householdGroupRefs={householdGroupRefs}
         />
       )}
       {households.map((household, index) => {
@@ -2040,6 +2101,7 @@ function UnifiedGalaxyScene({
             memberCount={mc}
             starClass={sc}
             showLabels={filters.showLabels !== false}
+            householdGroupRefs={householdGroupRefs}
           />
         );
       })}
