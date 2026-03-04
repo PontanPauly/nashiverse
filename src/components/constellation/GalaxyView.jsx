@@ -1976,6 +1976,7 @@ function UnifiedGalaxyScene({
         household,
         householdIndex,
         position: person.position,
+        isParent: person.isParent,
         starProfile: person.star_profile || generateRandomStarProfile(person.id),
         person,
       }));
