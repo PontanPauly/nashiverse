@@ -78,7 +78,7 @@ export async function seedFamilyData({ force = false } = {}) {
     await createHousehold('andrew', 'Andrew Nash', 'Andrew\'s household');
     await createHousehold('matthew_megan', 'Matthew & Megan Nash', 'Matt and Megan\'s home');
     await createHousehold('paul', 'Paul Nash', 'Paul\'s place');
-    await createHousehold('uncle_robert', 'Robert Nash', 'Uncle Robert\'s household');
+    await createHousehold('craig_annie', 'Craig & Annie Nash', 'The Craig Nash household');
     await createHousehold('karen_lynn', 'Karen & Lynn Humpert', 'The Humpert household');
 
     await createPerson('randy', {
@@ -107,10 +107,20 @@ export async function seedFamilyData({ force = false } = {}) {
       role_type: 'adult', household: 'karen_lynn',
       about: 'Karen\'s husband.',
     });
-    await createPerson('uncle_robert', {
-      name: 'Robert Nash', nickname: 'Uncle Rob', birth_date: '1965-05-20',
-      role_type: 'adult', household: 'uncle_robert',
+    await createPerson('craig', {
+      name: 'Craig Nash', birth_date: '1965-05-20',
+      role_type: 'adult', household: 'craig_annie',
       about: 'Randy\'s brother. The middle Nash sibling.',
+    });
+    await createPerson('annie', {
+      name: 'Annie Nash', birth_date: '1966-03-28',
+      role_type: 'adult', household: 'craig_annie',
+      about: 'Craig\'s wife.',
+    });
+    await createPerson('maddison', {
+      name: 'Maddison Nash', birth_date: '1998-08-10',
+      role_type: 'adult', household: 'craig_annie',
+      about: 'Craig and Annie\'s daughter.',
     });
 
     await createPerson('angela', {
@@ -233,10 +243,14 @@ export async function seedFamilyData({ force = false } = {}) {
 
     await createRelationship('randy', 'aunt_karen', 'sibling');
     await createRelationship('aunt_karen', 'randy', 'sibling');
-    await createRelationship('randy', 'uncle_robert', 'sibling');
-    await createRelationship('uncle_robert', 'randy', 'sibling');
-    await createRelationship('aunt_karen', 'uncle_robert', 'sibling');
-    await createRelationship('uncle_robert', 'aunt_karen', 'sibling');
+    await createRelationship('randy', 'craig', 'sibling');
+    await createRelationship('craig', 'randy', 'sibling');
+    await createRelationship('aunt_karen', 'craig', 'sibling');
+    await createRelationship('craig', 'aunt_karen', 'sibling');
+    await createRelationship('craig', 'annie', 'partner');
+    await createRelationship('annie', 'craig', 'partner');
+    await createRelationship('craig', 'maddison', 'parent');
+    await createRelationship('annie', 'maddison', 'parent');
     await createRelationship('aunt_karen', 'lynn', 'partner');
     await createRelationship('lynn', 'aunt_karen', 'partner');
 
