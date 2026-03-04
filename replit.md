@@ -27,7 +27,8 @@ Nashiverse is a family management application with a cosmic/space theme. It help
    - **Star Classification System**: Households color-coded by member count (F=Yellow 1-2, K=Red 3-4, E=Green 5-7, O=Blue 8+)
    - **Rich Ambient Nebula Backdrop**: Large-scale volumetric nebula filling the background (gold, emerald, purple, blue zones)
    - **Generational Layout**: Grandparents at center, children in middle ring, grandchildren in outer ring — family tree radiating outward
-   - **Connection Lines**: Faint lines between related households, highlighted on hover
+   - **Connection Lines**: Parent→child only lines between households, targeting specific child star positions (not household centers), highlighted on hover
+   - **Couple Rings**: CoupleRing drawn around married/partner pairs in system view, with lines radiating from ring edge to child stars
    - **Motion Trail Effect**: Subtle visual trails during camera movement
    - **NMS-Style HUD**: Top bar with coordinate readout, filter toggles, minimap, corner-bracket framed panels
    - **Warp Transitions**: Visual warp streaks when zooming into a household system

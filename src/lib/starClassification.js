@@ -92,17 +92,18 @@ export function computeHouseholdEdges(relationships, people) {
 
   for (const rel of relationships) {
     if (rel.relationship_type !== 'parent') continue;
-    const idA = rel.person_id || rel.person1_id;
-    const idB = rel.related_person_id || rel.person2_id;
-    const hA = personToHousehold[idA];
-    const hB = personToHousehold[idB];
-    if (hA && hB && hA !== hB) {
-      const key = [hA, hB].sort().join('|');
+    const parentId = rel.person_id || rel.person1_id;
+    const childId = rel.related_person_id || rel.person2_id;
+    const parentHH = personToHousehold[parentId];
+    const childHH = personToHousehold[childId];
+    if (parentHH && childHH && parentHH !== childHH) {
+      const key = parentHH + '|' + childHH + '|' + childId;
       if (!edgeSet.has(key)) {
         edgeSet.add(key);
         edges.push({
-          from: hA,
-          to: hB,
+          from: parentHH,
+          to: childHH,
+          childPersonId: childId,
           type: rel.relationship_type
         });
       }

@@ -1653,77 +1653,11 @@ function AnimatedHouseholdGroup({
   );
 }
 
-function FamilyOrbitRing({ center, radius, colorIndex, opacity = 0.3 }) {
+function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
   const ringRef = useRef();
-  
-  const { points, dashPoints } = useMemo(() => {
-    const segments = 128;
-    const pts = [];
-    const dPts = [];
-    for (let i = 0; i <= segments; i++) {
-      const angle = (i / segments) * Math.PI * 2;
-      const x = center[0] + Math.cos(angle) * radius;
-      const y = center[1];
-      const z = center[2] + Math.sin(angle) * radius;
-      pts.push(new THREE.Vector3(x, y, z));
-      const tickRadius = radius + 0.08;
-      dPts.push(new THREE.Vector3(
-        center[0] + Math.cos(angle) * tickRadius,
-        y,
-        center[2] + Math.sin(angle) * tickRadius
-      ));
-    }
-    return { points: pts, dashPoints: dPts };
-  }, [center, radius]);
-  
-  const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
-  const ringColor = new THREE.Color(baseColors.glow);
-  
-  return (
-    <group>
-      <line ref={ringRef}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={points.length}
-            array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial
-          color={ringColor}
-          transparent
-          opacity={opacity * 1.4}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </line>
-      <line>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={dashPoints.length}
-            array={new Float32Array(dashPoints.flatMap(p => [p.x, p.y, p.z]))}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial
-          color={ringColor}
-          transparent
-          opacity={opacity * 0.3}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </line>
-    </group>
-  );
-}
 
-function ParentOrbitRing({ center, radius, colorIndex, opacity = 0.5 }) {
-  const ringRef = useRef();
-  
   const points = useMemo(() => {
-    const segments = 48;
+    const segments = 64;
     const pts = [];
     for (let i = 0; i <= segments; i++) {
       const angle = (i / segments) * Math.PI * 2;
@@ -1735,10 +1669,10 @@ function ParentOrbitRing({ center, radius, colorIndex, opacity = 0.5 }) {
     }
     return pts;
   }, [center, radius]);
-  
+
   const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
   const ringColor = new THREE.Color(baseColors.primary);
-  
+
   return (
     <group>
       <line ref={ringRef}>
@@ -1753,17 +1687,17 @@ function ParentOrbitRing({ center, radius, colorIndex, opacity = 0.5 }) {
         <lineBasicMaterial
           color={ringColor}
           transparent
-          opacity={opacity * 1.3}
+          opacity={opacity}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
       </line>
       <mesh position={[center[0], center[1], center[2]]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[radius - 0.02, radius + 0.02, 48]} />
+        <ringGeometry args={[radius * 0.95, radius * 1.05, 64]} />
         <meshBasicMaterial
           color={ringColor}
           transparent
-          opacity={opacity * 0.15}
+          opacity={opacity * 0.1}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
           side={THREE.DoubleSide}
@@ -1775,55 +1709,59 @@ function ParentOrbitRing({ center, radius, colorIndex, opacity = 0.5 }) {
 
 function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 }) {
   const lineRef = useRef();
-  
-  const { positions, colors, familyCenter, hasParents, hasChildren } = useMemo(() => {
+
+  const { positions, colors, coupleCenter, coupleRadius, hasCouple, hasChildren } = useMemo(() => {
     if (!stars || stars.length < 2) {
-      return { positions: new Float32Array(0), colors: new Float32Array(0), familyCenter: [0,0,0], hasParents: false, hasChildren: false };
+      return { positions: new Float32Array(0), colors: new Float32Array(0), coupleCenter: [0,0,0], coupleRadius: 0, hasCouple: false, hasChildren: false };
     }
-    
-    const starMap = new Map();
-    stars.forEach(star => {
-      starMap.set(star.id, { position: star.position, isParent: star.isParent });
-    });
-    
+
     const parentStars = stars.filter(s => s.isParent);
     const childStars = stars.filter(s => !s.isParent);
-    
+
     let centerX = 0, centerY = 0, centerZ = 0;
     if (parentStars.length > 0) {
       centerX = parentStars.reduce((sum, s) => sum + s.position[0], 0) / parentStars.length;
       centerY = parentStars.reduce((sum, s) => sum + s.position[1], 0) / parentStars.length;
       centerZ = parentStars.reduce((sum, s) => sum + s.position[2], 0) / parentStars.length;
     }
-    
-    const starIds = new Set(stars.map(s => s.id));
-    const lines = [];
-    
+
+    let ringRadius = 0;
     if (parentStars.length >= 2) {
-      lines.push({ 
-        from: parentStars[0].position, 
-        to: parentStars[1].position, 
-        type: 'partner',
-        isPartnerLine: true
+      let maxDist = 0;
+      parentStars.forEach(s => {
+        const dx = s.position[0] - centerX;
+        const dz = s.position[2] - centerZ;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > maxDist) maxDist = dist;
       });
+      ringRadius = maxDist + 0.6;
     }
-    
-    const parentIds = new Set(parentStars.map(p => p.id));
-    const mainParent = parentStars[0];
-    
-    if (mainParent && childStars.length > 0) {
+
+    const lines = [];
+
+    if (childStars.length > 0 && parentStars.length > 0) {
       const parentCenter = [centerX, centerY, centerZ];
       childStars.forEach(child => {
+        const dx = child.position[0] - centerX;
+        const dz = child.position[2] - centerZ;
+        const angle = Math.atan2(dz, dx);
+        const ringX = centerX + Math.cos(angle) * ringRadius;
+        const ringZ = centerZ + Math.sin(angle) * ringRadius;
+
         lines.push({
-          from: parentCenter,
+          from: parentStars.length >= 2 ? [ringX, centerY, ringZ] : parentCenter,
           to: child.position,
           type: 'parent',
-          isPartnerLine: false
         });
       });
     }
-    
+
+    const starIds = new Set(stars.map(s => s.id));
     if (lines.length === 0 && relationships) {
+      const starMap = new Map();
+      stars.forEach(star => {
+        starMap.set(star.id, { position: star.position });
+      });
       relationships.forEach(rel => {
         if (starIds.has(rel.person1_id) && starIds.has(rel.person2_id)) {
           const star1 = starMap.get(rel.person1_id);
@@ -1834,13 +1772,13 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
         }
       });
     }
-    
+
     const pos = new Float32Array(lines.length * 6);
     const col = new Float32Array(lines.length * 6);
-    
+
     const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
     const lineColor = new THREE.Color(baseColors.glow);
-    
+
     lines.forEach((line, i) => {
       pos[i * 6] = line.from[0];
       pos[i * 6 + 1] = line.from[1];
@@ -1848,10 +1786,8 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
       pos[i * 6 + 3] = line.to[0];
       pos[i * 6 + 4] = line.to[1];
       pos[i * 6 + 5] = line.to[2];
-      
-      const normalizedType = (line.type || '').toLowerCase();
-      const isPartner = line.isPartnerLine || normalizedType === 'partner' || normalizedType === 'spouse' || normalizedType === 'married';
-      const brightness = isPartner ? 1.2 : 0.5;
+
+      const brightness = 0.5;
       col[i * 6] = lineColor.r * brightness;
       col[i * 6 + 1] = lineColor.g * brightness;
       col[i * 6 + 2] = lineColor.b * brightness;
@@ -1859,55 +1795,50 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
       col[i * 6 + 4] = lineColor.g * brightness * 0.3;
       col[i * 6 + 5] = lineColor.b * brightness * 0.3;
     });
-    
-    return { 
-      positions: pos, 
-      colors: col, 
-      familyCenter: [centerX, centerY, centerZ],
-      hasParents: parentStars.length > 0,
+
+    return {
+      positions: pos,
+      colors: col,
+      coupleCenter: [centerX, centerY, centerZ],
+      coupleRadius: ringRadius,
+      hasCouple: parentStars.length >= 2,
       hasChildren: childStars.length > 0
     };
   }, [stars, relationships, colorIndex]);
-  
-  if (positions.length === 0) return null;
-  
+
+  if (positions.length === 0 && !hasCouple) return null;
+
   return (
     <group>
-      {hasParents && (
-        <ParentOrbitRing 
-          center={familyCenter} 
-          radius={0.8} 
-          colorIndex={colorIndex} 
-          opacity={0.55}
+      {hasCouple && (
+        <CoupleRing
+          center={coupleCenter}
+          radius={coupleRadius}
+          colorIndex={colorIndex}
+          opacity={opacity * 0.7}
         />
       )}
-      {hasParents && hasChildren && (
-        <FamilyOrbitRing 
-          center={familyCenter} 
-          radius={3.0} 
-          colorIndex={colorIndex} 
-          opacity={0.35}
-        />
+      {positions.length > 0 && (
+        <lineSegments ref={lineRef}>
+          <bufferGeometry>
+            <bufferAttribute attach="attributes-position" count={positions.length / 3} array={positions} itemSize={3} />
+            <bufferAttribute attach="attributes-color" count={colors.length / 3} array={colors} itemSize={3} />
+          </bufferGeometry>
+          <lineBasicMaterial
+            vertexColors
+            transparent
+            opacity={opacity}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+            linewidth={1}
+          />
+        </lineSegments>
       )}
-      <lineSegments ref={lineRef}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" count={positions.length / 3} array={positions} itemSize={3} />
-          <bufferAttribute attach="attributes-color" count={colors.length / 3} array={colors} itemSize={3} />
-        </bufferGeometry>
-        <lineBasicMaterial 
-          vertexColors 
-          transparent 
-          opacity={opacity} 
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-          linewidth={1}
-        />
-      </lineSegments>
     </group>
   );
 }
 
-function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId }) {
+function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold }) {
   const linesRef = useRef();
 
   const { positions, colors, hoverMask } = useMemo(() => {
@@ -1934,9 +1865,23 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
       pos[i * 6] = fromPos.x;
       pos[i * 6 + 1] = fromPos.y;
       pos[i * 6 + 2] = fromPos.z;
-      pos[i * 6 + 3] = toPos.x;
-      pos[i * 6 + 4] = toPos.y;
-      pos[i * 6 + 5] = toPos.z;
+
+      let endX = toPos.x, endY = toPos.y, endZ = toPos.z;
+      if (edge.childPersonId && starsByHousehold) {
+        const targetStars = starsByHousehold.get(edge.to);
+        if (targetStars) {
+          const childStar = targetStars.find(s => s.id === edge.childPersonId);
+          if (childStar && childStar.position) {
+            endX = childStar.position[0];
+            endY = childStar.position[1];
+            endZ = childStar.position[2];
+          }
+        }
+      }
+
+      pos[i * 6 + 3] = endX;
+      pos[i * 6 + 4] = endY;
+      pos[i * 6 + 5] = endZ;
 
       const baseColor = 0.25;
       col[i * 6] = baseColor;
@@ -1950,7 +1895,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
     });
 
     return { positions: pos, colors: col, hoverMask: mask };
-  }, [edges, householdPositions]);
+  }, [edges, householdPositions, starsByHousehold]);
 
   useFrame(() => {
     if (!linesRef.current || !linesRef.current.geometry) return;
@@ -2062,6 +2007,7 @@ function UnifiedGalaxyScene({
           edges={householdEdges}
           householdPositions={householdPositions}
           hoveredHouseholdId={hoveredHouseholdId}
+          starsByHousehold={starsByHousehold}
         />
       )}
       {households.map((household, index) => {
