@@ -671,29 +671,31 @@ function NebulaBackground() {
           float n3 = fbm(dir * 1.5 + time * 0.0005);
           float n4 = fbm(dir * 0.8 + time * 0.0003);
           
-          vec3 deepSpace = vec3(0.02, 0.015, 0.04);
-          vec3 warmGold = vec3(0.35, 0.28, 0.05);
-          vec3 emeraldGreen = vec3(0.05, 0.3, 0.12);
-          vec3 deepPurple = vec3(0.15, 0.05, 0.3);
-          vec3 coolBlue = vec3(0.04, 0.12, 0.3);
-          vec3 amber = vec3(0.3, 0.18, 0.03);
+          vec3 deepSpace = vec3(0.06, 0.08, 0.05);
+          vec3 warmGold = vec3(0.5, 0.4, 0.08);
+          vec3 emeraldGreen = vec3(0.1, 0.5, 0.2);
+          vec3 deepPurple = vec3(0.2, 0.08, 0.35);
+          vec3 coolBlue = vec3(0.06, 0.18, 0.4);
+          vec3 amber = vec3(0.45, 0.28, 0.05);
           
           vec3 baseColor = deepSpace;
           
-          float zone1 = smoothstep(0.3, 0.6, n3);
-          float zone2 = smoothstep(0.35, 0.65, n4);
-          float zone3 = smoothstep(0.4, 0.7, fbm(dir * 1.2 - time * 0.0004));
-          float zone4 = smoothstep(0.3, 0.65, n1);
-          float zone5 = smoothstep(0.35, 0.7, n2);
+          float zone1 = smoothstep(0.25, 0.55, n3);
+          float zone2 = smoothstep(0.25, 0.55, n4);
+          float zone3 = smoothstep(0.3, 0.6, fbm(dir * 1.2 - time * 0.0004));
+          float zone4 = smoothstep(0.25, 0.55, n1);
+          float zone5 = smoothstep(0.3, 0.6, n2);
           
-          baseColor = mix(baseColor, warmGold, zone1 * 0.5);
-          baseColor = mix(baseColor, emeraldGreen, zone2 * 0.45);
-          baseColor = mix(baseColor, deepPurple, zone3 * 0.4);
-          baseColor = mix(baseColor, coolBlue, zone4 * 0.35);
-          baseColor = mix(baseColor, amber, zone5 * 0.3);
+          baseColor = mix(baseColor, warmGold, zone1 * 0.6);
+          baseColor = mix(baseColor, emeraldGreen, zone2 * 0.65);
+          baseColor = mix(baseColor, deepPurple, zone3 * 0.5);
+          baseColor = mix(baseColor, coolBlue, zone4 * 0.45);
+          baseColor = mix(baseColor, amber, zone5 * 0.4);
           
           float yFactor = (dir.y + 1.0) * 0.5;
-          baseColor = mix(baseColor, deepPurple * 0.6, yFactor * 0.2);
+          baseColor = mix(baseColor, deepPurple * 0.8, yFactor * 0.15);
+          
+          baseColor *= 1.4;
           
           gl_FragColor = vec4(baseColor, 1.0);
         }
@@ -832,10 +834,12 @@ function NebulaGasCloud({ count = 8000 }) {
     const pha = new Float32Array(count);
     
     const nebulaColors = [
-      new THREE.Color('#1a2a4a'),
-      new THREE.Color('#0f2847'),
-      new THREE.Color('#182540'),
-      new THREE.Color('#1f3555'),
+      new THREE.Color('#2a4a2a'),
+      new THREE.Color('#3a5520'),
+      new THREE.Color('#4a4020'),
+      new THREE.Color('#254535'),
+      new THREE.Color('#35302a'),
+      new THREE.Color('#203550'),
     ];
     
     for (let i = 0; i < count; i++) {
@@ -854,7 +858,7 @@ function NebulaGasCloud({ count = 8000 }) {
       col[i * 3 + 1] = c.g * brightness;
       col[i * 3 + 2] = c.b * brightness;
       
-      siz[i] = 1.5 + Math.random() * 3;
+      siz[i] = 2.5 + Math.random() * 5;
       pha[i] = Math.random() * Math.PI * 2;
     }
     
@@ -875,7 +879,7 @@ function NebulaGasCloud({ count = 8000 }) {
           vColor = gasColor;
           
           float drift = sin(time * 0.08 + phase) * 0.2;
-          vAlpha = 0.04 + drift * 0.02;
+          vAlpha = 0.08 + drift * 0.03;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * (200.0 / -mvPosition.z);
@@ -1632,6 +1636,7 @@ function AnimatedHouseholdGroup({
         memberCount={memberCount}
         starClass={starClass}
         isHovered={isHovered && !focusedHouseholdId}
+        isSystemView={!!focusedHouseholdId}
         onClick={onClick}
         onPointerOver={onPointerOver}
         onPointerOut={onPointerOut}
@@ -2396,7 +2401,7 @@ function FogController() {
   const { scene } = useThree();
   
   useEffect(() => {
-    scene.fog = new THREE.FogExp2('#080818', 0.002);
+    scene.fog = new THREE.FogExp2('#1a2a1a', 0.0015);
     return () => {
       scene.fog = null;
     };

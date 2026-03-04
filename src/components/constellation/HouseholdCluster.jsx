@@ -564,6 +564,8 @@ function StarMapPointVisual({ starClass, isHovered, memberCount }) {
           float alpha = (core * 0.9 + inner * 0.6) * breathe;
           alpha *= (0.75 + n * 0.15);
           alpha *= (1.0 + hoverBoost * 0.3);
+          float edge = 1.0 - smoothstep(0.4, 0.5, dist);
+          alpha *= edge;
           alpha = clamp(alpha, 0.0, 0.95);
 
           gl_FragColor = vec4(color, alpha);
@@ -638,6 +640,8 @@ function StarMapPointVisual({ starClass, isHovered, memberCount }) {
 
           float baseOpacity = 0.3 + hoverBoost * 0.5;
           float alpha = flare * baseOpacity * brightness;
+          float edge = 1.0 - smoothstep(0.4, 0.5, dist);
+          alpha *= edge;
           if (alpha < 0.003) discard;
 
           vec3 color = flareColor * (1.0 + hoverBoost * 0.3);
@@ -677,12 +681,13 @@ function StarMapPointVisual({ starClass, isHovered, memberCount }) {
           vec2 center = vUv - 0.5;
           float dist = length(center);
 
-          float halo = 1.0 - smoothstep(0.0, 0.5, dist);
+          float halo = 1.0 - smoothstep(0.0, 0.45, dist);
           halo = pow(halo, 3.0);
 
           float pulse = 0.8 + sin(time * 0.3) * 0.12 + sin(time * 0.19) * 0.08;
 
-          float alpha = halo * pulse * (0.2 + hoverBoost * 0.2);
+          float edge = 1.0 - smoothstep(0.4, 0.5, dist);
+          float alpha = halo * pulse * (0.2 + hoverBoost * 0.2) * edge;
 
           gl_FragColor = vec4(haloColor, alpha);
         }
@@ -752,6 +757,7 @@ export function StarMapCluster({
   memberCount = 0,
   starClass,
   isHovered = false,
+  isSystemView = false,
   onClick,
   onPointerOver,
   onPointerOut,
@@ -760,7 +766,7 @@ export function StarMapCluster({
   const groupRef = useRef();
   const currentScale = useRef(1);
 
-  const hitboxRadius = 1.5;
+  const hitboxRadius = 3.5;
 
   useFrame(() => {
     if (groupRef.current) {
@@ -770,41 +776,41 @@ export function StarMapCluster({
     }
   });
 
+  const groupHandlers = isSystemView ? {} : {
+    onClick: (e) => {
+      e.stopPropagation();
+      onClick?.(household);
+    },
+    onPointerOver: (e) => {
+      e.stopPropagation();
+      document.body.style.cursor = 'pointer';
+      onPointerOver?.(household?.id);
+    },
+    onPointerOut: () => {
+      document.body.style.cursor = 'auto';
+      onPointerOut?.();
+    },
+  };
+
   return (
     <group
       ref={groupRef}
       position={position}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick?.(household);
-      }}
-      onPointerOver={(e) => {
-        e.stopPropagation();
-        document.body.style.cursor = 'pointer';
-        onPointerOver?.(household?.id);
-      }}
-      onPointerOut={() => {
-        document.body.style.cursor = 'auto';
-        onPointerOut?.();
-      }}
+      {...groupHandlers}
     >
-      <StarMapPointVisual
-        starClass={starClass}
-        isHovered={isHovered}
-        memberCount={memberCount}
-      />
-
-      {showLabels && (
+      {showLabels && !isSystemView && (
         <HouseholdLabel
           name={household?.name || 'Unknown'}
           isHovered={isHovered}
         />
       )}
 
-      <mesh visible={false}>
-        <sphereGeometry args={[hitboxRadius, 12, 12]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
+      {!isSystemView && (
+        <mesh visible={false}>
+          <sphereGeometry args={[hitboxRadius, 12, 12]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      )}
     </group>
   );
 }
