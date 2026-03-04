@@ -865,13 +865,6 @@ export function StarMapCluster({
       position={position}
       {...groupHandlers}
     >
-      {showLabels && !isSystemView && (
-        <HouseholdLabel
-          name={household?.name || 'Unknown'}
-          isHovered={isHovered}
-        />
-      )}
-
       {!isSystemView && (
         <mesh visible={false}>
           <sphereGeometry args={[hitboxRadius, 12, 12]} />
