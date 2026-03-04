@@ -70,86 +70,165 @@ function generateUniquenessProfile(seed) {
   };
 }
 
-function useOrganicClusterLayout(households, people, viewMode = 'nebula') {
+function useOrganicClusterLayout(households, people, viewMode = 'nebula', relationships = []) {
   return useMemo(() => {
     if (!households || households.length === 0) return new Map();
     
     const householdMemberCounts = new Map();
+    const householdMembers = new Map();
     people.forEach(person => {
       if (person.household_id) {
         householdMemberCounts.set(
           person.household_id,
           (householdMemberCounts.get(person.household_id) || 0) + 1
         );
+        if (!householdMembers.has(person.household_id)) {
+          householdMembers.set(person.household_id, []);
+        }
+        householdMembers.get(person.household_id).push(person);
       }
     });
     
+    const personToHousehold = new Map();
+    people.forEach(p => {
+      if (p.household_id) personToHousehold.set(p.id, p.household_id);
+    });
+    
+    const parentOf = new Map();
+    const childOf = new Map();
+    relationships.forEach(rel => {
+      if (rel.relationship_type !== 'parent') return;
+      const parentId = rel.person_id || rel.person1_id;
+      const childId = rel.related_person_id || rel.person2_id;
+      const parentHH = personToHousehold.get(parentId);
+      const childHH = personToHousehold.get(childId);
+      if (parentHH && childHH && parentHH !== childHH) {
+        if (!parentOf.has(parentHH)) parentOf.set(parentHH, new Set());
+        parentOf.get(parentHH).add(childHH);
+        if (!childOf.has(childHH)) childOf.set(childHH, new Set());
+        childOf.get(childHH).add(parentHH);
+      }
+    });
+    
+    const generation = new Map();
+    const roots = [];
+    households.forEach(h => {
+      if (!childOf.has(h.id)) {
+        roots.push(h.id);
+        generation.set(h.id, 0);
+      }
+    });
+    
+    if (roots.length === 0) {
+      const hhAges = new Map();
+      households.forEach(h => {
+        const members = householdMembers.get(h.id) || [];
+        const ages = members
+          .map(m => m.birth_date ? (new Date().getFullYear() - new Date(m.birth_date).getFullYear()) : 0)
+          .filter(a => a > 0);
+        const maxAge = ages.length > 0 ? Math.max(...ages) : 30;
+        hhAges.set(h.id, maxAge);
+      });
+      
+      const sorted = [...households].sort((a, b) => (hhAges.get(b.id) || 0) - (hhAges.get(a.id) || 0));
+      const third = Math.max(1, Math.ceil(sorted.length / 3));
+      sorted.forEach((h, i) => {
+        if (i < third) {
+          generation.set(h.id, 0);
+        } else if (i < third * 2) {
+          generation.set(h.id, 1);
+        } else {
+          generation.set(h.id, 2);
+        }
+      });
+    } else {
+      const queue = [...roots];
+      while (queue.length > 0) {
+        const hhId = queue.shift();
+        const gen = generation.get(hhId) || 0;
+        const children = parentOf.get(hhId);
+        if (children) {
+          children.forEach(childHH => {
+            if (!generation.has(childHH) || generation.get(childHH) < gen + 1) {
+              generation.set(childHH, gen + 1);
+              queue.push(childHH);
+            }
+          });
+        }
+      }
+    }
+    
+    households.forEach(h => {
+      if (!generation.has(h.id)) generation.set(h.id, 1);
+    });
+    
+    const genGroups = new Map();
+    households.forEach(h => {
+      const gen = generation.get(h.id) || 0;
+      if (!genGroups.has(gen)) genGroups.set(gen, []);
+      genGroups.get(gen).push(h);
+    });
+    
+    const genRadii = [0, 25, 45, 65];
+    const minSeparation = 15.0;
+    
     const positions = new Map();
     const placedPositions = [];
-    const count = households.length;
-    const minSeparation = viewMode === 'starmap' ? 20.0 : 12.0;
-    const nebulaRadius = viewMode === 'starmap' ? 60 : 40;
     
-    households.forEach((household, index) => {
-      const seed = household.id;
+    const sortedGens = [...genGroups.keys()].sort((a, b) => a - b);
+    
+    sortedGens.forEach(gen => {
+      const group = genGroups.get(gen);
+      const baseRadius = genRadii[Math.min(gen, genRadii.length - 1)];
       
-      const clusterIndex = Math.floor(seededRandom(seed + '-cluster') * 5);
-      const scaleFactor = viewMode === 'starmap' ? 1.5 : 1.0;
-      const clusterCenters = [
-        { x: 0, y: 0, z: 0 },
-        { x: -22 * scaleFactor, y: 5 * scaleFactor, z: 15 * scaleFactor },
-        { x: 18 * scaleFactor, y: -3 * scaleFactor, z: -18 * scaleFactor },
-        { x: -15 * scaleFactor, y: -6 * scaleFactor, z: -20 * scaleFactor },
-        { x: 25 * scaleFactor, y: 8 * scaleFactor, z: 10 * scaleFactor },
-      ];
-      const cluster = clusterCenters[clusterIndex];
-      
-      const spreadMult = viewMode === 'starmap' ? 1.4 : 1.0;
-      const spreadX = (seededRandom(seed + '-spreadX') - 0.5) * 18 * spreadMult;
-      const spreadY = (seededRandom(seed + '-spreadY') - 0.5) * 10 * spreadMult;
-      const spreadZ = (seededRandom(seed + '-spreadZ') - 0.5) * 18 * spreadMult;
-      
-      let x = cluster.x + spreadX;
-      let y = cluster.y + spreadY;
-      let z = cluster.z + spreadZ;
-      
-      let attempts = 0;
-      const maxAttempts = 30;
-      while (attempts < maxAttempts) {
-        let tooClose = false;
-        for (const placed of placedPositions) {
-          const dx = x - placed.x;
-          const dy = y - placed.y;
-          const dz = z - placed.z;
-          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-          if (dist < minSeparation) {
-            tooClose = true;
-            break;
-          }
-        }
-        if (!tooClose) break;
+      group.forEach((household, idx) => {
+        const seed = household.id;
+        const angleOffset = seededRandom(seed + '-angle') * Math.PI * 2;
+        const angle = (idx / group.length) * Math.PI * 2 + angleOffset * 0.3;
         
-        x += (seededRandom(seed + '-adj-x-' + attempts) - 0.5) * 6;
-        y += (seededRandom(seed + '-adj-y-' + attempts) - 0.5) * 4;
-        z += (seededRandom(seed + '-adj-z-' + attempts) - 0.5) * 6;
-        attempts++;
-      }
-      
-      placedPositions.push({ x, y, z });
-      
-      const uniqueness = generateUniquenessProfile(seed);
-      
-      positions.set(household.id, {
-        x,
-        y,
-        z,
-        memberCount: householdMemberCounts.get(household.id) || 0,
-        uniqueness,
+        const radiusJitter = (seededRandom(seed + '-rjit') - 0.5) * (gen === 0 ? 5 : 10);
+        const radius = baseRadius + radiusJitter;
+        
+        let x = Math.cos(angle) * radius;
+        let z = Math.sin(angle) * radius;
+        let y = (seededRandom(seed + '-y') - 0.5) * 8;
+        
+        let attempts = 0;
+        while (attempts < 30) {
+          let tooClose = false;
+          for (const placed of placedPositions) {
+            const dx = x - placed.x;
+            const dy = y - placed.y;
+            const dz = z - placed.z;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (dist < minSeparation) {
+              tooClose = true;
+              break;
+            }
+          }
+          if (!tooClose) break;
+          x += (seededRandom(seed + '-ax-' + attempts) - 0.5) * 8;
+          y += (seededRandom(seed + '-ay-' + attempts) - 0.5) * 4;
+          z += (seededRandom(seed + '-az-' + attempts) - 0.5) * 8;
+          attempts++;
+        }
+        
+        placedPositions.push({ x, y, z });
+        
+        const uniqueness = generateUniquenessProfile(seed);
+        
+        positions.set(household.id, {
+          x,
+          y,
+          z,
+          memberCount: householdMemberCounts.get(household.id) || 0,
+          uniqueness,
+        });
       });
     });
     
     return positions;
-  }, [households, people, viewMode]);
+  }, [households, people, viewMode, relationships]);
 }
 
 function NebulaModel({ url, position, scale, rotation, opacity = 0.15 }) {
@@ -382,7 +461,7 @@ function ImmersiveNebulaVolume({ qualityTier }) {
           
           totalColor = pow(totalColor, vec3(0.85));
           
-          gl_FragColor = vec4(totalColor, totalAlpha * 0.12);
+          gl_FragColor = vec4(totalColor, totalAlpha * 0.5);
         }
       `,
       uniforms: {
@@ -470,7 +549,7 @@ function NebulaFilaments({ count = 800, qualityTier }) {
           vColor = particleColor;
           
           float drift = sin(time * 0.15 + phase) * 0.2 + 0.8;
-          vAlpha = 0.015 * drift;
+          vAlpha = 0.06 * drift;
           
           vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * (150.0 / -mvPos.z);
@@ -592,25 +671,29 @@ function NebulaBackground() {
           float n3 = fbm(dir * 1.5 + time * 0.0005);
           float n4 = fbm(dir * 0.8 + time * 0.0003);
           
-          vec3 deepSpace = vec3(0.004, 0.004, 0.012);
-          vec3 softPink = vec3(0.06, 0.015, 0.03);
-          vec3 softPurple = vec3(0.03, 0.012, 0.06);
-          vec3 softBlue = vec3(0.012, 0.02, 0.06);
-          vec3 softTeal = vec3(0.008, 0.03, 0.04);
+          vec3 deepSpace = vec3(0.02, 0.015, 0.04);
+          vec3 warmGold = vec3(0.35, 0.28, 0.05);
+          vec3 emeraldGreen = vec3(0.05, 0.3, 0.12);
+          vec3 deepPurple = vec3(0.15, 0.05, 0.3);
+          vec3 coolBlue = vec3(0.04, 0.12, 0.3);
+          vec3 amber = vec3(0.3, 0.18, 0.03);
           
           vec3 baseColor = deepSpace;
           
-          float zone1 = smoothstep(0.35, 0.65, n3);
-          float zone2 = smoothstep(0.4, 0.7, n4);
-          float zone3 = smoothstep(0.45, 0.75, fbm(dir * 1.2 - time * 0.0004));
+          float zone1 = smoothstep(0.3, 0.6, n3);
+          float zone2 = smoothstep(0.35, 0.65, n4);
+          float zone3 = smoothstep(0.4, 0.7, fbm(dir * 1.2 - time * 0.0004));
+          float zone4 = smoothstep(0.3, 0.65, n1);
+          float zone5 = smoothstep(0.35, 0.7, n2);
           
-          baseColor = mix(baseColor, softPink, zone1 * 0.12);
-          baseColor = mix(baseColor, softPurple, zone2 * 0.15);
-          baseColor = mix(baseColor, softBlue, zone3 * 0.12);
-          baseColor = mix(baseColor, softTeal, smoothstep(0.5, 0.8, n1) * 0.08);
+          baseColor = mix(baseColor, warmGold, zone1 * 0.5);
+          baseColor = mix(baseColor, emeraldGreen, zone2 * 0.45);
+          baseColor = mix(baseColor, deepPurple, zone3 * 0.4);
+          baseColor = mix(baseColor, coolBlue, zone4 * 0.35);
+          baseColor = mix(baseColor, amber, zone5 * 0.3);
           
           float yFactor = (dir.y + 1.0) * 0.5;
-          baseColor = mix(baseColor, softPurple * 0.3, yFactor * 0.08);
+          baseColor = mix(baseColor, deepPurple * 0.6, yFactor * 0.2);
           
           gl_FragColor = vec4(baseColor, 1.0);
         }
@@ -792,7 +875,7 @@ function NebulaGasCloud({ count = 8000 }) {
           vColor = gasColor;
           
           float drift = sin(time * 0.08 + phase) * 0.2;
-          vAlpha = 0.012 + drift * 0.006;
+          vAlpha = 0.04 + drift * 0.02;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * (200.0 / -mvPosition.z);
@@ -1543,32 +1626,17 @@ function AnimatedHouseholdGroup({
   
   return (
     <group ref={groupRef}>
-      {viewMode === 'starmap' ? (
-        <StarMapCluster
-          position={[0, 0, 0]}
-          household={household}
-          memberCount={memberCount}
-          starClass={starClass}
-          isHovered={isHovered && !focusedHouseholdId}
-          onClick={onClick}
-          onPointerOver={onPointerOver}
-          onPointerOut={onPointerOut}
-          showLabels={showLabels}
-        />
-      ) : (
-        <HouseholdAtmosphere
-          position={[0, 0, 0]}
-          colorIndex={colorIndex}
-          opacity={renderOpacity}
-          scale={1}
-          isHovered={showLabels && isHovered && !focusedHouseholdId}
-          householdName={household.name}
-          isFocusedView={!!focusedHouseholdId}
-          onClick={onClick}
-          onPointerOver={onPointerOver}
-          onPointerOut={onPointerOut}
-        />
-      )}
+      <StarMapCluster
+        position={[0, 0, 0]}
+        household={household}
+        memberCount={memberCount}
+        starClass={starClass}
+        isHovered={isHovered && !focusedHouseholdId}
+        onClick={onClick}
+        onPointerOver={onPointerOver}
+        onPointerOut={onPointerOut}
+        showLabels={showLabels}
+      />
       <ConstellationLines
         stars={localStars}
         relationships={relationships}
@@ -2255,11 +2323,80 @@ function HouseholdAtmosphere({ position, colorIndex, opacity, scale = 1, isHover
   );
 }
 
+function MotionTrailEffect() {
+  const { camera } = useThree();
+  const prevPos = useRef(new THREE.Vector3());
+  const trailRef = useRef();
+  const velocitySmooth = useRef(0);
+  
+  const trailMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float intensity;
+        uniform vec3 trailColor;
+        varying vec2 vUv;
+        void main() {
+          vec2 center = vUv - 0.5;
+          float dist = length(center);
+          float glow = exp(-dist * 3.0) * intensity;
+          if (glow < 0.005) discard;
+          gl_FragColor = vec4(trailColor * glow, glow * 0.4);
+        }
+      `,
+      uniforms: {
+        intensity: { value: 0 },
+        trailColor: { value: new THREE.Color(0.3, 0.5, 0.8) },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+  }, []);
+  
+  useFrame(() => {
+    const dx = camera.position.x - prevPos.current.x;
+    const dy = camera.position.y - prevPos.current.y;
+    const dz = camera.position.z - prevPos.current.z;
+    const velocity = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    prevPos.current.copy(camera.position);
+    
+    const target = Math.min(velocity * 1.5, 0.6);
+    velocitySmooth.current += (target - velocitySmooth.current) * 0.08;
+    
+    trailMaterial.uniforms.intensity.value = velocitySmooth.current;
+    
+    if (trailRef.current) {
+      trailRef.current.visible = velocitySmooth.current > 0.01;
+      trailRef.current.position.copy(camera.position);
+      trailRef.current.lookAt(
+        camera.position.x + dx * 10,
+        camera.position.y + dy * 10,
+        camera.position.z + dz * 10
+      );
+    }
+  });
+  
+  return (
+    <mesh ref={trailRef} visible={false} raycast={() => null}>
+      <planeGeometry args={[400, 400]} />
+      <primitive object={trailMaterial} attach="material" />
+    </mesh>
+  );
+}
+
 function FogController() {
   const { scene } = useThree();
   
   useEffect(() => {
-    scene.fog = new THREE.FogExp2('#050510', 0.003);
+    scene.fog = new THREE.FogExp2('#080818', 0.002);
     return () => {
       scene.fog = null;
     };
@@ -2365,6 +2502,7 @@ function NebulaScene({
       />
       
       <FogController />
+      <MotionTrailEffect />
       
       <ambientLight intensity={0.1} />
       <pointLight position={[40, 30, 40]} intensity={0.2} color="#ffffff" />
@@ -2373,7 +2511,6 @@ function NebulaScene({
       <pointLight position={[20, -20, 30]} intensity={0.08} color={NEBULA_COLORS.warmPink} />
       
       <NebulaBackground />
-      <DenseStarField count={qualityTier.starCount} />
       
       <NebulaGasCloud count={qualityTier.gasCount} />
       
@@ -2820,7 +2957,7 @@ export default function GalaxyView({ people = [], relationships = [], households
   const [transitionProgress, setTransitionProgress] = useState(0);
   const [transitioningHousehold, setTransitioningHousehold] = useState(null);
   const [warpDirection, setWarpDirection] = useState(null);
-  const [viewMode, setViewMode] = useState('nebula');
+  const [viewMode, setViewMode] = useState('starmap');
   const [cameraPos, setCameraPos] = useState(null);
   const [mousePos, setMousePos] = useState(null);
   const [filters, setFilters] = useState({
@@ -2833,7 +2970,7 @@ export default function GalaxyView({ people = [], relationships = [], households
   const cameraPosRef = useRef(null);
   
   const qualityTier = useQualityTier();
-  const householdPositions = useOrganicClusterLayout(households, people, viewMode);
+  const householdPositions = useOrganicClusterLayout(households, people, viewMode, relationships);
 
   const handleCameraUpdate = useCallback((pos) => {
     cameraPosRef.current = pos;
