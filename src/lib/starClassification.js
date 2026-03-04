@@ -91,6 +91,7 @@ export function computeHouseholdEdges(relationships, people) {
   const edges = [];
 
   for (const rel of relationships) {
+    if (rel.relationship_type !== 'parent') continue;
     const idA = rel.person_id || rel.person1_id;
     const idB = rel.related_person_id || rel.person2_id;
     const hA = personToHousehold[idA];

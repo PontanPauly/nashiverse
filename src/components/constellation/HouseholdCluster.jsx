@@ -865,10 +865,6 @@ export function StarMapCluster({
       position={position}
       {...groupHandlers}
     >
-      {!isSystemView && (
-        <SystemAura starClass={starClass} memberCount={memberCount} />
-      )}
-
       {showLabels && !isSystemView && (
         <HouseholdLabel
           name={household?.name || 'Unknown'}
