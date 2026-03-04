@@ -1630,6 +1630,23 @@ function AnimatedHouseholdGroup({
   
   const isOtherFocused = focusedHouseholdId && !isFocused;
 
+  const galaxyCoupleRing = useMemo(() => {
+    if (!localStars || localStars.length < 2) return null;
+    const parentStars = localStars.filter(s => s.isParent);
+    if (parentStars.length < 2) return null;
+    const cx = parentStars.reduce((s, p) => s + p.position[0], 0) / parentStars.length;
+    const cy = parentStars.reduce((s, p) => s + p.position[1], 0) / parentStars.length;
+    const cz = parentStars.reduce((s, p) => s + p.position[2], 0) / parentStars.length;
+    let maxDist = 0;
+    parentStars.forEach(s => {
+      const dx = s.position[0] - cx;
+      const dz = s.position[2] - cz;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist > maxDist) maxDist = dist;
+    });
+    return { center: [cx, cy, cz], radius: maxDist + 0.3 };
+  }, [localStars]);
+
   return (
     <group ref={groupRef}>
       <StarMapCluster
@@ -1650,6 +1667,14 @@ function AnimatedHouseholdGroup({
           relationships={relationships}
           colorIndex={colorIndex}
           opacity={starRenderOpacity * 0.8}
+        />
+      )}
+      {!isFocused && galaxyCoupleRing && (
+        <CoupleRing
+          center={galaxyCoupleRing.center}
+          radius={galaxyCoupleRing.radius}
+          colorIndex={colorIndex}
+          opacity={starRenderOpacity * 0.35}
         />
       )}
       {!isOtherFocused && (
