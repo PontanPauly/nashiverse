@@ -191,7 +191,7 @@ function useOrganicClusterLayout(households, people, viewMode = 'nebula', relati
         
         let x = Math.cos(angle) * radius;
         let z = Math.sin(angle) * radius;
-        let y = (seededRandom(seed + '-y') - 0.5) * 8;
+        let y = (seededRandom(seed + '-y') - 0.5) * 30;
         
         let attempts = 0;
         while (attempts < 30) {
@@ -208,7 +208,7 @@ function useOrganicClusterLayout(households, people, viewMode = 'nebula', relati
           }
           if (!tooClose) break;
           x += (seededRandom(seed + '-ax-' + attempts) - 0.5) * 8;
-          y += (seededRandom(seed + '-ay-' + attempts) - 0.5) * 4;
+          y += (seededRandom(seed + '-ay-' + attempts) - 0.5) * 10;
           z += (seededRandom(seed + '-az-' + attempts) - 0.5) * 8;
           attempts++;
         }
