@@ -12,6 +12,7 @@ Nashiverse is a family management application with a cosmic/space theme. It help
 - **File Uploads**: Multer-based file upload to `/uploads` directory
 - **Security**: Column whitelisting per entity, CORS restrictions, security headers (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection), SameSite cookies
 - **Migrations**: Auto-run on startup via `server/db/migrate.js` (ALTER TABLE ADD COLUMN IF NOT EXISTS)
+- **Seed Data**: Auto-seeds Nash family data on first startup via `server/db/seed.js` (23 people, 8 households, 94 relationships). Skips if data exists. Can be force-reseeded via admin function `seedFamilyData`.
 
 ### Frontend (React + Vite)
 - **Framework**: React with Vite
@@ -61,7 +62,7 @@ Key tables:
 ## API Routes
 - `/api/auth/*` - Authentication (register, login, logout, me)
 - `/api/entities/:type` - Secured CRUD with column whitelisting (no users table access)
-- `/api/functions/:functionName` - Backend functions (exportFamilyData, makeAdmin, cleanupTestData, getFamilyInsights)
+- `/api/functions/:functionName` - Backend functions (exportFamilyData, makeAdmin, cleanupTestData, getFamilyInsights, seedFamilyData)
 - `/api/upload` - File uploads
 - `/api/health` - Health check endpoint
 
@@ -83,6 +84,7 @@ Key tables:
 ## Key Files
 - `server/index.js` - Express server setup with security, sessions, routes
 - `server/db/migrate.js` - Auto-migration script (runs on startup)
+- `server/db/seed.js` - Nash family seed data (auto-runs on first startup)
 - `server/routes/entities.js` - Secured generic CRUD with column whitelisting
 - `server/routes/functions.js` - Backend function handlers
 - `src/api/base44Client.js` - Frontend API client

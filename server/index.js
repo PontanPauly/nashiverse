@@ -8,6 +8,7 @@ import fs from 'fs';
 
 import { pool } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
+import { seedFamilyData } from './db/seed.js';
 import authRoutes from './routes/auth.js';
 import entityRoutes from './routes/entities.js';
 import uploadRoutes from './routes/upload.js';
@@ -96,6 +97,12 @@ async function start() {
     await runMigrations();
   } catch (error) {
     console.error('Migration warning (non-fatal):', error.message);
+  }
+
+  try {
+    await seedFamilyData();
+  } catch (error) {
+    console.error('Seed warning (non-fatal):', error.message);
   }
 
   app.listen(PORT, '0.0.0.0', () => {

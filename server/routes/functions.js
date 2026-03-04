@@ -1,5 +1,6 @@
 import express from 'express';
 import { pool } from '../db/index.js';
+import { seedFamilyData } from '../db/seed.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -88,6 +89,12 @@ const functionHandlers = {
 
   async getFamilyInsights() {
     return { data: { insight: 'Family insights feature coming soon! This will provide AI-powered observations about your family universe.' } };
+  },
+
+  async seedFamilyData(req) {
+    await requireAdminRole(req);
+    const result = await seedFamilyData({ force: true });
+    return { data: result };
   }
 };
 
