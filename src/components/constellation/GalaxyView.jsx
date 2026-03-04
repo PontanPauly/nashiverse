@@ -1158,9 +1158,11 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
   }
   
   const personIds = new Set(people.map(p => p.id));
-  const householdRelationships = relationships.filter(r => 
-    personIds.has(r.person1_id) && personIds.has(r.person2_id)
-  );
+  const householdRelationships = relationships.filter(r => {
+    const idA = r.person_id || r.person1_id;
+    const idB = r.related_person_id || r.person2_id;
+    return personIds.has(idA) && personIds.has(idB);
+  });
   
   const partners = new Set();
   const parents = new Set();
@@ -1168,17 +1170,19 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
   
   householdRelationships.forEach(rel => {
     const type = (rel.relationship_type || '').toLowerCase();
+    const idA = rel.person_id || rel.person1_id;
+    const idB = rel.related_person_id || rel.person2_id;
     if (type === 'partner' || type === 'spouse' || type === 'married') {
-      partners.add(rel.person1_id);
-      partners.add(rel.person2_id);
+      partners.add(idA);
+      partners.add(idB);
     }
     if (type === 'parent') {
-      parents.add(rel.person1_id);
-      childrenIds.add(rel.person2_id);
+      parents.add(idA);
+      childrenIds.add(idB);
     }
     if (type === 'child') {
-      parents.add(rel.person2_id);
-      childrenIds.add(rel.person1_id);
+      parents.add(idB);
+      childrenIds.add(idA);
     }
   });
   
@@ -1464,8 +1468,8 @@ function SystemLevelScene({
   const centerZ = householdPosition?.z || 0;
   
   const positionedPeople = useMemo(() => {
-    return arrangeStarsInCluster(householdPeople, centerX, centerY, centerZ);
-  }, [householdPeople, centerX, centerY, centerZ]);
+    return arrangeStarsInCluster(householdPeople, centerX, centerY, centerZ, relationships);
+  }, [householdPeople, centerX, centerY, centerZ, relationships]);
   
   const starsWithProfiles = useMemo(() => {
     return positionedPeople.map(person => ({
@@ -1763,9 +1767,11 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
         starMap.set(star.id, { position: star.position });
       });
       relationships.forEach(rel => {
-        if (starIds.has(rel.person1_id) && starIds.has(rel.person2_id)) {
-          const star1 = starMap.get(rel.person1_id);
-          const star2 = starMap.get(rel.person2_id);
+        const idA = rel.person_id || rel.person1_id;
+        const idB = rel.related_person_id || rel.person2_id;
+        if (starIds.has(idA) && starIds.has(idB)) {
+          const star1 = starMap.get(idA);
+          const star2 = starMap.get(idB);
           if (star1 && star2) {
             lines.push({ from: star1.position, to: star2.position, type: rel.relationship_type });
           }
