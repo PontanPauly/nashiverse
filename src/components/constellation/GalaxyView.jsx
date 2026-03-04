@@ -1224,7 +1224,7 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
       ...parentPair[0],
       position: [
         centerX + Math.cos(parentOrbitAngle) * parentOrbitRadius,
-        centerY + 0.3,
+        centerY,
         centerZ + Math.sin(parentOrbitAngle) * parentOrbitRadius
       ],
       isParent: true,
@@ -1233,7 +1233,7 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
       ...parentPair[1],
       position: [
         centerX + Math.cos(parentOrbitAngle + Math.PI) * parentOrbitRadius,
-        centerY - 0.3,
+        centerY,
         centerZ + Math.sin(parentOrbitAngle + Math.PI) * parentOrbitRadius
       ],
       isParent: true,
