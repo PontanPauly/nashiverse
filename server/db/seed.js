@@ -85,6 +85,8 @@ export async function seedFamilyData({ force = false } = {}) {
     await createHousehold('charlie', 'Charlie Pitzenberger', 'Charlie\'s place');
     await createHousehold('joyce', 'Joyce Pitzenberger', 'Joyce\'s place');
     await createHousehold('anne_roger', 'Anne & Roger Toon', 'The Toon household');
+    await createHousehold('nathan_charity', 'Nathan & Charity Toon', 'Nathan and Charity\'s place');
+    await createHousehold('philip_katy', 'Philip & Katy Toon', 'Philip and Katy\'s place');
 
     await createPerson('randy', {
       name: 'Randy Nash', nickname: 'Dad', birth_date: '1963-03-15',
@@ -174,13 +176,38 @@ export async function seedFamilyData({ force = false } = {}) {
     });
     await createPerson('nathan', {
       name: 'Nathan Toon', birth_date: '1992-05-18',
-      role_type: 'adult', household: 'anne_roger',
-      about: 'Anne and Roger\'s oldest son.',
+      role_type: 'adult', household: 'nathan_charity',
+      about: 'Anne and Roger\'s oldest son. Married to Charity.',
+    });
+    await createPerson('charity', {
+      name: 'Charity Toon', birth_date: '1993-02-11',
+      role_type: 'adult', household: 'nathan_charity',
+      about: 'Nathan\'s wife.',
+    });
+    await createPerson('henry_t', {
+      name: 'Henry Toon', birth_date: '2018-04-20',
+      role_type: 'child', household: 'nathan_charity',
+      about: 'Nathan and Charity\'s oldest.',
+    });
+    await createPerson('teagan', {
+      name: 'Teagan Toon', birth_date: '2020-01-15',
+      role_type: 'child', household: 'nathan_charity',
+      about: 'Nathan and Charity\'s daughter.',
+    });
+    await createPerson('emerson', {
+      name: 'Emerson Toon', birth_date: '2022-06-08',
+      role_type: 'child', household: 'nathan_charity',
+      about: 'Nathan and Charity\'s youngest daughter.',
     });
     await createPerson('philip', {
       name: 'Philip Toon', birth_date: '1994-08-25',
-      role_type: 'adult', household: 'anne_roger',
-      about: 'Anne and Roger\'s younger son.',
+      role_type: 'adult', household: 'philip_katy',
+      about: 'Anne and Roger\'s younger son. Married to Katy.',
+    });
+    await createPerson('katy', {
+      name: 'Katy Toon', birth_date: '1995-10-30',
+      role_type: 'adult', household: 'philip_katy',
+      about: 'Philip\'s wife.',
     });
 
     await createPerson('angela', {
@@ -333,6 +360,22 @@ export async function seedFamilyData({ force = false } = {}) {
     await createRelationship('roger', 'philip', 'parent');
     await createRelationship('nathan', 'philip', 'sibling');
     await createRelationship('philip', 'nathan', 'sibling');
+    await createRelationship('nathan', 'charity', 'partner');
+    await createRelationship('charity', 'nathan', 'partner');
+    await createRelationship('nathan', 'henry_t', 'parent');
+    await createRelationship('charity', 'henry_t', 'parent');
+    await createRelationship('nathan', 'teagan', 'parent');
+    await createRelationship('charity', 'teagan', 'parent');
+    await createRelationship('nathan', 'emerson', 'parent');
+    await createRelationship('charity', 'emerson', 'parent');
+    await createRelationship('henry_t', 'teagan', 'sibling');
+    await createRelationship('teagan', 'henry_t', 'sibling');
+    await createRelationship('henry_t', 'emerson', 'sibling');
+    await createRelationship('emerson', 'henry_t', 'sibling');
+    await createRelationship('teagan', 'emerson', 'sibling');
+    await createRelationship('emerson', 'teagan', 'sibling');
+    await createRelationship('philip', 'katy', 'partner');
+    await createRelationship('katy', 'philip', 'partner');
 
     await createRelationship('randy', 'nancy', 'partner');
     await createRelationship('nancy', 'randy', 'partner');
