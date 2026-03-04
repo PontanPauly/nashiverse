@@ -80,6 +80,8 @@ export async function seedFamilyData({ force = false } = {}) {
     await createHousehold('paul', 'Paul Nash', 'Paul\'s place');
     await createHousehold('craig_annie', 'Craig & Annie Nash', 'The Craig Nash household');
     await createHousehold('karen_lynn', 'Karen & Lynn Humpert', 'The Humpert household');
+    await createHousehold('clark_sandra', 'Clark & Sandra Nash', 'The Nash grandparents — Randy\'s parents');
+    await createHousehold('herbert_miriam', 'Herbert & Miriam Pitzenberger', 'The Pitzenberger grandparents — Nancy\'s parents');
 
     await createPerson('randy', {
       name: 'Randy Nash', nickname: 'Dad', birth_date: '1963-03-15',
@@ -121,6 +123,29 @@ export async function seedFamilyData({ force = false } = {}) {
       name: 'Maddison Nash', birth_date: '1998-08-10',
       role_type: 'adult', household: 'craig_annie',
       about: 'Craig and Annie\'s daughter.',
+    });
+
+    await createPerson('clark', {
+      name: 'Clark Lynn Nash', birth_date: '1933-06-12',
+      role_type: 'ancestor', household: 'clark_sandra',
+      is_deceased: true,
+      about: 'Randy\'s father. Passed away in 1979 at 46.',
+    });
+    await createPerson('sandra', {
+      name: 'Sandra Nash', birth_date: '1935-04-18',
+      role_type: 'ancestor', household: 'clark_sandra',
+      about: 'Randy\'s mother.',
+    });
+    await createPerson('herbert', {
+      name: 'Herbert James Pitzenberger', birth_date: '1928-10-05',
+      role_type: 'ancestor', household: 'herbert_miriam',
+      is_deceased: true,
+      about: 'Nancy\'s father. James Nash is named after him. Passed away in 1991.',
+    });
+    await createPerson('miriam', {
+      name: 'Miriam Yvonne Pitzenberger', birth_date: '1930-12-20',
+      role_type: 'ancestor', household: 'herbert_miriam',
+      about: 'Nancy\'s mother. Maiden name Coburn.',
     });
 
     await createPerson('angela', {
@@ -237,6 +262,20 @@ export async function seedFamilyData({ force = false } = {}) {
       about: 'Andrew\'s daughter.',
       dietary_preferences: ['vegetarian'],
     });
+
+    await createRelationship('clark', 'sandra', 'partner');
+    await createRelationship('sandra', 'clark', 'partner');
+    await createRelationship('clark', 'randy', 'parent');
+    await createRelationship('sandra', 'randy', 'parent');
+    await createRelationship('clark', 'craig', 'parent');
+    await createRelationship('sandra', 'craig', 'parent');
+    await createRelationship('clark', 'aunt_karen', 'parent');
+    await createRelationship('sandra', 'aunt_karen', 'parent');
+
+    await createRelationship('herbert', 'miriam', 'partner');
+    await createRelationship('miriam', 'herbert', 'partner');
+    await createRelationship('herbert', 'nancy', 'parent');
+    await createRelationship('miriam', 'nancy', 'parent');
 
     await createRelationship('randy', 'nancy', 'partner');
     await createRelationship('nancy', 'randy', 'partner');
