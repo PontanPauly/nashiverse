@@ -1644,7 +1644,7 @@ function AnimatedHouseholdGroup({
       const dist = Math.sqrt(dx * dx + dz * dz);
       if (dist > maxDist) maxDist = dist;
     });
-    return { center: [cx, cy, cz], radius: maxDist + 0.3 };
+    return { center: [cx, cy, cz], radius: maxDist };
   }, [localStars]);
 
   return (
@@ -1774,7 +1774,7 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
         const dist = Math.sqrt(dx * dx + dz * dz);
         if (dist > maxDist) maxDist = dist;
       });
-      ringRadius = maxDist + 0.6;
+      ringRadius = maxDist;
     }
 
     const lines = [];
