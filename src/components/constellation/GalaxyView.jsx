@@ -1880,12 +1880,22 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         }
       }
 
+      let fromHasRing = false;
+      if (starsByHousehold) {
+        const fromStars = starsByHousehold.get(edge.from);
+        if (fromStars) {
+          const parentCount = fromStars.filter(s => s.isParent).length;
+          fromHasRing = parentCount >= 2;
+        }
+      }
+
       data.push({
         fromHouseholdId: edge.from,
         toHouseholdId: edge.to,
         fromBase: { x: fromPos.x, y: fromPos.y, z: fromPos.z },
         toBase: { x: toPos.x, y: toPos.y, z: toPos.z },
         childLocalOffset,
+        fromHasRing,
       });
 
       const baseColor = 0.25;
@@ -1942,6 +1952,18 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
             toX = toGroup.position.x;
             toY = toGroup.position.y;
             toZ = toGroup.position.z;
+          }
+        }
+
+        if (edge.fromHasRing && fromGroup) {
+          const ringRadius = 1.2;
+          const scale = fromGroup.scale.x;
+          const dx = toX - fromX;
+          const dz = toZ - fromZ;
+          const len = Math.sqrt(dx * dx + dz * dz);
+          if (len > 0) {
+            fromX += (dx / len) * ringRadius * scale;
+            fromZ += (dz / len) * ringRadius * scale;
           }
         }
       }
