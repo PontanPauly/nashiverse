@@ -79,6 +79,7 @@ export async function seedFamilyData({ force = false } = {}) {
     await createHousehold('matthew_megan', 'Matthew & Megan Nash', 'Matt and Megan\'s home');
     await createHousehold('paul', 'Paul Nash', 'Paul\'s place');
     await createHousehold('uncle_robert', 'Robert Nash', 'Uncle Robert\'s household');
+    await createHousehold('karen_lynn', 'Karen & Lynn Humpert', 'The Humpert household');
 
     await createPerson('randy', {
       name: 'Randy Nash', nickname: 'Dad', birth_date: '1963-03-15',
@@ -95,11 +96,16 @@ export async function seedFamilyData({ force = false } = {}) {
       allergies: ['penicillin'],
     });
 
-    await createPerson('aunt_carol', {
-      name: 'Carol Nash', birth_date: '1966-11-08',
-      role_type: 'adult', household: 'randy_nancy',
+    await createPerson('aunt_karen', {
+      name: 'Karen Humpert', birth_date: '1966-11-08',
+      role_type: 'adult', household: 'karen_lynn',
       is_deceased: true,
       about: 'Randy\'s younger sister. Deeply missed by the family.',
+    });
+    await createPerson('lynn', {
+      name: 'Lynn Humpert', birth_date: '1964-09-14',
+      role_type: 'adult', household: 'karen_lynn',
+      about: 'Karen\'s husband.',
     });
     await createPerson('uncle_robert', {
       name: 'Robert Nash', nickname: 'Uncle Rob', birth_date: '1965-05-20',
@@ -225,12 +231,14 @@ export async function seedFamilyData({ force = false } = {}) {
     await createRelationship('randy', 'nancy', 'partner');
     await createRelationship('nancy', 'randy', 'partner');
 
-    await createRelationship('randy', 'aunt_carol', 'sibling');
-    await createRelationship('aunt_carol', 'randy', 'sibling');
+    await createRelationship('randy', 'aunt_karen', 'sibling');
+    await createRelationship('aunt_karen', 'randy', 'sibling');
     await createRelationship('randy', 'uncle_robert', 'sibling');
     await createRelationship('uncle_robert', 'randy', 'sibling');
-    await createRelationship('aunt_carol', 'uncle_robert', 'sibling');
-    await createRelationship('uncle_robert', 'aunt_carol', 'sibling');
+    await createRelationship('aunt_karen', 'uncle_robert', 'sibling');
+    await createRelationship('uncle_robert', 'aunt_karen', 'sibling');
+    await createRelationship('aunt_karen', 'lynn', 'partner');
+    await createRelationship('lynn', 'aunt_karen', 'partner');
 
     const nashChildren = ['angela', 'james', 'jonathan', 'andrew', 'matthew', 'paul'];
     for (const child of nashChildren) {
