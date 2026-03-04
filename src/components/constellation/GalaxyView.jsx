@@ -1623,6 +1623,8 @@ function AnimatedHouseholdGroup({
     }
   });
   
+  const isOtherFocused = focusedHouseholdId && !isFocused;
+
   return (
     <group ref={groupRef}>
       <StarMapCluster
@@ -1637,22 +1639,26 @@ function AnimatedHouseholdGroup({
         onPointerOut={onPointerOut}
         showLabels={showLabels}
       />
-      <ConstellationLines
-        stars={localStars}
-        relationships={relationships}
-        colorIndex={colorIndex}
-        opacity={starRenderOpacity * (isFocused ? 0.8 : 0.5)}
-      />
-      <StarInstanced
-        stars={localStars}
-        onStarClick={focusedHouseholdId ? onStarClick : (star) => onClick()}
-        onStarHover={focusedHouseholdId ? onStarHover : () => {}}
-        hoveredId={focusedHouseholdId ? hoveredStarId : null}
-        focusedId={focusedHouseholdId ? focusedStarId : null}
-        globalOpacity={starRenderOpacity}
-        globalScale={1}
-        animated={isFocused}
-      />
+      {!isOtherFocused && (
+        <ConstellationLines
+          stars={localStars}
+          relationships={relationships}
+          colorIndex={colorIndex}
+          opacity={starRenderOpacity * (isFocused ? 0.8 : 0.5)}
+        />
+      )}
+      {!isOtherFocused && (
+        <StarInstanced
+          stars={localStars}
+          onStarClick={focusedHouseholdId ? onStarClick : (star) => onClick()}
+          onStarHover={focusedHouseholdId ? onStarHover : () => {}}
+          hoveredId={focusedHouseholdId ? hoveredStarId : null}
+          focusedId={focusedHouseholdId ? focusedStarId : null}
+          globalOpacity={starRenderOpacity}
+          globalScale={1}
+          animated={isFocused}
+        />
+      )}
     </group>
   );
 }
