@@ -152,7 +152,7 @@ function useOrganicClusterLayout(households, people, viewMode = 'nebula') {
   }, [households, people, viewMode]);
 }
 
-function NebulaModel({ url, position, scale, rotation, opacity = 0.4 }) {
+function NebulaModel({ url, position, scale, rotation, opacity = 0.15 }) {
   const gltf = useGLTF(url);
   const scene = gltf.scene;
   const ref = useRef(null);
@@ -382,7 +382,7 @@ function ImmersiveNebulaVolume({ qualityTier }) {
           
           totalColor = pow(totalColor, vec3(0.85));
           
-          gl_FragColor = vec4(totalColor, totalAlpha * 0.35);
+          gl_FragColor = vec4(totalColor, totalAlpha * 0.12);
         }
       `,
       uniforms: {
@@ -470,7 +470,7 @@ function NebulaFilaments({ count = 800, qualityTier }) {
           vColor = particleColor;
           
           float drift = sin(time * 0.15 + phase) * 0.2 + 0.8;
-          vAlpha = 0.04 * drift;
+          vAlpha = 0.015 * drift;
           
           vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * (150.0 / -mvPos.z);
@@ -592,11 +592,11 @@ function NebulaBackground() {
           float n3 = fbm(dir * 1.5 + time * 0.0005);
           float n4 = fbm(dir * 0.8 + time * 0.0003);
           
-          vec3 deepSpace = vec3(0.008, 0.008, 0.02);
-          vec3 softPink = vec3(0.18, 0.04, 0.08);
-          vec3 softPurple = vec3(0.08, 0.03, 0.15);
-          vec3 softBlue = vec3(0.03, 0.06, 0.15);
-          vec3 softTeal = vec3(0.02, 0.08, 0.10);
+          vec3 deepSpace = vec3(0.004, 0.004, 0.012);
+          vec3 softPink = vec3(0.06, 0.015, 0.03);
+          vec3 softPurple = vec3(0.03, 0.012, 0.06);
+          vec3 softBlue = vec3(0.012, 0.02, 0.06);
+          vec3 softTeal = vec3(0.008, 0.03, 0.04);
           
           vec3 baseColor = deepSpace;
           
@@ -604,13 +604,13 @@ function NebulaBackground() {
           float zone2 = smoothstep(0.4, 0.7, n4);
           float zone3 = smoothstep(0.45, 0.75, fbm(dir * 1.2 - time * 0.0004));
           
-          baseColor = mix(baseColor, softPink, zone1 * 0.25);
-          baseColor = mix(baseColor, softPurple, zone2 * 0.3);
-          baseColor = mix(baseColor, softBlue, zone3 * 0.25);
-          baseColor = mix(baseColor, softTeal, smoothstep(0.5, 0.8, n1) * 0.15);
+          baseColor = mix(baseColor, softPink, zone1 * 0.12);
+          baseColor = mix(baseColor, softPurple, zone2 * 0.15);
+          baseColor = mix(baseColor, softBlue, zone3 * 0.12);
+          baseColor = mix(baseColor, softTeal, smoothstep(0.5, 0.8, n1) * 0.08);
           
           float yFactor = (dir.y + 1.0) * 0.5;
-          baseColor = mix(baseColor, softPurple * 0.5, yFactor * 0.15);
+          baseColor = mix(baseColor, softPurple * 0.3, yFactor * 0.08);
           
           gl_FragColor = vec4(baseColor, 1.0);
         }
@@ -635,27 +635,22 @@ function NebulaBackground() {
 }
 
 function DenseStarField({ count = 70000 }) {
-  const pointsRef = useRef(null);
-  
-  const { positions, colors, sizes, twinklePhases, brightStars } = useMemo(() => {
+  const { positions, colors, sizes } = useMemo(() => {
     const pos = new Float32Array(count * 3);
     const col = new Float32Array(count * 3);
     const siz = new Float32Array(count);
-    const phases = new Float32Array(count);
-    const bright = new Float32Array(count);
     
     const starColors = [
       [1.0, 1.0, 1.0],
       [0.9, 0.95, 1.0],
       [1.0, 0.95, 0.9],
       [0.85, 0.9, 1.0],
-      [1.0, 0.9, 0.95],
+      [1.0, 0.9, 0.85],
       [0.95, 0.98, 1.0],
     ];
     
-    const farCount = Math.floor(count * 0.7);
-    const midCount = Math.floor(count * 0.25);
-    const closeCount = count - farCount - midCount;
+    const farCount = Math.floor(count * 0.75);
+    const midCount = Math.floor(count * 0.2);
     
     for (let i = 0; i < count; i++) {
       const theta = Math.random() * Math.PI * 2;
@@ -663,11 +658,11 @@ function DenseStarField({ count = 70000 }) {
       
       let radius;
       if (i < farCount) {
-        radius = 150 + Math.random() * 120;
+        radius = 160 + Math.random() * 140;
       } else if (i < farCount + midCount) {
-        radius = 80 + Math.random() * 70;
+        radius = 90 + Math.random() * 70;
       } else {
-        radius = 40 + Math.random() * 40;
+        radius = 45 + Math.random() * 45;
       }
       
       pos[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
@@ -675,111 +670,57 @@ function DenseStarField({ count = 70000 }) {
       pos[i * 3 + 2] = radius * Math.cos(phi);
       
       const colorIndex = Math.floor(Math.random() * starColors.length);
-      const dimFactor = Math.pow(Math.random(), 1.8);
-      const brightness = 0.15 + dimFactor * 0.45;
+      const dimFactor = Math.pow(Math.random(), 2.5);
+      const brightness = 0.08 + dimFactor * 0.25;
       col[i * 3] = starColors[colorIndex][0] * brightness;
       col[i * 3 + 1] = starColors[colorIndex][1] * brightness;
       col[i * 3 + 2] = starColors[colorIndex][2] * brightness;
       
-      const sizeFactor = Math.pow(Math.random(), 3.5);
+      const sizeFactor = Math.pow(Math.random(), 4.0);
       if (i < farCount) {
-        siz[i] = 0.08 + sizeFactor * 0.15;
+        siz[i] = 0.04 + sizeFactor * 0.08;
       } else if (i < farCount + midCount) {
-        siz[i] = 0.1 + sizeFactor * 0.25;
+        siz[i] = 0.06 + sizeFactor * 0.12;
       } else {
-        siz[i] = 0.15 + sizeFactor * 0.35;
-      }
-      
-      phases[i] = Math.random() * Math.PI * 2;
-      bright[i] = Math.random() < 0.002 ? 1.0 : 0.0;
-      
-      if (bright[i] > 0.5) {
-        siz[i] = 0.6 + Math.random() * 1.0;
-        const b = 0.7 + Math.random() * 0.3;
-        col[i * 3] = starColors[colorIndex][0] * b;
-        col[i * 3 + 1] = starColors[colorIndex][1] * b;
-        col[i * 3 + 2] = starColors[colorIndex][2] * b;
+        siz[i] = 0.08 + sizeFactor * 0.18;
       }
     }
     
-    return { 
-      positions: pos, 
-      colors: col, 
-      sizes: siz, 
-      twinklePhases: phases, 
-      brightStars: bright 
-    };
+    return { positions: pos, colors: col, sizes: siz };
   }, [count]);
   
   const starMaterial = useMemo(() => {
+    const dpr = window.devicePixelRatio || 1;
     return new THREE.ShaderMaterial({
       vertexShader: `
         attribute vec3 starColor;
         attribute float size;
-        attribute float twinklePhase;
-        attribute float isBright;
-        uniform float time;
         uniform float pixelRatio;
         varying vec3 vColor;
-        varying float vBrightness;
-        varying float vIsBright;
         
         void main() {
           vColor = starColor;
-          vIsBright = isBright;
-          
-          float t1 = sin(time * 0.4 + twinklePhase) * 0.5 + 0.5;
-          float t2 = sin(time * 0.7 + twinklePhase * 1.5) * 0.5 + 0.5;
-          float twinkle = mix(t1, t2, 0.5);
-          vBrightness = 0.8 + twinkle * 0.2;
-          
-          float sizeMultiplier = isBright > 0.5 ? 1.8 : 1.0;
           float dpiScale = 1.0 / max(pixelRatio, 1.0);
-          
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * sizeMultiplier * dpiScale * (200.0 / -mvPosition.z);
-          gl_PointSize = clamp(gl_PointSize, 0.3, 5.0);
+          gl_PointSize = size * dpiScale * (150.0 / -mvPosition.z);
+          gl_PointSize = clamp(gl_PointSize, 0.3, 2.5);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
       fragmentShader: `
         varying vec3 vColor;
-        varying float vBrightness;
-        varying float vIsBright;
         
         void main() {
           vec2 center = gl_PointCoord - 0.5;
           float dist = length(center);
-          
-          float core = 1.0 - smoothstep(0.0, 0.3, dist);
-          float glow = 1.0 - smoothstep(0.0, 0.5, dist);
-          glow = pow(glow, 2.0);
-          
-          float alpha = core + glow * 0.5;
-          
-          float spike = 0.0;
-          if (vIsBright > 0.5) {
-            float angle = atan(center.y, center.x);
-            float spike4 = pow(abs(sin(angle * 2.0)), 12.0);
-            float spike6 = pow(abs(sin(angle * 3.0 + 0.5)), 10.0);
-            float spikeFalloff = exp(-dist * 3.0);
-            spike = (spike4 * 0.7 + spike6 * 0.3) * spikeFalloff * 0.8;
-            alpha += spike;
-          }
-          
+          float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
+          alpha *= alpha;
           if (alpha < 0.01) discard;
-          
-          vec3 finalColor = vColor * vBrightness;
-          if (vIsBright > 0.5) {
-            finalColor += vec3(1.0, 1.0, 1.0) * spike * 0.5;
-          }
-          
-          gl_FragColor = vec4(finalColor, alpha * vBrightness);
+          gl_FragColor = vec4(vColor, alpha);
         }
       `,
       uniforms: {
-        time: { value: 0 },
-        pixelRatio: { value: window.devicePixelRatio || 1 },
+        pixelRatio: { value: dpr },
       },
       transparent: true,
       depthWrite: false,
@@ -787,18 +728,12 @@ function DenseStarField({ count = 70000 }) {
     });
   }, []);
   
-  useFrame((state) => {
-    starMaterial.uniforms.time.value = state.clock.elapsedTime;
-  });
-  
   return (
-    <points ref={pointsRef} material={starMaterial} frustumCulled={true}>
+    <points material={starMaterial} frustumCulled={true}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
         <bufferAttribute attach="attributes-starColor" count={count} array={colors} itemSize={3} />
         <bufferAttribute attach="attributes-size" count={count} array={sizes} itemSize={1} />
-        <bufferAttribute attach="attributes-twinklePhase" count={count} array={twinklePhases} itemSize={1} />
-        <bufferAttribute attach="attributes-isBright" count={count} array={brightStars} itemSize={1} />
       </bufferGeometry>
     </points>
   );
@@ -857,7 +792,7 @@ function NebulaGasCloud({ count = 8000 }) {
           vColor = gasColor;
           
           float drift = sin(time * 0.08 + phase) * 0.2;
-          vAlpha = 0.03 + drift * 0.015;
+          vAlpha = 0.012 + drift * 0.006;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * (200.0 / -mvPosition.z);

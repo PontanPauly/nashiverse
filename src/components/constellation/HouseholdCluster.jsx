@@ -493,7 +493,7 @@ function HouseholdLabel({ name, isHovered }) {
 function StarMapPointVisual({ starClass, isHovered, memberCount }) {
   const coreRef = useRef();
   const haloRef = useRef();
-  const spikesRef = useRef();
+  const flaresRef = useRef();
   const currentHover = useRef(0);
 
   const brightness = starClass?.brightness || 1.0;
@@ -503,6 +503,12 @@ function StarMapPointVisual({ starClass, isHovered, memberCount }) {
   const glowColor = starClass?.colors?.glow || '#FF8C00';
 
   const starScale = 0.6 + Math.min(memberCount, 10) * 0.04;
+
+  const coolHaloColor = useMemo(() => {
+    const base = new THREE.Color(glowColor);
+    const cool = new THREE.Color('#88CCEE');
+    return base.clone().lerp(cool, 0.4);
+  }, [glowColor]);
 
   const coreMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -521,23 +527,44 @@ function StarMapPointVisual({ starClass, isHovered, memberCount }) {
         uniform float brightness;
         varying vec2 vUv;
 
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
+
         void main() {
           vec2 center = vUv - 0.5;
           float dist = length(center);
 
-          float core = 1.0 - smoothstep(0.0, 0.15, dist);
+          float n = noise(vUv * 5.0 + time * 0.08);
+
+          float core = 1.0 - smoothstep(0.0, 0.12, dist);
           float inner = 1.0 - smoothstep(0.0, 0.35, dist);
           inner = pow(inner, 2.0);
 
-          float pulse = 0.97 + sin(time * 0.6) * 0.03;
+          float breathe = 0.85 + sin(time * 0.4) * 0.1 + sin(time * 0.27) * 0.05;
 
           vec3 color = mix(innerColor, coreColor, core);
-          float intensity = (core * 2.0 + inner) * brightness * pulse;
-          intensity *= (1.0 + hoverBoost * 0.4);
+          color += n * 0.08 * innerColor;
+
+          float intensity = (core * 1.8 + inner * 0.7) * brightness * breathe;
+          intensity *= (1.0 + hoverBoost * 0.5);
           color *= intensity;
 
-          float alpha = (core + inner * 0.8) * (1.0 + hoverBoost * 0.2);
-          alpha = clamp(alpha, 0.0, 1.0);
+          float alpha = (core * 0.9 + inner * 0.6) * breathe;
+          alpha *= (0.75 + n * 0.15);
+          alpha *= (1.0 + hoverBoost * 0.3);
+          alpha = clamp(alpha, 0.0, 0.95);
 
           gl_FragColor = vec4(color, alpha);
         }
@@ -556,6 +583,81 @@ function StarMapPointVisual({ starClass, isHovered, memberCount }) {
     });
   }, [coreColor, innerColor, brightness]);
 
+  const flareMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 flareColor;
+        uniform float time;
+        uniform float hoverBoost;
+        uniform float brightness;
+        varying vec2 vUv;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
+
+        void main() {
+          vec2 center = vUv - 0.5;
+          float dist = length(center);
+          float angle = atan(center.y, center.x);
+
+          float rotation = time * 0.06;
+          float rotAngle = angle - rotation;
+
+          float flare1 = pow(abs(cos(rotAngle * 2.0)), 40.0);
+          float flare2 = pow(abs(cos(rotAngle * 2.0 + 1.2)), 55.0);
+          float flare3 = pow(abs(cos(rotAngle * 3.0 + 0.7)), 35.0);
+
+          float len1 = exp(-dist * 3.0);
+          float len2 = exp(-dist * 4.5);
+          float len3 = exp(-dist * 5.0);
+
+          float flare = flare1 * len1 * 0.6 + flare2 * len2 * 0.3 + flare3 * len3 * 0.25;
+
+          float flicker = 0.85 + noise(vec2(angle * 3.0, time * 0.3)) * 0.15;
+          float edgeFlicker = 0.8 + noise(vec2(dist * 8.0 + time * 0.5, angle * 2.0)) * 0.2;
+          flare *= flicker * edgeFlicker;
+
+          float baseOpacity = 0.3 + hoverBoost * 0.5;
+          float alpha = flare * baseOpacity * brightness;
+          if (alpha < 0.003) discard;
+
+          vec3 color = flareColor * (1.0 + hoverBoost * 0.3);
+
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      uniforms: {
+        flareColor: { value: new THREE.Color(coreColor) },
+        time: { value: 0 },
+        hoverBoost: { value: 0 },
+        brightness: { value: brightness },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+  }, [coreColor, brightness]);
+
   const haloMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
       vertexShader: `
@@ -566,7 +668,8 @@ function StarMapPointVisual({ starClass, isHovered, memberCount }) {
         }
       `,
       fragmentShader: `
-        uniform vec3 glowColor;
+        uniform vec3 haloColor;
+        uniform float time;
         uniform float hoverBoost;
         varying vec2 vUv;
 
@@ -575,15 +678,18 @@ function StarMapPointVisual({ starClass, isHovered, memberCount }) {
           float dist = length(center);
 
           float halo = 1.0 - smoothstep(0.0, 0.5, dist);
-          halo = pow(halo, 3.5);
+          halo = pow(halo, 3.0);
 
-          float alpha = halo * (0.25 + hoverBoost * 0.15);
+          float pulse = 0.8 + sin(time * 0.3) * 0.12 + sin(time * 0.19) * 0.08;
 
-          gl_FragColor = vec4(glowColor, alpha);
+          float alpha = halo * pulse * (0.2 + hoverBoost * 0.2);
+
+          gl_FragColor = vec4(haloColor, alpha);
         }
       `,
       uniforms: {
-        glowColor: { value: new THREE.Color(glowColor) },
+        haloColor: { value: coolHaloColor },
+        time: { value: 0 },
         hoverBoost: { value: 0 },
       },
       transparent: true,
@@ -591,52 +697,13 @@ function StarMapPointVisual({ starClass, isHovered, memberCount }) {
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
-  }, [glowColor]);
-
-  const spikeMaterial = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      vertexShader: `
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 spikeColor;
-        uniform float spikeOpacity;
-        varying vec2 vUv;
-
-        void main() {
-          vec2 center = vUv - 0.5;
-          float dist = length(center);
-          float angle = atan(center.y, center.x);
-
-          float spike4 = pow(abs(cos(angle * 2.0)), 24.0);
-          float spike6 = pow(abs(cos(angle * 3.0 + 0.5)), 20.0);
-          float spikeFalloff = exp(-dist * 4.0);
-          float spike = (spike4 * 0.7 + spike6 * 0.3) * spikeFalloff;
-
-          float alpha = spike * spikeOpacity * 0.6;
-          if (alpha < 0.005) discard;
-
-          gl_FragColor = vec4(spikeColor, alpha);
-        }
-      `,
-      uniforms: {
-        spikeColor: { value: new THREE.Color(coreColor) },
-        spikeOpacity: { value: 0 },
-      },
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-    });
-  }, [coreColor]);
+  }, [coolHaloColor]);
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
     coreMaterial.uniforms.time.value = t;
+    flareMaterial.uniforms.time.value = t;
+    haloMaterial.uniforms.time.value = t;
 
     currentHover.current = THREE.MathUtils.lerp(
       currentHover.current,
@@ -644,28 +711,28 @@ function StarMapPointVisual({ starClass, isHovered, memberCount }) {
       0.1
     );
     coreMaterial.uniforms.hoverBoost.value = currentHover.current;
+    flareMaterial.uniforms.hoverBoost.value = currentHover.current;
     haloMaterial.uniforms.hoverBoost.value = currentHover.current;
-    spikeMaterial.uniforms.spikeOpacity.value = currentHover.current;
 
     if (coreRef.current) coreRef.current.lookAt(state.camera.position);
+    if (flaresRef.current) flaresRef.current.lookAt(state.camera.position);
     if (haloRef.current) haloRef.current.lookAt(state.camera.position);
-    if (spikesRef.current) spikesRef.current.lookAt(state.camera.position);
   });
 
   return (
     <group>
       <mesh ref={haloRef} raycast={() => null}>
-        <planeGeometry args={[starScale * 6, starScale * 6]} />
+        <planeGeometry args={[starScale * 10, starScale * 10]} />
         <primitive object={haloMaterial} attach="material" />
       </mesh>
 
-      <mesh ref={spikesRef} raycast={() => null}>
-        <planeGeometry args={[starScale * 8, starScale * 8]} />
-        <primitive object={spikeMaterial} attach="material" />
+      <mesh ref={flaresRef} raycast={() => null}>
+        <planeGeometry args={[starScale * 12, starScale * 12]} />
+        <primitive object={flareMaterial} attach="material" />
       </mesh>
 
       <mesh ref={coreRef} raycast={() => null}>
-        <planeGeometry args={[starScale * 2, starScale * 2]} />
+        <planeGeometry args={[starScale * 2.2, starScale * 2.2]} />
         <primitive object={coreMaterial} attach="material" />
       </mesh>
 
