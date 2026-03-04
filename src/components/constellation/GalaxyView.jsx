@@ -1639,12 +1639,12 @@ function AnimatedHouseholdGroup({
         onPointerOut={onPointerOut}
         showLabels={showLabels}
       />
-      {!isOtherFocused && (
+      {isFocused && (
         <ConstellationLines
           stars={localStars}
           relationships={relationships}
           colorIndex={colorIndex}
-          opacity={starRenderOpacity * (isFocused ? 0.8 : 0.5)}
+          opacity={starRenderOpacity * 0.8}
         />
       )}
       {!isOtherFocused && (
@@ -1766,24 +1766,6 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
       });
     }
 
-    const starIds = new Set(stars.map(s => s.id));
-    if (lines.length === 0 && relationships) {
-      const starMap = new Map();
-      stars.forEach(star => {
-        starMap.set(star.id, { position: star.position });
-      });
-      relationships.forEach(rel => {
-        const idA = rel.person_id || rel.person1_id;
-        const idB = rel.related_person_id || rel.person2_id;
-        if (starIds.has(idA) && starIds.has(idB)) {
-          const star1 = starMap.get(idA);
-          const star2 = starMap.get(idB);
-          if (star1 && star2) {
-            lines.push({ from: star1.position, to: star2.position, type: rel.relationship_type });
-          }
-        }
-      });
-    }
 
     const pos = new Float32Array(lines.length * 6);
     const col = new Float32Array(lines.length * 6);
