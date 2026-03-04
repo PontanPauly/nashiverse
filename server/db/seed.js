@@ -82,6 +82,9 @@ export async function seedFamilyData({ force = false } = {}) {
     await createHousehold('karen_lynn', 'Karen & Lynn Humpert', 'The Humpert household');
     await createHousehold('clark_sandra', 'Clark & Sandra Nash', 'The Nash grandparents — Randy\'s parents');
     await createHousehold('herbert_miriam', 'Herbert & Miriam Pitzenberger', 'The Pitzenberger grandparents — Nancy\'s parents');
+    await createHousehold('charlie', 'Charlie Pitzenberger', 'Charlie\'s place');
+    await createHousehold('joyce', 'Joyce Pitzenberger', 'Joyce\'s place');
+    await createHousehold('anne_roger', 'Anne & Roger Toon', 'The Toon household');
 
     await createPerson('randy', {
       name: 'Randy Nash', nickname: 'Dad', birth_date: '1963-03-15',
@@ -146,6 +149,38 @@ export async function seedFamilyData({ force = false } = {}) {
       name: 'Miriam Yvonne Pitzenberger', birth_date: '1930-12-20',
       role_type: 'ancestor', household: 'herbert_miriam',
       about: 'Nancy\'s mother. Maiden name Coburn.',
+    });
+    await createPerson('charlie', {
+      name: 'Charlie Pitzenberger', birth_date: '1957-03-14',
+      role_type: 'ancestor', household: 'charlie',
+      is_deceased: true,
+      about: 'Herbert and Miriam\'s oldest child. Never married. Passed away in 2019.',
+    });
+    await createPerson('joyce', {
+      name: 'Joyce Pitzenberger', birth_date: '1958-07-22',
+      role_type: 'ancestor', household: 'joyce',
+      is_deceased: true,
+      about: 'Herbert and Miriam\'s second child. Never married. Passed away in 2021.',
+    });
+    await createPerson('anne', {
+      name: 'Anne Toon', birth_date: '1966-09-15',
+      role_type: 'adult', household: 'anne_roger',
+      about: 'Nancy\'s sister. Married to Roger. Maiden name Pitzenberger.',
+    });
+    await createPerson('roger', {
+      name: 'Roger Toon', birth_date: '1964-11-03',
+      role_type: 'adult', household: 'anne_roger',
+      about: 'Anne\'s husband.',
+    });
+    await createPerson('nathan', {
+      name: 'Nathan Toon', birth_date: '1992-05-18',
+      role_type: 'adult', household: 'anne_roger',
+      about: 'Anne and Roger\'s oldest son.',
+    });
+    await createPerson('philip', {
+      name: 'Philip Toon', birth_date: '1994-08-25',
+      role_type: 'adult', household: 'anne_roger',
+      about: 'Anne and Roger\'s younger son.',
     });
 
     await createPerson('angela', {
@@ -274,8 +309,30 @@ export async function seedFamilyData({ force = false } = {}) {
 
     await createRelationship('herbert', 'miriam', 'partner');
     await createRelationship('miriam', 'herbert', 'partner');
+    await createRelationship('herbert', 'charlie', 'parent');
+    await createRelationship('miriam', 'charlie', 'parent');
+    await createRelationship('herbert', 'joyce', 'parent');
+    await createRelationship('miriam', 'joyce', 'parent');
     await createRelationship('herbert', 'nancy', 'parent');
     await createRelationship('miriam', 'nancy', 'parent');
+    await createRelationship('herbert', 'anne', 'parent');
+    await createRelationship('miriam', 'anne', 'parent');
+    const pitzChildren = ['charlie', 'joyce', 'nancy', 'anne'];
+    for (let i = 0; i < pitzChildren.length; i++) {
+      for (let j = i + 1; j < pitzChildren.length; j++) {
+        await createRelationship(pitzChildren[i], pitzChildren[j], 'sibling');
+        await createRelationship(pitzChildren[j], pitzChildren[i], 'sibling');
+      }
+    }
+
+    await createRelationship('anne', 'roger', 'partner');
+    await createRelationship('roger', 'anne', 'partner');
+    await createRelationship('anne', 'nathan', 'parent');
+    await createRelationship('roger', 'nathan', 'parent');
+    await createRelationship('anne', 'philip', 'parent');
+    await createRelationship('roger', 'philip', 'parent');
+    await createRelationship('nathan', 'philip', 'sibling');
+    await createRelationship('philip', 'nathan', 'sibling');
 
     await createRelationship('randy', 'nancy', 'partner');
     await createRelationship('nancy', 'randy', 'partner');
