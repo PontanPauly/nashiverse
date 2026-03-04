@@ -683,18 +683,18 @@ function DenseStarField({ count = 70000 }) {
       
       const sizeFactor = Math.pow(Math.random(), 3.5);
       if (i < farCount) {
-        siz[i] = 0.15 + sizeFactor * 0.35;
+        siz[i] = 0.08 + sizeFactor * 0.15;
       } else if (i < farCount + midCount) {
-        siz[i] = 0.2 + sizeFactor * 0.6;
+        siz[i] = 0.1 + sizeFactor * 0.25;
       } else {
-        siz[i] = 0.3 + sizeFactor * 0.8;
+        siz[i] = 0.15 + sizeFactor * 0.35;
       }
       
       phases[i] = Math.random() * Math.PI * 2;
       bright[i] = Math.random() < 0.002 ? 1.0 : 0.0;
       
       if (bright[i] > 0.5) {
-        siz[i] = 1.5 + Math.random() * 2.5;
+        siz[i] = 0.6 + Math.random() * 1.0;
         const b = 0.7 + Math.random() * 0.3;
         col[i * 3] = starColors[colorIndex][0] * b;
         col[i * 3 + 1] = starColors[colorIndex][1] * b;
@@ -719,6 +719,7 @@ function DenseStarField({ count = 70000 }) {
         attribute float twinklePhase;
         attribute float isBright;
         uniform float time;
+        uniform float pixelRatio;
         varying vec3 vColor;
         varying float vBrightness;
         varying float vIsBright;
@@ -727,16 +728,17 @@ function DenseStarField({ count = 70000 }) {
           vColor = starColor;
           vIsBright = isBright;
           
-          float t1 = sin(time * 0.8 + twinklePhase) * 0.5 + 0.5;
-          float t2 = sin(time * 1.3 + twinklePhase * 1.5) * 0.5 + 0.5;
+          float t1 = sin(time * 0.4 + twinklePhase) * 0.5 + 0.5;
+          float t2 = sin(time * 0.7 + twinklePhase * 1.5) * 0.5 + 0.5;
           float twinkle = mix(t1, t2, 0.5);
-          vBrightness = 0.6 + twinkle * 0.4;
+          vBrightness = 0.8 + twinkle * 0.2;
           
-          float sizeMultiplier = isBright > 0.5 ? 2.2 : 1.0;
+          float sizeMultiplier = isBright > 0.5 ? 1.8 : 1.0;
+          float dpiScale = 1.0 / max(pixelRatio, 1.0);
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * sizeMultiplier * (250.0 / -mvPosition.z);
-          gl_PointSize = clamp(gl_PointSize, 0.5, 12.0);
+          gl_PointSize = size * sizeMultiplier * dpiScale * (200.0 / -mvPosition.z);
+          gl_PointSize = clamp(gl_PointSize, 0.3, 5.0);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
@@ -777,6 +779,7 @@ function DenseStarField({ count = 70000 }) {
       `,
       uniforms: {
         time: { value: 0 },
+        pixelRatio: { value: window.devicePixelRatio || 1 },
       },
       transparent: true,
       depthWrite: false,
