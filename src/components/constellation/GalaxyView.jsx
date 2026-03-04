@@ -1221,7 +1221,7 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
   
   const positioned = [];
   
-  const parentOrbitRadius = 0.6;
+  const parentOrbitRadius = 1.2;
   const parentOrbitAngle = Math.PI / 6;
   
   if (parentPair.length >= 2) {
@@ -1229,7 +1229,7 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
       ...parentPair[0],
       position: [
         centerX + Math.cos(parentOrbitAngle) * parentOrbitRadius,
-        centerY + 0.15,
+        centerY + 0.3,
         centerZ + Math.sin(parentOrbitAngle) * parentOrbitRadius
       ],
       isParent: true,
@@ -1238,7 +1238,7 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
       ...parentPair[1],
       position: [
         centerX + Math.cos(parentOrbitAngle + Math.PI) * parentOrbitRadius,
-        centerY - 0.15,
+        centerY - 0.3,
         centerZ + Math.sin(parentOrbitAngle + Math.PI) * parentOrbitRadius
       ],
       isParent: true,
@@ -1251,7 +1251,7 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
     });
   }
   
-  const childOrbitRadius = 3.0;
+  const childOrbitRadius = 5.0;
   const childCount = childrenList.length;
   
   childrenList.forEach((child, index) => {
@@ -1260,8 +1260,8 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
     const angle = startAngle + (index / Math.max(1, childCount)) * angleSpread;
     
     const seed = child.id || index;
-    const radiusVariation = seededRandom(seed + '-rad') * 0.4 - 0.2;
-    const yVariation = seededRandom(seed + '-y') * 0.3 - 0.15;
+    const radiusVariation = seededRandom(seed + '-rad') * 0.8 - 0.4;
+    const yVariation = seededRandom(seed + '-y') * 0.6 - 0.3;
     
     const finalRadius = childOrbitRadius + radiusVariation;
     

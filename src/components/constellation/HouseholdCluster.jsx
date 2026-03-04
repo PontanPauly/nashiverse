@@ -751,6 +751,73 @@ function StarMapPointVisual({ starClass, isHovered, memberCount }) {
   );
 }
 
+function SystemAura({ starClass, memberCount }) {
+  const ringRef = useRef();
+  const glowColor = starClass?.colors?.glow || '#FFD700';
+  const innerColor = starClass?.colors?.inner || '#FFD700';
+
+  const auraRadius = 4.0 + Math.min(memberCount, 8) * 0.5;
+
+  const auraMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 auraColor;
+        uniform vec3 innerAuraColor;
+        uniform float time;
+        varying vec2 vUv;
+
+        void main() {
+          vec2 center = vUv - 0.5;
+          float dist = length(center);
+
+          float ring = smoothstep(0.25, 0.35, dist) * (1.0 - smoothstep(0.38, 0.48, dist));
+          float innerGlow = 1.0 - smoothstep(0.0, 0.35, dist);
+          innerGlow = pow(innerGlow, 4.0);
+
+          float pulse = 0.85 + sin(time * 0.2) * 0.1 + sin(time * 0.13) * 0.05;
+          float edge = 1.0 - smoothstep(0.4, 0.5, dist);
+
+          vec3 color = mix(innerAuraColor, auraColor, smoothstep(0.1, 0.4, dist));
+          float alpha = (ring * 0.12 + innerGlow * 0.06) * pulse * edge;
+
+          if (alpha < 0.002) discard;
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      uniforms: {
+        auraColor: { value: new THREE.Color(glowColor) },
+        innerAuraColor: { value: new THREE.Color(innerColor) },
+        time: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+  }, [glowColor, innerColor]);
+
+  useFrame((state) => {
+    auraMaterial.uniforms.time.value = state.clock.elapsedTime;
+    if (ringRef.current) {
+      ringRef.current.lookAt(state.camera.position);
+    }
+  });
+
+  return (
+    <mesh ref={ringRef} raycast={() => null}>
+      <planeGeometry args={[auraRadius * 2, auraRadius * 2]} />
+      <primitive object={auraMaterial} attach="material" />
+    </mesh>
+  );
+}
+
 export function StarMapCluster({
   position,
   household,
@@ -798,6 +865,10 @@ export function StarMapCluster({
       position={position}
       {...groupHandlers}
     >
+      {!isSystemView && (
+        <SystemAura starClass={starClass} memberCount={memberCount} />
+      )}
+
       {showLabels && !isSystemView && (
         <HouseholdLabel
           name={household?.name || 'Unknown'}
