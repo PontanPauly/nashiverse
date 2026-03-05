@@ -656,7 +656,7 @@ function NebulaBackground() {
         float fbm(vec3 p) {
           float value = 0.0;
           float amplitude = 0.5;
-          for (int i = 0; i < 5; i++) {
+          for (int i = 0; i < 3; i++) {
             value += amplitude * noise(p);
             p *= 2.0;
             amplitude *= 0.5;
@@ -668,9 +668,8 @@ function NebulaBackground() {
           vec3 dir = normalize(vPosition);
           
           float n1 = fbm(dir * 2.0 + time * 0.001);
-          float n2 = fbm(dir * 3.0 - time * 0.0008);
-          float n3 = fbm(dir * 1.5 + time * 0.0005);
-          float n4 = fbm(dir * 0.8 + time * 0.0003);
+          float n2 = fbm(dir * 1.5 + time * 0.0005);
+          float n3 = fbm(dir * 0.8 + time * 0.0003);
           
           vec3 deepSpace = vec3(0.02, 0.02, 0.05);
           vec3 warmGold = vec3(0.2, 0.16, 0.04);
@@ -682,19 +681,17 @@ function NebulaBackground() {
           
           vec3 baseColor = deepSpace;
           
-          float zone1 = smoothstep(0.35, 0.65, n3);
-          float zone2 = smoothstep(0.35, 0.65, n4);
-          float zone3 = smoothstep(0.38, 0.68, fbm(dir * 1.2 - time * 0.0004));
-          float zone4 = smoothstep(0.35, 0.65, n1);
-          float zone5 = smoothstep(0.38, 0.68, n2);
-          float zone6 = smoothstep(0.4, 0.7, fbm(dir * 1.8 + time * 0.0006));
+          float zone1 = smoothstep(0.35, 0.65, n2);
+          float zone2 = smoothstep(0.35, 0.65, n3);
+          float zone3 = smoothstep(0.38, 0.68, n1);
+          float zone4 = smoothstep(0.4, 0.7, n1 * n2);
           
           baseColor = mix(baseColor, warmGold, zone1 * 0.35);
           baseColor = mix(baseColor, emeraldGreen, zone2 * 0.3);
-          baseColor = mix(baseColor, deepPurple, zone3 * 0.3);
-          baseColor = mix(baseColor, coolBlue, zone4 * 0.28);
-          baseColor = mix(baseColor, amber, zone5 * 0.25);
-          baseColor = mix(baseColor, rosePink, zone6 * 0.2);
+          baseColor = mix(baseColor, deepPurple, zone3 * 0.28);
+          baseColor = mix(baseColor, coolBlue, zone4 * 0.25);
+          baseColor = mix(baseColor, amber, smoothstep(0.3, 0.6, n2 * n3) * 0.22);
+          baseColor = mix(baseColor, rosePink, smoothstep(0.4, 0.7, n3 * n1) * 0.18);
           
           float yFactor = (dir.y + 1.0) * 0.5;
           baseColor = mix(baseColor, deepPurple * 0.6, yFactor * 0.15);
@@ -715,7 +712,7 @@ function NebulaBackground() {
   
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[300, 64, 64]} />
+      <sphereGeometry args={[300, 32, 32]} />
       <primitive object={gradientMaterial} attach="material" />
     </mesh>
   );
@@ -3652,7 +3649,7 @@ export default function GalaxyView({ people = [], relationships = [], households
         camera={{ position: [25, 20, 50], fov: 55 }}
         gl={{ antialias: false, alpha: false, powerPreference: 'high-performance' }}
         style={{ background: '#020208' }}
-        dpr={[1, 1.5]}
+        dpr={1}
         onCreated={handleCanvasCreated}
       >
         <CameraTracker onCameraUpdate={handleCameraUpdate} />
