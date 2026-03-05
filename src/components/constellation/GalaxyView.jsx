@@ -797,9 +797,9 @@ function NebulaBackground({ qualityTier }) {
         void main() {
           vec3 dir = normalize(vPosition);
           
-          float n1 = fbm(dir * 2.0 + time * 0.001);
-          float n2 = fbm(dir * 1.5 + time * 0.0005);
-          float n3 = fbm(dir * 0.8 + time * 0.0003);
+          float n1 = fbm(dir * 2.0 + time * 0.003);
+          float n2 = fbm(dir * 1.5 + time * 0.0015);
+          float n3 = fbm(dir * 0.8 + time * 0.001);
           
           vec3 deepSpace = vec3(0.02, 0.02, 0.05);
           vec3 warmGold = vec3(0.2, 0.16, 0.04);
@@ -816,15 +816,17 @@ function NebulaBackground({ qualityTier }) {
           float zone3 = smoothstep(0.38, 0.68, n1);
           float zone4 = smoothstep(0.4, 0.7, n1 * n2);
           
-          baseColor = mix(baseColor, warmGold, zone1 * 0.35);
-          baseColor = mix(baseColor, emeraldGreen, zone2 * 0.3);
-          baseColor = mix(baseColor, deepPurple, zone3 * 0.28);
-          baseColor = mix(baseColor, coolBlue, zone4 * 0.25);
-          baseColor = mix(baseColor, amber, smoothstep(0.3, 0.6, n2 * n3) * 0.22);
-          baseColor = mix(baseColor, rosePink, smoothstep(0.4, 0.7, n3 * n1) * 0.18);
+          baseColor = mix(baseColor, warmGold, zone1 * 0.5);
+          baseColor = mix(baseColor, emeraldGreen, zone2 * 0.4);
+          baseColor = mix(baseColor, deepPurple, zone3 * 0.45);
+          baseColor = mix(baseColor, coolBlue, zone4 * 0.35);
+          baseColor = mix(baseColor, amber, smoothstep(0.25, 0.55, n2 * n3) * 0.35);
+          baseColor = mix(baseColor, rosePink, smoothstep(0.35, 0.65, n3 * n1) * 0.28);
           
           float yFactor = (dir.y + 1.0) * 0.5;
-          baseColor = mix(baseColor, deepPurple * 0.6, yFactor * 0.15);
+          baseColor = mix(baseColor, deepPurple * 0.8, yFactor * 0.2);
+          
+          baseColor *= 1.3;
           
           gl_FragColor = vec4(baseColor, 1.0);
         }
@@ -1586,6 +1588,54 @@ function SystemCenterGlow({ position, color, intensity = 0.4 }) {
   );
 }
 
+function SystemDustCloud({ center, color, count = 120, radius = 8, opacity = 0.3 }) {
+  const pointsRef = useRef();
+  const { positions, phases } = useMemo(() => {
+    const pos = new Float32Array(count * 3);
+    const ph = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = Math.random() * radius;
+      pos[i * 3] = center[0] + r * Math.sin(phi) * Math.cos(theta);
+      pos[i * 3 + 1] = center[1] + (Math.random() - 0.5) * radius * 0.4;
+      pos[i * 3 + 2] = center[2] + r * Math.sin(phi) * Math.sin(theta);
+      ph[i] = Math.random() * Math.PI * 2;
+    }
+    return { positions: pos, phases: ph };
+  }, [count, radius, center]);
+
+  useFrame((state) => {
+    if (!pointsRef.current) return;
+    const t = state.clock.elapsedTime;
+    const posArr = pointsRef.current.geometry.attributes.position.array;
+    for (let i = 0; i < count; i++) {
+      const phase = phases[i];
+      posArr[i * 3] += Math.sin(t * 0.15 + phase) * 0.002;
+      posArr[i * 3 + 1] += Math.cos(t * 0.1 + phase * 1.3) * 0.001;
+      posArr[i * 3 + 2] += Math.cos(t * 0.12 + phase * 0.7) * 0.002;
+    }
+    pointsRef.current.geometry.attributes.position.needsUpdate = true;
+  });
+
+  return (
+    <points ref={pointsRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
+      </bufferGeometry>
+      <pointsMaterial
+        color={color}
+        size={0.08}
+        transparent
+        opacity={opacity}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        sizeAttenuation
+      />
+    </points>
+  );
+}
+
 function SystemLevelScene({
   household,
   people,
@@ -1622,13 +1672,37 @@ function SystemLevelScene({
   
   const colors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
   
+  const systemGroupRef = useRef();
+  useFrame((state) => {
+    if (!systemGroupRef.current) return;
+    const t = state.clock.elapsedTime;
+    systemGroupRef.current.rotation.y = t * 0.008;
+    systemGroupRef.current.position.y = Math.sin(t * 0.15) * 0.08;
+  });
+  
   return (
-    <group>
+    <group ref={systemGroupRef}>
       <SystemCenterGlow
         position={[centerX, centerY, centerZ]}
         color={colors.glow}
-        intensity={0.25 * fadeOpacity}
+        intensity={0.35 * fadeOpacity}
       />
+      <SystemDustCloud
+        center={[centerX, centerY, centerZ]}
+        color={colors.glow}
+        count={100}
+        radius={9}
+        opacity={0.25 * fadeOpacity}
+      />
+      <sprite position={[centerX, centerY, centerZ]} scale={[14, 14, 1]}>
+        <spriteMaterial
+          color={colors.primary}
+          transparent
+          opacity={0.04 * fadeOpacity}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </sprite>
       <StarInstanced
         stars={starsWithProfiles}
         onStarClick={onStarClick}
@@ -1806,6 +1880,17 @@ function AnimatedHouseholdGroup({
           </div>
         </Html>
       )}
+      {!isOtherFocused && (
+        <sprite position={[0, 0, 0]} scale={[8, 8, 1]}>
+          <spriteMaterial
+            color={householdColor.primary}
+            transparent
+            opacity={isHovered && !focusedHouseholdId ? 0.15 : 0.06}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
+        </sprite>
+      )}
       <StarMapCluster
         position={[0, 0, 0]}
         household={household}
@@ -1982,12 +2067,98 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
   );
 }
 
-function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 }) {
-  const lineRef = useRef();
+function SystemMeshLines({ lines, colorIndex, opacity = 0.6 }) {
+  const meshRef = useRef();
+  const timeUniform = useRef({ value: 0 });
+  const resolutionUniform = useRef({ value: new THREE.Vector2(1920, 1080) });
+  const lineWidthUniform = useRef({ value: 2.0 });
 
-  const { positions, colors, coupleCenter, coupleRadius, hasCouple, hasChildren } = useMemo(() => {
+  const lineCount = lines.length;
+  const totalVerts = lineCount * 4;
+  const totalIndices = lineCount * 6;
+
+  const { startPos, endPos, sides, tValues, colorValues, highlightValues, indices, dummyPositions } = useMemo(() => {
+    const sp = new Float32Array(totalVerts * 3);
+    const ep = new Float32Array(totalVerts * 3);
+    const sd = new Float32Array(totalVerts);
+    const t = new Float32Array(totalVerts);
+    const col = new Float32Array(totalVerts * 3);
+    const hl = new Float32Array(totalVerts);
+    const dp = new Float32Array(totalVerts * 3);
+    const idx = new Uint32Array(totalIndices);
+
+    const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
+    const lineColor = new THREE.Color(baseColors.glow);
+
+    for (let e = 0; e < lineCount; e++) {
+      const base = e * 4;
+      sd[base] = -1; t[base] = 0;
+      sd[base + 1] = 1; t[base + 1] = 0;
+      sd[base + 2] = -1; t[base + 2] = 1;
+      sd[base + 3] = 1; t[base + 3] = 1;
+
+      const idxOff = e * 6;
+      idx[idxOff] = base;
+      idx[idxOff + 1] = base + 1;
+      idx[idxOff + 2] = base + 2;
+      idx[idxOff + 3] = base + 1;
+      idx[idxOff + 4] = base + 3;
+      idx[idxOff + 5] = base + 2;
+
+      const line = lines[e];
+      for (let v = 0; v < 4; v++) {
+        const vi = (base + v) * 3;
+        sp[vi] = line.from[0]; sp[vi + 1] = line.from[1]; sp[vi + 2] = line.from[2];
+        ep[vi] = line.to[0]; ep[vi + 1] = line.to[1]; ep[vi + 2] = line.to[2];
+        col[vi] = lineColor.r; col[vi + 1] = lineColor.g; col[vi + 2] = lineColor.b;
+        hl[base + v] = 1.0;
+      }
+    }
+
+    return { startPos: sp, endPos: ep, sides: sd, tValues: t, colorValues: col, highlightValues: hl, indices: idx, dummyPositions: dp };
+  }, [lines, colorIndex, lineCount, totalVerts, totalIndices]);
+
+  useFrame((state) => {
+    timeUniform.current.value = state.clock.elapsedTime;
+    const size = state.gl.getSize(new THREE.Vector2());
+    resolutionUniform.current.value.set(size.x, size.y);
+  });
+
+  if (totalVerts === 0) return null;
+
+  return (
+    <mesh ref={meshRef} frustumCulled={false}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={totalVerts} array={dummyPositions} itemSize={3} />
+        <bufferAttribute attach="attributes-aStart" count={totalVerts} array={startPos} itemSize={3} />
+        <bufferAttribute attach="attributes-aEnd" count={totalVerts} array={endPos} itemSize={3} />
+        <bufferAttribute attach="attributes-aSide" count={totalVerts} array={sides} itemSize={1} />
+        <bufferAttribute attach="attributes-aT" count={totalVerts} array={tValues} itemSize={1} />
+        <bufferAttribute attach="attributes-aColor" count={totalVerts} array={colorValues} itemSize={3} />
+        <bufferAttribute attach="attributes-aHighlight" count={totalVerts} array={highlightValues} itemSize={1} />
+        <bufferAttribute attach="index" count={indices.length} array={indices} itemSize={1} />
+      </bufferGeometry>
+      <shaderMaterial
+        vertexShader={connectionLineShader.vertexShader}
+        fragmentShader={connectionLineShader.fragmentShader}
+        uniforms={{
+          uTime: timeUniform.current,
+          uResolution: resolutionUniform.current,
+          uLineWidth: lineWidthUniform.current,
+        }}
+        transparent
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
+  );
+}
+
+function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 }) {
+  const { lines_data, coupleCenter, coupleRadius, hasCouple } = useMemo(() => {
     if (!stars || stars.length < 2) {
-      return { positions: new Float32Array(0), colors: new Float32Array(0), coupleCenter: [0,0,0], coupleRadius: 0, hasCouple: false, hasChildren: false };
+      return { lines_data: [], coupleCenter: [0,0,0], coupleRadius: 0, hasCouple: false };
     }
 
     const parentStars = stars.filter(s => s.isParent);
@@ -2032,65 +2203,30 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
         const ringZ = centerZ + Math.sin(angle) * ringRadius;
 
         if (bothBioOnRing) {
-          lines.push({
-            from: [ringX, centerY, ringZ],
-            to: child.position,
-            type: 'parent',
-          });
+          lines.push({ from: [ringX, centerY, ringZ], to: child.position });
         } else {
           const bioParentStar = parentStars.find(s => childBioParents.includes(s.id));
           if (bioParentStar) {
-            lines.push({
-              from: bioParentStar.position,
-              to: child.position,
-              type: 'parent',
-            });
+            lines.push({ from: bioParentStar.position, to: child.position });
           } else {
             lines.push({
               from: parentStars.length >= 2 ? [ringX, centerY, ringZ] : [centerX, centerY, centerZ],
               to: child.position,
-              type: 'parent',
             });
           }
         }
       });
     }
 
-
-    const pos = new Float32Array(lines.length * 6);
-    const col = new Float32Array(lines.length * 6);
-
-    const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
-    const lineColor = new THREE.Color(baseColors.glow);
-
-    lines.forEach((line, i) => {
-      pos[i * 6] = line.from[0];
-      pos[i * 6 + 1] = line.from[1];
-      pos[i * 6 + 2] = line.from[2];
-      pos[i * 6 + 3] = line.to[0];
-      pos[i * 6 + 4] = line.to[1];
-      pos[i * 6 + 5] = line.to[2];
-
-      const brightness = 0.5;
-      col[i * 6] = lineColor.r * brightness;
-      col[i * 6 + 1] = lineColor.g * brightness;
-      col[i * 6 + 2] = lineColor.b * brightness;
-      col[i * 6 + 3] = lineColor.r * brightness * 0.3;
-      col[i * 6 + 4] = lineColor.g * brightness * 0.3;
-      col[i * 6 + 5] = lineColor.b * brightness * 0.3;
-    });
-
     return {
-      positions: pos,
-      colors: col,
+      lines_data: lines,
       coupleCenter: [centerX, centerY, centerZ],
       coupleRadius: ringRadius,
       hasCouple: parentStars.length >= 2,
-      hasChildren: childStars.length > 0
     };
   }, [stars, relationships, colorIndex]);
 
-  if (positions.length === 0 && !hasCouple) return null;
+  if (lines_data.length === 0 && !hasCouple) return null;
 
   return (
     <group>
@@ -2102,21 +2238,12 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
           opacity={opacity * 0.85}
         />
       )}
-      {positions.length > 0 && (
-        <lineSegments ref={lineRef}>
-          <bufferGeometry>
-            <bufferAttribute attach="attributes-position" count={positions.length / 3} array={positions} itemSize={3} />
-            <bufferAttribute attach="attributes-color" count={colors.length / 3} array={colors} itemSize={3} />
-          </bufferGeometry>
-          <lineBasicMaterial
-            vertexColors
-            transparent
-            opacity={opacity}
-            blending={THREE.AdditiveBlending}
-            depthWrite={false}
-            linewidth={1}
-          />
-        </lineSegments>
+      {lines_data.length > 0 && (
+        <SystemMeshLines
+          lines={lines_data}
+          colorIndex={colorIndex}
+          opacity={opacity}
+        />
       )}
     </group>
   );
@@ -2428,8 +2555,9 @@ function AmbientDrift({ qualityTier }) {
 
     const driftColors = [
       new THREE.Color(0xffd700),
-      new THREE.Color(0x00e5ff),
-      new THREE.Color(0xffffff),
+      new THREE.Color(0xffb347),
+      new THREE.Color(0xffe8cc),
+      new THREE.Color(0xc8a8ff),
     ];
 
     for (let i = 0; i < particleCount; i++) {
@@ -2938,7 +3066,7 @@ function FogController() {
   const { scene } = useThree();
   
   useEffect(() => {
-    scene.fog = new THREE.FogExp2('#060610', 0.003);
+    scene.fog = new THREE.FogExp2('#0a0812', 0.0025);
     return () => {
       scene.fog = null;
     };
@@ -2982,9 +3110,11 @@ function BackgroundStarField({ qualityTier }) {
         varying float vAlpha;
 
         void main() {
-          float twinkle = sin(time * (0.5 + brightness * 1.5) + phase) * 0.5 + 0.5;
-          twinkle = twinkle * 0.6 + 0.4;
-          vAlpha = brightness * twinkle * 0.6;
+          float twinkle = sin(time * (0.8 + brightness * 2.0) + phase) * 0.5 + 0.5;
+          float twinkle2 = sin(time * (0.3 + brightness * 0.7) + phase * 2.3) * 0.5 + 0.5;
+          twinkle = mix(twinkle, twinkle2, 0.3);
+          twinkle = twinkle * 0.7 + 0.3;
+          vAlpha = brightness * twinkle * 0.7;
 
           vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = (1.0 + brightness) * (200.0 / -mvPos.z);
@@ -3001,7 +3131,9 @@ function BackgroundStarField({ qualityTier }) {
           if (dist > 0.5) discard;
 
           float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-          vec3 color = mix(vec3(0.8, 0.85, 1.0), vec3(1.0, 1.0, 1.0), vAlpha);
+          vec3 coolStar = vec3(0.75, 0.82, 1.0);
+          vec3 warmStar = vec3(1.0, 0.92, 0.8);
+          vec3 color = mix(coolStar, warmStar, vAlpha * 0.6);
           gl_FragColor = vec4(color, alpha * vAlpha);
         }
       `,
@@ -3205,27 +3337,14 @@ function CameraTracker({ onCameraUpdate }) {
   return null;
 }
 
-function ScanlineOverlay() {
-  return (
-    <div
-      className="absolute inset-0 pointer-events-none z-[1]"
-      style={{
-        background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,255,0.015) 2px, rgba(0,255,255,0.015) 4px)',
-        mixBlendMode: 'overlay',
-      }}
-    />
-  );
-}
-
 function CornerBrackets({ children, className = '' }) {
   return (
     <div className={`relative ${className}`}>
-      <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-cyan-400/60" />
-      <div className="absolute top-0 right-0 w-3 h-3 border-t border-r border-cyan-400/60" />
-      <div className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-cyan-400/60" />
-      <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-cyan-400/60" />
+      <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-amber-400/30" />
+      <div className="absolute top-0 right-0 w-3 h-3 border-t border-r border-amber-400/30" />
+      <div className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-amber-400/30" />
+      <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-amber-400/30" />
       {children}
-      <ScanlineOverlay />
     </div>
   );
 }
@@ -3251,65 +3370,60 @@ function HoverTooltip({ household, memberCount, starClass, mousePos, generation 
   return (
     <div
       className="fixed z-[60] pointer-events-none"
-      style={{ left: mousePos.x + 16, top: mousePos.y - 12 }}
+      style={{ left: mousePos.x + 20, top: mousePos.y - 8 }}
     >
       <div
-        className="rounded-lg min-w-[180px] overflow-hidden"
+        className="rounded-xl min-w-[190px] overflow-hidden"
         style={{
-          background: 'rgba(8, 8, 24, 0.85)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          border: `1px solid ${accentColor}33`,
-          boxShadow: `0 0 20px ${accentColor}15, 0 4px 24px rgba(0,0,0,0.5)`,
+          background: 'rgba(6, 4, 16, 0.88)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          boxShadow: `0 0 30px ${accentColor}18, 0 0 60px ${accentColor}08, 0 8px 32px rgba(0,0,0,0.6)`,
+          border: `1px solid ${accentColor}22`,
         }}
       >
-        <div className="px-3 py-2.5">
-          <div className="flex items-center gap-2 mb-1.5">
-            <span
-              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-              style={{
-                backgroundColor: accentColor,
-                boxShadow: `0 0 8px ${accentColor}88`,
-              }}
-            />
-            <span className="text-sm font-semibold text-slate-100 tracking-wide">{household.name}</span>
-          </div>
-
+        <div
+          className="h-[2px]"
+          style={{
+            background: `linear-gradient(to right, transparent, ${accentColor}66, ${accentColor}aa, ${accentColor}66, transparent)`,
+          }}
+        />
+        <div className="px-3.5 py-3">
           <div className="flex items-center gap-2 mb-2">
             <span
-              className="text-[10px] uppercase tracking-[0.12em] font-medium px-1.5 py-0.5 rounded"
+              className="w-2 h-2 rounded-full flex-shrink-0"
               style={{
-                color: accentColor,
-                backgroundColor: `${accentColor}18`,
-                border: `1px solid ${accentColor}30`,
+                backgroundColor: accentColor,
+                boxShadow: `0 0 6px ${accentColor}aa, 0 0 12px ${accentColor}44`,
+              }}
+            />
+            <span className="text-[13px] font-semibold text-slate-50 tracking-wide">{household.name}</span>
+          </div>
+
+          <div className="flex items-center gap-2 mb-2.5">
+            <span
+              className="text-[9px] uppercase tracking-[0.15em] font-medium px-1.5 py-0.5 rounded-sm"
+              style={{
+                color: `${accentColor}cc`,
+                backgroundColor: `${accentColor}10`,
               }}
             >
               {generationLabel}
             </span>
-            <span className="flex items-center gap-1">
-              <span
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ backgroundColor: starClass?.colors?.inner || '#fff' }}
-              />
-              <span className="text-[10px] text-slate-400">{starClass?.label || 'Unknown'}</span>
-            </span>
+            <span className="text-[9px] text-slate-500 font-mono">{starClass?.label || 'Unknown'}</span>
           </div>
 
           <div
-            className="h-px mb-2"
+            className="h-px mb-2.5"
             style={{
-              background: `linear-gradient(to right, transparent, ${accentColor}30, transparent)`,
+              background: `linear-gradient(to right, ${accentColor}20, ${accentColor}08)`,
             }}
           />
 
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[10px] uppercase tracking-[0.15em] text-slate-500">{memberCount} {memberCount === 1 ? 'member' : 'members'}</span>
-          </div>
-
           {memberNames.length > 0 && (
-            <div className="flex flex-wrap gap-x-1.5 gap-y-0.5">
+            <div className="space-y-0.5">
               {memberNames.map((name, i) => (
-                <span key={i} className="text-xs text-slate-300">{name}{i < memberNames.length - 1 || extraCount > 0 ? ',' : ''}</span>
+                <span key={i} className="block text-[11px] text-slate-300/80 font-light">{name}</span>
               ))}
               {extraCount > 0 && (
                 <span className="text-xs text-slate-500">+{extraCount} more</span>
@@ -3332,7 +3446,7 @@ function SystemInfoPanel({ household, memberCount, starClass, people, onClose })
       <CornerBrackets className="bg-slate-950/90 backdrop-blur-xl p-4">
         <div className="flex justify-between items-start mb-3">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-cyan-400/60 mb-1">System Overview</div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-amber-400/60 mb-1">System Overview</div>
             <h3 className="text-lg font-bold text-slate-100 tracking-wide">{household.name}</h3>
           </div>
           <button
@@ -3345,7 +3459,7 @@ function SystemInfoPanel({ household, memberCount, starClass, people, onClose })
           </button>
         </div>
 
-        <div className="h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent mb-3" />
+        <div className="h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent mb-3" />
 
         <div className="grid grid-cols-2 gap-2 mb-3">
           <div className="bg-slate-800/40 rounded px-2 py-1.5">
@@ -3375,7 +3489,7 @@ function SystemInfoPanel({ household, memberCount, starClass, people, onClose })
           <div className="space-y-1 max-h-[120px] overflow-y-auto pr-1">
             {members.map(m => (
               <div key={m.id} className="flex items-center gap-2 text-xs text-slate-400">
-                <span className="w-1 h-1 rounded-full bg-cyan-400/50" />
+                <span className="w-1 h-1 rounded-full bg-amber-400/50" />
                 <span className="text-slate-300">{m.name}</span>
                 {m.role_type && <span className="text-slate-600">· {m.role_type}</span>}
               </div>
@@ -3400,10 +3514,10 @@ function TopBar({ level, selectedHousehold, cameraPos, onBackToGalaxy }) {
             onClick={onBackToGalaxy}
             className="flex items-center gap-2 group"
           >
-            <Home className="w-4 h-4 text-cyan-400/70 group-hover:text-cyan-300 transition-colors" />
+            <Home className="w-4 h-4 text-amber-400/70 group-hover:text-amber-300 transition-colors" />
             <span
               className={`text-xs uppercase tracking-[0.2em] font-medium transition-colors ${
-                level === 'galaxy' ? 'text-cyan-400' : 'text-slate-500 group-hover:text-slate-300'
+                level === 'galaxy' ? 'text-amber-400' : 'text-slate-500 group-hover:text-slate-300'
               }`}
             >
               Galaxy Map
@@ -3412,7 +3526,7 @@ function TopBar({ level, selectedHousehold, cameraPos, onBackToGalaxy }) {
           {level === 'system' && selectedHousehold && (
             <>
               <ChevronRight className="w-3 h-3 text-slate-600" />
-              <span className="text-xs uppercase tracking-[0.2em] font-medium text-cyan-400">
+              <span className="text-xs uppercase tracking-[0.2em] font-medium text-amber-400">
                 System Map
               </span>
             </>
@@ -3425,13 +3539,13 @@ function TopBar({ level, selectedHousehold, cameraPos, onBackToGalaxy }) {
             {coordStr}
           </div>
           {level === 'system' && selectedHousehold && (
-            <span className="text-[10px] uppercase tracking-[0.15em] text-cyan-400/50 border border-cyan-400/20 px-2 py-0.5 rounded">
+            <span className="text-[10px] uppercase tracking-[0.15em] text-amber-400/50 border border-amber-400/20 px-2 py-0.5 rounded">
               {selectedHousehold.name}
             </span>
           )}
         </div>
       </div>
-      <div className="h-px bg-gradient-to-r from-cyan-500/20 via-cyan-500/10 to-transparent" />
+      <div className="h-px bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent" />
     </div>
   );
 }
@@ -3481,7 +3595,7 @@ function FilterToggles({
           <button
             onClick={() => onToggleFilter('showLines')}
             className={`flex items-center gap-2 text-[10px] uppercase tracking-wider px-1 py-0.5 w-full rounded transition-colors ${
-              filters.showLines ? 'text-cyan-400' : 'text-slate-600'
+              filters.showLines ? 'text-amber-400' : 'text-slate-600'
             }`}
           >
             {filters.showLines ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
@@ -3490,7 +3604,7 @@ function FilterToggles({
           <button
             onClick={() => onToggleFilter('showLabels')}
             className={`flex items-center gap-2 text-[10px] uppercase tracking-wider px-1 py-0.5 w-full rounded transition-colors ${
-              filters.showLabels ? 'text-cyan-400' : 'text-slate-600'
+              filters.showLabels ? 'text-amber-400' : 'text-slate-600'
             }`}
           >
             {filters.showLabels ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
@@ -3507,7 +3621,7 @@ function FilterToggles({
         >
           {viewMode === 'nebula' ? (
             <>
-              <Sparkles className="w-3 h-3 text-cyan-400" />
+              <Sparkles className="w-3 h-3 text-amber-400" />
               Star Map
             </>
           ) : (
@@ -3529,7 +3643,7 @@ function FilterToggles({
                   onClick={() => onSetQuality(t)}
                   className={`px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider transition-all ${
                     qualityTier?.tier === t
-                      ? 'text-cyan-400 border border-cyan-400/40 bg-cyan-400/10'
+                      ? 'text-amber-400 border border-amber-400/40 bg-amber-400/10'
                       : 'text-slate-600 hover:text-slate-400'
                   }`}
                 >
@@ -3570,7 +3684,7 @@ function Minimap({ cameraPos, householdPositions, households }) {
                 cx={Math.max(2, Math.min(size - 2, pt.x))}
                 cy={Math.max(2, Math.min(size - 2, pt.y))}
                 r={1.5}
-                fill="rgba(100,200,255,0.5)"
+                fill="rgba(255,200,100,0.5)"
               />
             );
           })}
@@ -3580,14 +3694,14 @@ function Minimap({ cameraPos, householdPositions, households }) {
             width={8}
             height={8}
             fill="none"
-            stroke="rgba(0,255,255,0.7)"
+            stroke="rgba(255,191,0,0.6)"
             strokeWidth={1}
           />
           <circle
             cx={cam.x}
             cy={cam.y}
             r={1.5}
-            fill="#00ffff"
+            fill="#ffbf00"
           />
         </svg>
       </CornerBrackets>
@@ -3600,21 +3714,21 @@ function ZoomControls({ onZoomIn, onZoomOut, onResetView }) {
     <div className="absolute bottom-24 right-6 z-50 flex flex-col gap-1.5">
       <button
         onClick={onZoomIn}
-        className="p-2 bg-slate-950/70 border border-cyan-500/20 text-slate-400 hover:text-cyan-300 hover:border-cyan-500/40 transition-colors rounded"
+        className="p-2 bg-slate-950/70 border border-amber-500/20 text-slate-400 hover:text-amber-300 hover:border-amber-500/40 transition-colors rounded"
         title="Zoom In"
       >
         <ZoomIn className="w-4 h-4" />
       </button>
       <button
         onClick={onZoomOut}
-        className="p-2 bg-slate-950/70 border border-cyan-500/20 text-slate-400 hover:text-cyan-300 hover:border-cyan-500/40 transition-colors rounded"
+        className="p-2 bg-slate-950/70 border border-amber-500/20 text-slate-400 hover:text-amber-300 hover:border-amber-500/40 transition-colors rounded"
         title="Zoom Out"
       >
         <ZoomOut className="w-4 h-4" />
       </button>
       <button
         onClick={onResetView}
-        className="p-2 bg-slate-950/70 border border-cyan-500/20 text-slate-400 hover:text-cyan-300 hover:border-cyan-500/40 transition-colors rounded"
+        className="p-2 bg-slate-950/70 border border-amber-500/20 text-slate-400 hover:text-amber-300 hover:border-amber-500/40 transition-colors rounded"
         title="Reset View"
       >
         <RotateCcw className="w-4 h-4" />
@@ -3627,10 +3741,10 @@ function PersonDetailPanel({ person, household, onClose }) {
   if (!person) return null;
   
   return (
-    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[480px] max-w-[calc(100vw-2rem)] glass-card rounded-2xl p-6 border border-cyan-500/30 z-50 animate-in slide-in-from-bottom duration-300 bg-slate-900/95 backdrop-blur-xl">
+    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[480px] max-w-[calc(100vw-2rem)] glass-card rounded-2xl p-6 border border-amber-500/20 z-50 animate-in slide-in-from-bottom duration-300 bg-slate-900/95 backdrop-blur-xl">
       <div className="flex justify-between items-start">
         <div className="flex gap-3">
-          <div className="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden border-2 border-cyan-500/30">
+          <div className="w-14 h-14 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden border-2 border-amber-500/20">
             {person.photo_url ? (
               <img src={person.photo_url} className="w-full h-full object-cover" alt="" />
             ) : (
@@ -3640,7 +3754,7 @@ function PersonDetailPanel({ person, household, onClose }) {
           <div>
             <h3 className="text-lg font-semibold text-slate-100">{person.name}</h3>
             {person.nickname && (
-              <p className="text-sm text-cyan-400 mt-0.5">"{person.nickname}"</p>
+              <p className="text-sm text-amber-400 mt-0.5">"{person.nickname}"</p>
             )}
             <span className="inline-block mt-2 px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">
               {person.role_type}
@@ -3877,6 +3991,12 @@ export default function GalaxyView({ people = [], relationships = [], households
   
   return (
     <div className="absolute inset-0" onMouseMove={handleMouseMove}>
+      <div
+        className="absolute inset-0 pointer-events-none z-[2]"
+        style={{
+          background: 'radial-gradient(ellipse at center, transparent 30%, rgba(10,4,18,0.3) 60%, rgba(6,2,12,0.6) 100%)',
+        }}
+      />
       {contextLost && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/90">
           <div className="text-center">
@@ -3888,7 +4008,7 @@ export default function GalaxyView({ people = [], relationships = [], households
       <Canvas
         camera={{ position: [35, 28, 70], fov: 55 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
-        style={{ background: '#020208' }}
+        style={{ background: '#060410' }}
         dpr={qualityTier.dpr}
         onCreated={handleCanvasCreated}
       >

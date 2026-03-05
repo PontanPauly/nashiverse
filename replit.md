@@ -38,11 +38,15 @@ Nashiverse is a family management application with a cosmic/space theme. It help
    - **Ambient Particle Drift**: 300-800 slow-moving warm-colored particles with additive blending drifting across scene
    - **Glass-morphism Hover Tooltip**: Shows generation label, member names, star class with backdrop blur and household-colored accents
    - **Motion Trail Effect**: Subtle visual trails during camera movement
-   - **NMS-Style HUD**: Top bar with coordinate readout, filter toggles, minimap, corner-bracket framed panels
+   - **Warm Amber HUD**: Top bar with coordinate readout, filter toggles, minimap — all using warm amber/gold accents instead of cyan; corner-bracket framed panels with subtle warm borders
    - **Warp Transitions**: Visual warp streaks when zooming into a household system
    - 8,640+ unique star combinations (8 shapes × 12 colors × 6 glows × 5 animations × 3 sizes)
    - Smooth camera fly-through animations with OrbitControls
    - Editable star profiles per family member
+   - **System Dust Cloud**: Localized drifting dust particles in household color when zoomed into a system
+   - **System Atmosphere Glow**: Soft ambient sprite glow around each household cluster at galaxy scale
+   - **Enhanced Nebula**: Boosted nebula saturation/brightness (1.3x), warm vignette overlay, fog fading to warm dark purple (#0a0812)
+   - **Login Starfield**: Animated canvas-based twinkling starfield with shooting stars on login page
    - Solar system family layout: parents orbit at center, children orbit around them
 2. **Trip Planning** - Full trip management with participants, rooms, meals, activities, budgets
 3. **Love Notes** - Gratitude messages between family members

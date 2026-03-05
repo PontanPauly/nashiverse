@@ -86,3 +86,78 @@
     @apply bg-background text-foreground;
   }
 }
+
+.login-page {
+  background: radial-gradient(ellipse at 50% 0%, #1a1040 0%, #0a0812 40%, #050208 100%);
+}
+
+.login-nebula-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 60%, rgba(59, 130, 246, 0.08) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 80%, rgba(251, 191, 36, 0.06) 0%, transparent 40%);
+}
+
+.login-nebula-accent {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-nebula-accent--1 {
+  top: 10%;
+  left: 15%;
+  width: 500px;
+  height: 500px;
+  background: rgba(139, 92, 246, 0.08);
+  animation: login-nebula-drift 20s ease-in-out infinite alternate;
+}
+
+.login-nebula-accent--2 {
+  bottom: 10%;
+  right: 10%;
+  width: 400px;
+  height: 400px;
+  background: rgba(245, 158, 11, 0.06);
+  animation: login-nebula-drift 25s ease-in-out infinite alternate-reverse;
+}
+
+.login-nebula-accent--3 {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  background: rgba(99, 102, 241, 0.05);
+  animation: login-nebula-drift 30s ease-in-out infinite alternate;
+}
+
+@keyframes login-nebula-drift {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(20px, -15px) scale(1.05); }
+  100% { transform: translate(-10px, 10px) scale(0.95); }
+}
+
+.login-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(5, 2, 8, 0.6) 100%);
+}
+
+.login-card {
+  background: rgba(15, 20, 35, 0.55);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(251, 191, 36, 0.12);
+  box-shadow:
+    0 0 40px rgba(251, 191, 36, 0.06),
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
