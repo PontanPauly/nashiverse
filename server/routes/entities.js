@@ -19,7 +19,7 @@ const entityConfig = {
   },
   Relationship: {
     table: 'relationships',
-    columns: ['id', 'person_id', 'related_person_id', 'relationship_type']
+    columns: ['id', 'person_id', 'related_person_id', 'relationship_type', 'subtype']
   },
   TripParticipant: {
     table: 'trip_participants',

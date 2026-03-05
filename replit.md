@@ -57,7 +57,7 @@ Key tables:
 - `users` - Authentication and user accounts (with role column)
 - `people` - Family members (with star_profile JSONB, about, medical_notes)
 - `households` - Family households (with description)
-- `relationships` - Relationships between people (parent/partner/sibling)
+- `relationships` - Relationships between people (parent/partner/sibling) with subtype (biological/step/adoptive)
 - `trips` - Trip planning (with visibility, status)
 - `trip_participants`, `meals`, `rooms`, `activities`, `expenses` - Trip details
 - `calendar_events` - Calendar events with date, event_type, person_ids, is_recurring, color

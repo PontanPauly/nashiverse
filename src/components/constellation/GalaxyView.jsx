@@ -2175,14 +2175,26 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         }
       }
 
-      let fromHasRing = false;
+      let fromHasRing = edge.fromRing || false;
       let fromColorIndex = 0;
+      let fromPersonLocalOffset = null;
       if (starsByHousehold) {
         const fromStars = starsByHousehold.get(edge.from);
         if (fromStars) {
           const parentCount = fromStars.filter(s => s.isParent).length;
-          fromHasRing = parentCount >= 2;
+          if (parentCount < 2) fromHasRing = false;
           if (fromStars.length > 0) fromColorIndex = fromStars[0].householdIndex || 0;
+
+          if (edge.fromPersonId) {
+            const parentStar = fromStars.find(s => s.id === edge.fromPersonId);
+            if (parentStar && parentStar.position) {
+              fromPersonLocalOffset = [
+                parentStar.position[0] - fromPos.x,
+                parentStar.position[1] - fromPos.y,
+                parentStar.position[2] - fromPos.z
+              ];
+            }
+          }
         }
       }
 
@@ -2193,6 +2205,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         toBase: { x: toPos.x, y: toPos.y, z: toPos.z },
         childLocalOffset,
         fromHasRing,
+        fromPersonLocalOffset,
         fromColorIndex,
         isIntraHousehold: edge.isIntraHousehold || false,
       });
@@ -2284,7 +2297,12 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
           }
         }
 
-        if (edge.fromHasRing && fromGroup) {
+        if (edge.fromPersonLocalOffset && fromGroup) {
+          const scale = fromGroup.scale.x;
+          fromX = fromGroup.position.x + edge.fromPersonLocalOffset[0] * scale;
+          fromY = fromGroup.position.y + edge.fromPersonLocalOffset[1] * scale;
+          fromZ = fromGroup.position.z + edge.fromPersonLocalOffset[2] * scale;
+        } else if (edge.fromHasRing && fromGroup) {
           const ringRadius = 1.2;
           const scale = fromGroup.scale.x;
           const dx = toX - fromX;

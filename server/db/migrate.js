@@ -58,6 +58,11 @@ export async function runMigrations() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
     `);
 
+    // ── relationships table: add subtype (biological/step/adoptive) ──
+    await client.query(`
+      ALTER TABLE relationships ADD COLUMN IF NOT EXISTS subtype TEXT DEFAULT 'biological';
+    `);
+
     // ── calendar_events table: create if not exists ──
     await client.query(`
       CREATE TABLE IF NOT EXISTS calendar_events (

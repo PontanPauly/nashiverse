@@ -87,6 +87,31 @@ export function computeHouseholdEdges(relationships, people) {
     }
   }
 
+  const partnerSets = {};
+  const bioParentsOf = {};
+
+  for (const rel of relationships) {
+    const idA = rel.person_id || rel.person1_id;
+    const idB = rel.related_person_id || rel.person2_id;
+    const type = (rel.relationship_type || '').toLowerCase();
+    const subtype = (rel.subtype || 'biological').toLowerCase();
+
+    if (type === 'partner' || type === 'spouse' || type === 'married') {
+      const hhA = personToHousehold[idA];
+      const hhB = personToHousehold[idB];
+      if (hhA && hhA === hhB) {
+        if (!partnerSets[hhA]) partnerSets[hhA] = new Set();
+        partnerSets[hhA].add(idA);
+        partnerSets[hhA].add(idB);
+      }
+    }
+
+    if (type === 'parent' && subtype === 'biological') {
+      if (!bioParentsOf[idB]) bioParentsOf[idB] = [];
+      bioParentsOf[idB].push(idA);
+    }
+  }
+
   const edgeSet = new Set();
   const edges = [];
 
@@ -94,16 +119,28 @@ export function computeHouseholdEdges(relationships, people) {
     if (rel.relationship_type !== 'parent') continue;
     const parentId = rel.person_id || rel.person1_id;
     const childId = rel.related_person_id || rel.person2_id;
+    const subtype = (rel.subtype || 'biological').toLowerCase();
     const parentHH = personToHousehold[parentId];
     const childHH = personToHousehold[childId];
+
+    if (subtype === 'step') continue;
+
     if (parentHH && childHH && parentHH !== childHH) {
       const key = parentHH + '|' + childHH + '|' + childId;
       if (!edgeSet.has(key)) {
         edgeSet.add(key);
+
+        const partners = partnerSets[parentHH];
+        const childBioParents = bioParentsOf[childId] || [];
+        const bothBioOnRing = partners && childBioParents.length >= 2 &&
+          childBioParents.every(bp => partners.has(bp));
+
         edges.push({
           from: parentHH,
           to: childHH,
           childPersonId: childId,
+          fromPersonId: parentId,
+          fromRing: bothBioOnRing,
           type: rel.relationship_type
         });
       }
@@ -112,10 +149,18 @@ export function computeHouseholdEdges(relationships, people) {
       const key = parentHH + '|' + parentHH + '|' + childId;
       if (!edgeSet.has(key)) {
         edgeSet.add(key);
+
+        const partners = partnerSets[parentHH];
+        const childBioParents = bioParentsOf[childId] || [];
+        const bothBioOnRing = partners && childBioParents.length >= 2 &&
+          childBioParents.every(bp => partners.has(bp));
+
         edges.push({
           from: parentHH,
           to: parentHH,
           childPersonId: childId,
+          fromPersonId: parentId,
+          fromRing: bothBioOnRing,
           type: 'intra',
           isIntraHousehold: true
         });

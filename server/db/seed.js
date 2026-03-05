@@ -56,10 +56,10 @@ export async function seedFamilyData({ force = false } = {}) {
       pIds[key] = rows[0].id;
     }
 
-    async function createRelationship(personKey, relatedKey, type) {
+    async function createRelationship(personKey, relatedKey, type, subtype = 'biological') {
       await client.query(
-        `INSERT INTO relationships (person_id, related_person_id, relationship_type) VALUES ($1, $2, $3)`,
-        [pIds[personKey], pIds[relatedKey], type]
+        `INSERT INTO relationships (person_id, related_person_id, relationship_type, subtype) VALUES ($1, $2, $3, $4)`,
+        [pIds[personKey], pIds[relatedKey], type, subtype]
       );
     }
 
@@ -407,7 +407,9 @@ export async function seedFamilyData({ force = false } = {}) {
 
     await createRelationship('angela', 'brian', 'partner');
     await createRelationship('brian', 'angela', 'partner');
-    for (const child of ['martin', 'ava', 'nash_g']) {
+    await createRelationship('angela', 'martin', 'parent');
+    await createRelationship('brian', 'martin', 'parent', 'step');
+    for (const child of ['ava', 'nash_g']) {
       await createRelationship('angela', child, 'parent');
       await createRelationship('brian', child, 'parent');
     }
