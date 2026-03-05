@@ -2110,14 +2110,16 @@ const connectionLineShader = {
     void main() {
       float pulse = fract(uTime * 0.3 - vT);
       float pulseGlow = smoothstep(0.0, 0.08, pulse) * smoothstep(0.2, 0.08, pulse);
-      float baseBrightness = mix(0.25, 0.6, vHighlight);
-      float brightness = baseBrightness + pulseGlow * mix(0.5, 0.9, vHighlight);
-      gl_FragColor = vec4(vColor * brightness, mix(0.5, 0.85, vHighlight));
+      float baseBrightness = mix(0.0, 0.6, vHighlight);
+      float brightness = baseBrightness + pulseGlow * mix(0.0, 0.9, vHighlight);
+      float alpha = mix(0.0, 0.85, vHighlight);
+      if (alpha < 0.01) discard;
+      gl_FragColor = vec4(vColor * brightness, alpha);
     }
   `
 };
 
-const CURVE_SEGMENTS = 20;
+const CURVE_SEGMENTS = 2;
 
 function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold, householdGroupRefs }) {
   const meshRef = useRef();
@@ -2247,45 +2249,35 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         }
       }
 
-      const midX = (fromX + toX) * 0.5;
-      const midZ = (fromZ + toZ) * 0.5;
-      const dx = toX - fromX;
-      const dz = toZ - fromZ;
-      const lineLen = Math.sqrt(dx * dx + dz * dz);
-      const arcHeight = Math.min(lineLen * 0.15, 8);
-      const ctrlX = midX;
-      const ctrlY = Math.max(fromY, toY) + arcHeight;
-      const ctrlZ = midZ;
-
       const isHighlighted = hoveredHouseholdId && (hoverMask[i]?.from === hoveredHouseholdId || hoverMask[i]?.to === hoveredHouseholdId);
       const hlVal = isHighlighted ? 1.0 : 0.0;
 
       const edgeColors = HOUSEHOLD_COLORS[edge.fromColorIndex % HOUSEHOLD_COLORS.length];
       const lineColor = new THREE.Color(edgeColors.glow);
 
-      for (let s = 0; s < CURVE_SEGMENTS; s++) {
-        const tParam = s / (CURVE_SEGMENTS - 1);
-        const inv = 1 - tParam;
-        const px = inv * inv * fromX + 2 * inv * tParam * ctrlX + tParam * tParam * toX;
-        const py = inv * inv * fromY + 2 * inv * tParam * ctrlY + tParam * tParam * toY;
-        const pz = inv * inv * fromZ + 2 * inv * tParam * ctrlZ + tParam * tParam * toZ;
-
-        const vi = vertIdx * 3;
-        posAttr.array[vi] = px;
-        posAttr.array[vi + 1] = py;
-        posAttr.array[vi + 2] = pz;
-
-        if (colAttr) {
-          colAttr.array[vi] = lineColor.r;
-          colAttr.array[vi + 1] = lineColor.g;
-          colAttr.array[vi + 2] = lineColor.b;
-        }
-        if (hlAttr) {
-          hlAttr.array[vertIdx] = hlVal;
-        }
-
-        vertIdx++;
+      const vi0 = vertIdx * 3;
+      posAttr.array[vi0] = fromX;
+      posAttr.array[vi0 + 1] = fromY;
+      posAttr.array[vi0 + 2] = fromZ;
+      if (colAttr) {
+        colAttr.array[vi0] = lineColor.r;
+        colAttr.array[vi0 + 1] = lineColor.g;
+        colAttr.array[vi0 + 2] = lineColor.b;
       }
+      if (hlAttr) hlAttr.array[vertIdx] = hlVal;
+      vertIdx++;
+
+      const vi1 = vertIdx * 3;
+      posAttr.array[vi1] = toX;
+      posAttr.array[vi1 + 1] = toY;
+      posAttr.array[vi1 + 2] = toZ;
+      if (colAttr) {
+        colAttr.array[vi1] = lineColor.r;
+        colAttr.array[vi1 + 1] = lineColor.g;
+        colAttr.array[vi1 + 2] = lineColor.b;
+      }
+      if (hlAttr) hlAttr.array[vertIdx] = hlVal;
+      vertIdx++;
     }
 
     posAttr.needsUpdate = true;
