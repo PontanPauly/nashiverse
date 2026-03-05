@@ -1394,16 +1394,17 @@ function arrangeStarsInCluster(people, centerX = 0, centerY = 0, centerZ = 0, re
     const angle = startAngle + (index / Math.max(1, childCount)) * angleSpread;
     
     const seed = child.id || index;
-    const radiusVariation = seededRandom(seed + '-rad') * 0.8 - 0.4;
-    const yVariation = seededRandom(seed + '-y') * 4.0 - 2.0;
+    const radiusVariation = seededRandom(seed + '-rad') * 1.6 - 0.8;
+    const yVariation = seededRandom(seed + '-y') * 8.0 - 4.0;
     
     const finalRadius = childOrbitRadius + radiusVariation;
+    const orbitalTilt = seededRandom(seed + '-tilt') * 0.6 - 0.3;
     
     positioned.push({
       ...child,
       position: [
         centerX + Math.cos(angle) * finalRadius,
-        centerY + yVariation,
+        centerY + yVariation + Math.sin(angle) * finalRadius * orbitalTilt,
         centerZ + Math.sin(angle) * finalRadius
       ],
       isParent: false,
@@ -1825,7 +1826,7 @@ function AnimatedHouseholdGroup({
           opacity={starRenderOpacity * 0.8}
         />
       )}
-      {!isFocused && galaxyCoupleRing && (
+      {!isFocused && !isOtherFocused && galaxyCoupleRing && (
         <CoupleRing
           center={galaxyCoupleRing.center}
           radius={galaxyCoupleRing.radius}
@@ -2000,23 +2001,58 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
     }
 
     const ringRadius = 1.2;
+    const parentStarIds = new Set(parentStars.map(s => s.id));
+
+    const bioParentsOf = {};
+    if (relationships) {
+      for (const rel of relationships) {
+        const type = (rel.relationship_type || '').toLowerCase();
+        const subtype = (rel.subtype || 'biological').toLowerCase();
+        if (type === 'parent' && subtype === 'biological') {
+          const parentId = rel.person_id || rel.person1_id;
+          const childId = rel.related_person_id || rel.person2_id;
+          if (!bioParentsOf[childId]) bioParentsOf[childId] = [];
+          bioParentsOf[childId].push(parentId);
+        }
+      }
+    }
 
     const lines = [];
 
     if (childStars.length > 0 && parentStars.length > 0) {
-      const parentCenter = [centerX, centerY, centerZ];
       childStars.forEach(child => {
+        const childBioParents = bioParentsOf[child.id] || [];
+        const bothBioOnRing = parentStars.length >= 2 && childBioParents.length >= 2 &&
+          childBioParents.every(bp => parentStarIds.has(bp));
+
         const dx = child.position[0] - centerX;
         const dz = child.position[2] - centerZ;
         const angle = Math.atan2(dz, dx);
         const ringX = centerX + Math.cos(angle) * ringRadius;
         const ringZ = centerZ + Math.sin(angle) * ringRadius;
 
-        lines.push({
-          from: parentStars.length >= 2 ? [ringX, centerY, ringZ] : parentCenter,
-          to: child.position,
-          type: 'parent',
-        });
+        if (bothBioOnRing) {
+          lines.push({
+            from: [ringX, centerY, ringZ],
+            to: child.position,
+            type: 'parent',
+          });
+        } else {
+          const bioParentStar = parentStars.find(s => childBioParents.includes(s.id));
+          if (bioParentStar) {
+            lines.push({
+              from: bioParentStar.position,
+              to: child.position,
+              type: 'parent',
+            });
+          } else {
+            lines.push({
+              from: parentStars.length >= 2 ? [ringX, centerY, ringZ] : [centerX, centerY, centerZ],
+              to: child.position,
+              type: 'parent',
+            });
+          }
+        }
       });
     }
 
@@ -3840,7 +3876,7 @@ export default function GalaxyView({ people = [], relationships = [], households
         </div>
       )}
       <Canvas
-        camera={{ position: [25, 20, 50], fov: 55 }}
+        camera={{ position: [35, 28, 70], fov: 55 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         style={{ background: '#020208' }}
         dpr={qualityTier.dpr}
