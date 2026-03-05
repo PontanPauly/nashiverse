@@ -3235,8 +3235,8 @@ function HoverTooltip({ household, memberCount, starClass, mousePos, generation 
 
   const generationLabels = ['Grandparents', 'Parents', 'Children', 'Grandchildren'];
   let generationLabel = generationLabels[Math.min(generation, generationLabels.length - 1)];
-  if (generation === 1 && !hasChildren) {
-    generationLabel = 'Family';
+  if (!hasChildren && (generation === 1 || generation === 2)) {
+    generationLabel = 'Adults';
   }
 
   const householdColor = HOUSEHOLD_COLORS[Math.abs(colorIndex) % HOUSEHOLD_COLORS.length];

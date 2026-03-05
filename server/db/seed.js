@@ -284,7 +284,7 @@ export async function seedFamilyData({ force = false } = {}) {
     await createPerson('ava', {
       name: 'Ava Goldsberry', birth_date: '2004-08-15',
       role_type: 'adult', household: 'angela_brian',
-      about: 'Angela and Brian\'s daughter.',
+      about: 'Angela\'s daughter.',
     });
     await createPerson('nash_g', {
       name: 'Nash Goldsberry', birth_date: '2007-12-01',
@@ -411,7 +411,7 @@ export async function seedFamilyData({ force = false } = {}) {
     await createRelationship('brian', 'martin', 'parent', 'step');
     for (const child of ['ava', 'nash_g']) {
       await createRelationship('angela', child, 'parent');
-      await createRelationship('brian', child, 'parent');
+      await createRelationship('brian', child, 'parent', 'step');
     }
     await createRelationship('martin', 'ava', 'sibling');
     await createRelationship('ava', 'martin', 'sibling');
