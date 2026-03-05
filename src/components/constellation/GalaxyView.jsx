@@ -18,22 +18,150 @@ function useTransitionProgress() {
   return useContext(TransitionContext);
 }
 
+const QUALITY_TIERS = {
+  ultra: {
+    tier: 'ultra', starCount: 70000, gasCount: 1200, filamentCount: 300,
+    driftCount: 800, bgStarCount: 5000, curveSegments: 20, sphereSegments: 48,
+    nebulaOctaves: 4, nebulaFbmCalls: 4, showFilaments: true, showGasCloud: true,
+    showDrift: true, dpr: [1, 2], useGlb: true
+  },
+  high: {
+    tier: 'high', starCount: 55000, gasCount: 800, filamentCount: 200,
+    driftCount: 500, bgStarCount: 3500, curveSegments: 16, sphereSegments: 32,
+    nebulaOctaves: 3, nebulaFbmCalls: 3, showFilaments: true, showGasCloud: true,
+    showDrift: true, dpr: [1, 1.5], useGlb: true
+  },
+  medium: {
+    tier: 'medium', starCount: 40000, gasCount: 500, filamentCount: 100,
+    driftCount: 300, bgStarCount: 2000, curveSegments: 12, sphereSegments: 24,
+    nebulaOctaves: 3, nebulaFbmCalls: 3, showFilaments: true, showGasCloud: true,
+    showDrift: true, dpr: 1, useGlb: true
+  },
+  low: {
+    tier: 'low', starCount: 25000, gasCount: 0, filamentCount: 0,
+    driftCount: 0, bgStarCount: 1000, curveSegments: 8, sphereSegments: 16,
+    nebulaOctaves: 2, nebulaFbmCalls: 2, showFilaments: false, showGasCloud: false,
+    showDrift: false, dpr: 1, useGlb: false
+  }
+};
+
+function detectQualityTier() {
+  if (typeof window === 'undefined') return QUALITY_TIERS.medium;
+  
+  try {
+    const saved = localStorage.getItem('nashiverse_quality_tier');
+    if (saved && QUALITY_TIERS[saved]) {
+      return QUALITY_TIERS[saved];
+    }
+  } catch (e) {}
+
+  const cores = navigator.hardwareConcurrency || 4;
+  const dpr = window.devicePixelRatio || 1;
+  const screenPixels = window.innerWidth * window.innerHeight * dpr;
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  let gpuTier = 'unknown';
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (gl) {
+      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+      if (debugInfo) {
+        const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL).toLowerCase();
+        const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL).toLowerCase();
+
+        const isIntegrated = renderer.includes('intel') || renderer.includes('mesa') ||
+          renderer.includes('llvmpipe') || renderer.includes('swiftshader') ||
+          renderer.includes('software');
+        const isHighEnd = renderer.includes('rtx') || renderer.includes('rx 7') ||
+          renderer.includes('rx 6') || renderer.includes('m1') || renderer.includes('m2') ||
+          renderer.includes('m3') || renderer.includes('m4') ||
+          (renderer.includes('apple') && !isMobile);
+        const isMidRange = renderer.includes('gtx') || renderer.includes('rx 5') ||
+          renderer.includes('radeon pro') || renderer.includes('amd');
+
+        if (isHighEnd) gpuTier = 'high';
+        else if (isIntegrated) gpuTier = 'low';
+        else if (isMidRange) gpuTier = 'mid';
+        else gpuTier = 'mid';
+      }
+      const loseCtx = gl.getExtension('WEBGL_lose_context');
+      if (loseCtx) loseCtx.loseContext();
+    }
+  } catch (e) {}
+
+  let tier;
+  if (isMobile) {
+    tier = 'low';
+  } else if (gpuTier === 'low' || cores <= 2) {
+    tier = 'low';
+  } else if (gpuTier === 'high' && cores >= 8 && screenPixels < 5000000) {
+    tier = 'ultra';
+  } else if ((gpuTier === 'high' || gpuTier === 'mid') && cores >= 6) {
+    tier = 'high';
+  } else if (cores >= 4) {
+    tier = 'medium';
+  } else {
+    tier = 'low';
+  }
+
+  try { localStorage.setItem('nashiverse_quality_tier', tier); } catch (e) {}
+  return QUALITY_TIERS[tier];
+}
+
 function useQualityTier() {
-  return useMemo(() => {
-    const cores = navigator.hardwareConcurrency || 4;
-    const screenPixels = window.innerWidth * window.innerHeight * (window.devicePixelRatio || 1);
-    
-    const isHighEnd = cores >= 8 && screenPixels < 4000000;
-    const isLowEnd = cores <= 4 || screenPixels > 6000000;
-    
-    if (isHighEnd) {
-      return { tier: 'high', starCount: 70000, gasCount: 1200, useGlb: true };
-    } else if (isLowEnd) {
-      return { tier: 'low', starCount: 40000, gasCount: 400, useGlb: false };
-    } else {
-      return { tier: 'medium', starCount: 55000, gasCount: 800, useGlb: true };
+  const [qualityTier, setQualityTier] = useState(() => detectQualityTier());
+  const fpsBuffer = useRef([]);
+  const lastDowngrade = useRef(0);
+
+  const downgrade = useCallback(() => {
+    const order = ['ultra', 'high', 'medium', 'low'];
+    const idx = order.indexOf(qualityTier.tier);
+    if (idx < order.length - 1) {
+      const newTier = order[idx + 1];
+      try { localStorage.setItem('nashiverse_quality_tier', newTier); } catch (e) {}
+      setQualityTier(QUALITY_TIERS[newTier]);
+    }
+  }, [qualityTier.tier]);
+
+  const setTier = useCallback((tierName) => {
+    if (QUALITY_TIERS[tierName]) {
+      try { localStorage.setItem('nashiverse_quality_tier', tierName); } catch (e) {}
+      setQualityTier(QUALITY_TIERS[tierName]);
     }
   }, []);
+
+  useEffect(() => {
+    let frameCount = 0;
+    let lastTime = performance.now();
+    let animId;
+
+    const measureFps = () => {
+      frameCount++;
+      const now = performance.now();
+      if (now - lastTime >= 2000) {
+        const fps = (frameCount / (now - lastTime)) * 1000;
+        fpsBuffer.current.push(fps);
+        if (fpsBuffer.current.length > 3) fpsBuffer.current.shift();
+
+        const avgFps = fpsBuffer.current.reduce((a, b) => a + b, 0) / fpsBuffer.current.length;
+
+        if (avgFps < 24 && fpsBuffer.current.length >= 2 && now - lastDowngrade.current > 10000) {
+          lastDowngrade.current = now;
+          downgrade();
+        }
+
+        frameCount = 0;
+        lastTime = now;
+      }
+      animId = requestAnimationFrame(measureFps);
+    };
+
+    animId = requestAnimationFrame(measureFps);
+    return () => cancelAnimationFrame(animId);
+  }, [downgrade]);
+
+  return { ...qualityTier, setTier };
 }
 
 const NEBULA_COLORS = {
@@ -494,9 +622,7 @@ function ImmersiveNebulaVolume({ qualityTier }) {
 function NebulaFilaments({ count = 800, qualityTier }) {
   const pointsRef = useRef();
   
-  const isHigh = qualityTier.tier === 'high';
-  const isMedium = qualityTier.tier === 'medium';
-  const particleCount = isHigh ? 250 : (isMedium ? 150 : 80);
+  const particleCount = qualityTier.filamentCount || 150;
   
   const { positions, colors, sizes, phases } = useMemo(() => {
     const pos = new Float32Array(particleCount * 3);
@@ -612,8 +738,10 @@ function TieredNebulaBackdrop({ qualityTier }) {
   return null;
 }
 
-function NebulaBackground() {
+function NebulaBackground({ qualityTier }) {
   const meshRef = useRef();
+  const octaves = qualityTier?.nebulaOctaves || 3;
+  const segments = qualityTier?.sphereSegments || 32;
   
   const gradientMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -627,6 +755,8 @@ function NebulaBackground() {
       fragmentShader: `
         uniform float time;
         varying vec3 vPosition;
+        
+        const int OCTAVES = ${octaves};
         
         float hash(vec3 p) {
           return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
@@ -656,7 +786,7 @@ function NebulaBackground() {
         float fbm(vec3 p) {
           float value = 0.0;
           float amplitude = 0.5;
-          for (int i = 0; i < 3; i++) {
+          for (int i = 0; i < OCTAVES; i++) {
             value += amplitude * noise(p);
             p *= 2.0;
             amplitude *= 0.5;
@@ -704,7 +834,7 @@ function NebulaBackground() {
       },
       side: THREE.BackSide,
     });
-  }, []);
+  }, [octaves]);
   
   useFrame((state) => {
     gradientMaterial.uniforms.time.value = state.clock.elapsedTime;
@@ -712,7 +842,7 @@ function NebulaBackground() {
   
   return (
     <mesh ref={meshRef}>
-      <sphereGeometry args={[300, 32, 32]} />
+      <sphereGeometry args={[300, segments, segments]} />
       <primitive object={gradientMaterial} attach="material" />
     </mesh>
   );
@@ -1538,7 +1668,7 @@ function AnimatedHouseholdGroup({
 }) {
   const groupRef = useRef();
   const { camera } = useThree();
-  const breathPhase = useMemo(() => (household?.id || 0) * 1.7, [household?.id]);
+  const breathPhase = useMemo(() => (parseInt(household?.id, 10) || 0) * 1.7, [household?.id]);
   const currentState = useRef({
     offsetX: 0, offsetY: 0, offsetZ: 0,
     scale: 1, opacity: 1.0, starOpacity: 1
@@ -1603,6 +1733,10 @@ function AnimatedHouseholdGroup({
       const breathe = Math.sin(state.clock.elapsedTime * 0.8 + breathPhase) * 0.03;
       targetScale = 1.0 + breathe;
     }
+    
+    if (isNaN(targetScale)) targetScale = 1;
+    if (isNaN(targetOpacity)) targetOpacity = 1;
+    if (isNaN(targetStarOpacity)) targetStarOpacity = 1;
     
     const lerpSpeed = 4.5 * delta;
     const curr = currentState.current;
@@ -2209,9 +2343,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
 function AmbientDrift({ qualityTier }) {
   const pointsRef = useRef();
 
-  const isHigh = qualityTier.tier === 'high';
-  const isMedium = qualityTier.tier === 'medium';
-  const particleCount = isHigh ? 800 : (isMedium ? 500 : 300);
+  const particleCount = qualityTier.driftCount || 300;
 
   const { positions, velocities, colors, sizes, phases } = useMemo(() => {
     const pos = new Float32Array(particleCount * 3);
@@ -2744,7 +2876,7 @@ function FogController() {
 function BackgroundStarField({ qualityTier }) {
   const pointsRef = useRef();
 
-  const starCount = qualityTier.tier === 'high' ? 5000 : (qualityTier.tier === 'medium' ? 3500 : 2000);
+  const starCount = qualityTier.bgStarCount || 2000;
 
   const { positions, phases, brightnesses } = useMemo(() => {
     const pos = new Float32Array(starCount * 3);
@@ -2932,14 +3064,14 @@ function NebulaScene({
       <pointLight position={[0, 50, 0]} intensity={0.1} color={NEBULA_COLORS.cyan} />
       <pointLight position={[20, -20, 30]} intensity={0.08} color={NEBULA_COLORS.warmPink} />
       
-      <NebulaBackground />
+      <NebulaBackground qualityTier={qualityTier} />
       
       <BackgroundStarField qualityTier={qualityTier} />
       
-      <NebulaGasCloud count={qualityTier.gasCount} />
-      <NebulaFilaments qualityTier={qualityTier} />
+      {qualityTier.showGasCloud && <NebulaGasCloud count={qualityTier.gasCount} />}
+      {qualityTier.showFilaments && <NebulaFilaments qualityTier={qualityTier} />}
       
-      <AmbientDrift qualityTier={qualityTier} />
+      {qualityTier.showDrift && <AmbientDrift qualityTier={qualityTier} />}
       
       <UnifiedGalaxyScene
         households={households}
@@ -3232,6 +3364,8 @@ function FilterToggles({
   onToggleViewMode,
   filters,
   onToggleFilter,
+  qualityTier,
+  onSetQuality,
 }) {
   const classButtons = [
     { key: 'F', label: 'F', color: '#FFD700', desc: 'Yellow' },
@@ -3306,6 +3440,28 @@ function FilterToggles({
             </>
           )}
         </button>
+
+        {onSetQuality && (
+          <>
+            <div className="h-px bg-slate-700/50" />
+            <div className="text-[9px] uppercase tracking-[0.2em] text-slate-500 px-1">Quality</div>
+            <div className="flex gap-1">
+              {['low', 'medium', 'high', 'ultra'].map(t => (
+                <button
+                  key={t}
+                  onClick={() => onSetQuality(t)}
+                  className={`px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider transition-all ${
+                    qualityTier?.tier === t
+                      ? 'text-cyan-400 border border-cyan-400/40 bg-cyan-400/10'
+                      : 'text-slate-600 hover:text-slate-400'
+                  }`}
+                >
+                  {t[0]}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </CornerBrackets>
     </div>
   );
@@ -3649,7 +3805,7 @@ export default function GalaxyView({ people = [], relationships = [], households
         camera={{ position: [25, 20, 50], fov: 55 }}
         gl={{ antialias: false, alpha: false, powerPreference: 'high-performance' }}
         style={{ background: '#020208' }}
-        dpr={1}
+        dpr={qualityTier.dpr}
         onCreated={handleCanvasCreated}
       >
         <CameraTracker onCameraUpdate={handleCameraUpdate} />
@@ -3696,6 +3852,8 @@ export default function GalaxyView({ people = [], relationships = [], households
           onToggleViewMode={handleToggleViewMode}
           filters={filters}
           onToggleFilter={handleToggleFilter}
+          qualityTier={qualityTier}
+          onSetQuality={qualityTier.setTier}
         />
       )}
 

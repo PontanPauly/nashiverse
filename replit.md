@@ -26,6 +26,7 @@ Nashiverse is a family management application with a cosmic/space theme. It help
    - **NMS-Style Star Points**: Three-layer star composition (translucent breathing core, asymmetric rotating flares, cooler-toned pulsing halo)
    - **Star Classification System**: Households color-coded by member count (F=Yellow 1-2, K=Red 3-4, E=Green 5-7, O=Blue 8+)
    - **Rich Ambient Nebula Backdrop**: Multi-layered NMS-style nebula atmosphere — NebulaBackground (FBM shader sphere with 6 color zones: gold, emerald, purple, blue, amber, rose), NebulaFilaments (glowing particle wisps in 8 colors), NebulaGasCloud (atmospheric particles with colored tints). ImmersiveNebulaVolume (ray-marched volumetric 3D gas clouds) exists but is disabled by default for performance
+   - **Adaptive Quality System**: GPU-aware 4-tier quality (ultra/high/medium/low) with auto-detection via WEBGL_debug_renderer_info, runtime FPS monitoring with auto-downgrade, manual quality selector in filter panel, localStorage persistence
    - **System Breathing**: Each household system gently pulses in scale (±3%) with per-system phase offset, making the galaxy feel alive
    - **Galaxy Auto-Rotation**: Slow automatic orbit rotation (speed 0.2) when idle in galaxy view; pauses on hover/interaction
    - **Generational Layout**: Grandparents at center, children in middle ring, grandchildren in outer ring — family tree radiating outward
