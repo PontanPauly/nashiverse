@@ -223,6 +223,7 @@ function useOrganicClusterLayout(households, people, viewMode = 'nebula', relati
           z,
           memberCount: householdMemberCounts.get(household.id) || 0,
           uniqueness,
+          generation: generation.get(household.id) || 0,
         });
       });
     });
@@ -1508,6 +1509,7 @@ function AnimatedHouseholdGroup({
   colorIndex, 
   isHovered, 
   isFocused,
+  isConnectedToHovered = false,
   focusProgress,
   focusedHouseholdId,
   hoveredPos,
@@ -1579,24 +1581,14 @@ function AnimatedHouseholdGroup({
       targetOpacity = 1;
       targetStarOpacity = 1;
     } else if (hoveredPos) {
-      const dx = basePosition.x - hoveredPos.x;
-      const dy = basePosition.y - hoveredPos.y;
-      const dz = basePosition.z - hoveredPos.z;
-      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      
-      if (dist < 30 && dist > 0) {
-        const worldPush = new THREE.Vector3(dx, dy, dz).normalize();
-        const forwardComponent = worldPush.dot(cameraForward);
-        worldPush.sub(cameraForward.clone().multiplyScalar(forwardComponent));
-        worldPush.normalize();
-        
-        const pushStrength = Math.pow(1 - dist / 30, 1.8) * 6;
-        targetOffsetX = worldPush.x * pushStrength;
-        targetOffsetY = worldPush.y * pushStrength;
-        targetOffsetZ = worldPush.z * pushStrength;
-        targetOpacity = 0.6;
-        targetStarOpacity = 0.8;
-        targetScale = 0.95;
+      if (isConnectedToHovered) {
+        targetOpacity = 0.9;
+        targetStarOpacity = 1;
+        targetScale = 1.05;
+      } else {
+        targetOpacity = 0.15;
+        targetStarOpacity = 0.2;
+        targetScale = 0.92;
       }
     }
     
@@ -1637,8 +1629,36 @@ function AnimatedHouseholdGroup({
     return { center: [0, 0, 0], radius: 1.2 };
   }, [localStars]);
 
+  const householdColor = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
+
   return (
     <group ref={groupRef}>
+      {isHovered && !focusedHouseholdId && (
+        <Html
+          position={[0, 3.5, 0]}
+          center
+          style={{ pointerEvents: 'none' }}
+          zIndexRange={[100, 0]}
+        >
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(8px)',
+            border: `1px solid ${householdColor.primary}44`,
+            borderRadius: '6px',
+            padding: '4px 10px',
+            whiteSpace: 'nowrap',
+            color: householdColor.glow,
+            fontSize: '12px',
+            fontWeight: 500,
+            fontFamily: 'system-ui, sans-serif',
+            letterSpacing: '0.03em',
+            textShadow: `0 0 8px ${householdColor.primary}88`,
+            boxShadow: `0 0 12px ${householdColor.primary}22`,
+          }}>
+            {household.name}
+          </div>
+        </Html>
+      )}
       <StarMapCluster
         position={[0, 0, 0]}
         household={household}
@@ -1685,6 +1705,13 @@ function AnimatedHouseholdGroup({
 
 function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
   const ringRef = useRef();
+  const glowRingRef = useRef();
+  const pulseRingRef = useRef();
+  const innerGlowRef = useRef();
+  const mainMatRef = useRef();
+  const glowMatRef = useRef();
+  const pulseMatRef = useRef();
+  const innerGlowMatRef = useRef();
 
   const points = useMemo(() => {
     const segments = 64;
@@ -1700,8 +1727,45 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
     return pts;
   }, [center, radius]);
 
+  const glowPoints = useMemo(() => {
+    const segments = 64;
+    const pts = [];
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      pts.push(new THREE.Vector3(
+        center[0] + Math.cos(angle) * radius * 1.08,
+        center[1],
+        center[2] + Math.sin(angle) * radius * 1.08
+      ));
+    }
+    return pts;
+  }, [center, radius]);
+
   const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
   const ringColor = new THREE.Color(baseColors.primary);
+
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    const breathe = 0.7 + Math.sin(t * 1.2) * 0.3;
+    const pulseWave = Math.max(0, Math.sin(t * 0.8)) ;
+    const pulseScale = 1.1 + pulseWave * 0.15;
+
+    if (mainMatRef.current) {
+      mainMatRef.current.opacity = opacity * breathe;
+    }
+    if (glowMatRef.current) {
+      glowMatRef.current.opacity = opacity * 0.25 * breathe;
+    }
+    if (pulseRingRef.current) {
+      pulseRingRef.current.scale.set(pulseScale, pulseScale, pulseScale);
+    }
+    if (pulseMatRef.current) {
+      pulseMatRef.current.opacity = opacity * 0.15 * pulseWave;
+    }
+    if (innerGlowMatRef.current) {
+      innerGlowMatRef.current.opacity = opacity * 0.06 * breathe;
+    }
+  });
 
   return (
     <group>
@@ -1715,6 +1779,7 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
           />
         </bufferGeometry>
         <lineBasicMaterial
+          ref={mainMatRef}
           color={ringColor}
           transparent
           opacity={opacity}
@@ -1722,12 +1787,45 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
           depthWrite={false}
         />
       </line>
-      <mesh position={[center[0], center[1], center[2]]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[radius * 0.95, radius * 1.05, 64]} />
-        <meshBasicMaterial
+      <line ref={glowRingRef}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={glowPoints.length}
+            array={new Float32Array(glowPoints.flatMap(p => [p.x, p.y, p.z]))}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <lineBasicMaterial
+          ref={glowMatRef}
           color={ringColor}
           transparent
-          opacity={opacity * 0.1}
+          opacity={opacity * 0.25}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </line>
+      <group ref={pulseRingRef}>
+        <mesh position={[center[0], center[1], center[2]]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[radius * 1.05, radius * 1.18, 64]} />
+          <meshBasicMaterial
+            ref={pulseMatRef}
+            color={ringColor}
+            transparent
+            opacity={0}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      </group>
+      <mesh position={[center[0], center[1], center[2]]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[radius * 0.92, radius * 1.08, 64]} />
+        <meshBasicMaterial
+          ref={innerGlowMatRef}
+          color={ringColor}
+          transparent
+          opacity={opacity * 0.06}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
           side={THREE.DoubleSide}
@@ -1842,15 +1940,48 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
   );
 }
 
-function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold, householdGroupRefs }) {
-  const linesRef = useRef();
+const connectionLineShader = {
+  vertexShader: `
+    attribute float aT;
+    attribute vec3 aColor;
+    attribute float aHighlight;
+    uniform float uTime;
+    varying float vT;
+    varying vec3 vColor;
+    varying float vHighlight;
+    void main() {
+      vT = aT;
+      vColor = aColor;
+      vHighlight = aHighlight;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform float uTime;
+    varying float vT;
+    varying vec3 vColor;
+    varying float vHighlight;
+    void main() {
+      float pulse = fract(uTime * 0.3 - vT);
+      float pulseGlow = smoothstep(0.0, 0.08, pulse) * smoothstep(0.2, 0.08, pulse);
+      float baseBrightness = mix(0.12, 0.35, vHighlight);
+      float brightness = baseBrightness + pulseGlow * mix(0.4, 0.8, vHighlight);
+      gl_FragColor = vec4(vColor * brightness, mix(0.3, 0.7, vHighlight));
+    }
+  `
+};
 
-  const { edgeData, colors, hoverMask } = useMemo(() => {
+const CURVE_SEGMENTS = 20;
+
+function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold, householdGroupRefs }) {
+  const meshRef = useRef();
+  const timeUniform = useRef({ value: 0 });
+
+  const { edgeData, hoverMask } = useMemo(() => {
     if (!edges || edges.length === 0) {
-      return { edgeData: [], colors: new Float32Array(0), hoverMask: [] };
+      return { edgeData: [], hoverMask: [] };
     }
 
-    const col = new Float32Array(edges.length * 6);
     const mask = [];
     const data = [];
 
@@ -1858,8 +1989,6 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
       const fromPos = householdPositions.get(edge.from);
       const toPos = householdPositions.get(edge.to);
       if (!fromPos || !toPos) {
-        col[i * 6] = 0; col[i * 6 + 1] = 0; col[i * 6 + 2] = 0;
-        col[i * 6 + 3] = 0; col[i * 6 + 4] = 0; col[i * 6 + 5] = 0;
         mask.push({ from: null, to: null });
         data.push(null);
         return;
@@ -1881,11 +2010,13 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
       }
 
       let fromHasRing = false;
+      let fromColorIndex = 0;
       if (starsByHousehold) {
         const fromStars = starsByHousehold.get(edge.from);
         if (fromStars) {
           const parentCount = fromStars.filter(s => s.isParent).length;
           fromHasRing = parentCount >= 2;
+          if (fromStars.length > 0) fromColorIndex = fromStars[0].householdIndex || 0;
         }
       }
 
@@ -1896,35 +2027,37 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         toBase: { x: toPos.x, y: toPos.y, z: toPos.z },
         childLocalOffset,
         fromHasRing,
+        fromColorIndex,
       });
-
-      const baseColor = 0.25;
-      col[i * 6] = baseColor;
-      col[i * 6 + 1] = baseColor;
-      col[i * 6 + 2] = baseColor;
-      col[i * 6 + 3] = baseColor;
-      col[i * 6 + 4] = baseColor;
-      col[i * 6 + 5] = baseColor;
 
       mask.push({ from: edge.from, to: edge.to });
     });
 
-    return { edgeData: data, colors: col, hoverMask: mask };
+    return { edgeData: data, hoverMask: mask };
   }, [edges, householdPositions, starsByHousehold]);
 
-  const positions = useMemo(() => {
-    return new Float32Array(edges.length * 6);
-  }, [edges.length]);
+  const validEdgeCount = useMemo(() => edgeData.filter(e => e !== null).length, [edgeData]);
+  const totalVerts = validEdgeCount * CURVE_SEGMENTS;
 
-  useFrame(() => {
-    if (!linesRef.current || !linesRef.current.geometry) return;
-    
-    const posAttr = linesRef.current.geometry.getAttribute('position');
-    const colorAttr = linesRef.current.geometry.getAttribute('color');
-    if (!posAttr || !colorAttr) return;
+  const { positions, tValues, colorValues, highlightValues } = useMemo(() => {
+    const pos = new Float32Array(totalVerts * 3);
+    const t = new Float32Array(totalVerts);
+    const col = new Float32Array(totalVerts * 3);
+    const hl = new Float32Array(totalVerts);
+    return { positions: pos, tValues: t, colorValues: col, highlightValues: hl };
+  }, [totalVerts]);
+
+  useFrame((state) => {
+    if (!meshRef.current || !meshRef.current.geometry) return;
+    timeUniform.current.value = state.clock.elapsedTime;
+
+    const posAttr = meshRef.current.geometry.getAttribute('position');
+    const hlAttr = meshRef.current.geometry.getAttribute('aHighlight');
+    const colAttr = meshRef.current.geometry.getAttribute('aColor');
+    if (!posAttr) return;
 
     const groupRefs = householdGroupRefs?.current;
-    let posNeedsUpdate = false;
+    let vertIdx = 0;
 
     for (let i = 0; i < edgeData.length; i++) {
       const edge = edgeData[i];
@@ -1968,65 +2101,217 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         }
       }
 
-      const pi = i * 6;
-      posAttr.array[pi] = fromX;
-      posAttr.array[pi + 1] = fromY;
-      posAttr.array[pi + 2] = fromZ;
-      posAttr.array[pi + 3] = toX;
-      posAttr.array[pi + 4] = toY;
-      posAttr.array[pi + 5] = toZ;
-      posNeedsUpdate = true;
-    }
+      const midX = (fromX + toX) * 0.5;
+      const midZ = (fromZ + toZ) * 0.5;
+      const dx = toX - fromX;
+      const dz = toZ - fromZ;
+      const lineLen = Math.sqrt(dx * dx + dz * dz);
+      const arcHeight = Math.min(lineLen * 0.15, 8);
+      const ctrlX = midX;
+      const ctrlY = Math.max(fromY, toY) + arcHeight;
+      const ctrlZ = midZ;
 
-    if (posNeedsUpdate) {
-      posAttr.needsUpdate = true;
-    }
+      const isHighlighted = hoveredHouseholdId && (hoverMask[i]?.from === hoveredHouseholdId || hoverMask[i]?.to === hoveredHouseholdId);
+      const hlVal = isHighlighted ? 1.0 : 0.0;
 
-    let colorNeedsUpdate = false;
-    for (let i = 0; i < hoverMask.length; i++) {
-      const edge = hoverMask[i];
-      if (!edge.from) continue;
+      const edgeColors = HOUSEHOLD_COLORS[edge.fromColorIndex % HOUSEHOLD_COLORS.length];
+      const lineColor = new THREE.Color(edgeColors.glow);
 
-      const isHighlighted = hoveredHouseholdId && (edge.from === hoveredHouseholdId || edge.to === hoveredHouseholdId);
-      const r = isHighlighted ? 0.7 : 0.25;
-      const g = isHighlighted ? 0.8 : 0.25;
-      const b = isHighlighted ? 1.0 : 0.25;
+      for (let s = 0; s < CURVE_SEGMENTS; s++) {
+        const tParam = s / (CURVE_SEGMENTS - 1);
+        const inv = 1 - tParam;
+        const px = inv * inv * fromX + 2 * inv * tParam * ctrlX + tParam * tParam * toX;
+        const py = inv * inv * fromY + 2 * inv * tParam * ctrlY + tParam * tParam * toY;
+        const pz = inv * inv * fromZ + 2 * inv * tParam * ctrlZ + tParam * tParam * toZ;
 
-      const ci = i * 6;
-      if (colorAttr.array[ci] !== r || colorAttr.array[ci + 1] !== g || colorAttr.array[ci + 2] !== b) {
-        colorAttr.array[ci] = r;
-        colorAttr.array[ci + 1] = g;
-        colorAttr.array[ci + 2] = b;
-        colorAttr.array[ci + 3] = r;
-        colorAttr.array[ci + 4] = g;
-        colorAttr.array[ci + 5] = b;
-        colorNeedsUpdate = true;
+        const vi = vertIdx * 3;
+        posAttr.array[vi] = px;
+        posAttr.array[vi + 1] = py;
+        posAttr.array[vi + 2] = pz;
+
+        if (colAttr) {
+          colAttr.array[vi] = lineColor.r;
+          colAttr.array[vi + 1] = lineColor.g;
+          colAttr.array[vi + 2] = lineColor.b;
+        }
+        if (hlAttr) {
+          hlAttr.array[vertIdx] = hlVal;
+        }
+
+        vertIdx++;
       }
     }
-    if (colorNeedsUpdate) {
-      colorAttr.needsUpdate = true;
-    }
 
-    linesRef.current.material.opacity = hoveredHouseholdId ? 0.5 : 0.15;
+    posAttr.needsUpdate = true;
+    if (colAttr) colAttr.needsUpdate = true;
+    if (hlAttr) hlAttr.needsUpdate = true;
   });
 
-  if (positions.length === 0) return null;
+  const indices = useMemo(() => {
+    const idx = [];
+    let vertOffset = 0;
+    for (let e = 0; e < validEdgeCount; e++) {
+      for (let s = 0; s < CURVE_SEGMENTS - 1; s++) {
+        idx.push(vertOffset + s, vertOffset + s + 1);
+      }
+      vertOffset += CURVE_SEGMENTS;
+    }
+    return new Uint16Array(idx);
+  }, [validEdgeCount]);
+
+  const tAttr = useMemo(() => {
+    const t = new Float32Array(totalVerts);
+    let vertOffset = 0;
+    for (let e = 0; e < validEdgeCount; e++) {
+      for (let s = 0; s < CURVE_SEGMENTS; s++) {
+        t[vertOffset + s] = s / (CURVE_SEGMENTS - 1);
+      }
+      vertOffset += CURVE_SEGMENTS;
+    }
+    return t;
+  }, [validEdgeCount, totalVerts]);
+
+  if (totalVerts === 0) return null;
 
   return (
-    <lineSegments ref={linesRef}>
+    <lineSegments ref={meshRef}>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={positions.length / 3} array={positions} itemSize={3} />
-        <bufferAttribute attach="attributes-color" count={colors.length / 3} array={colors} itemSize={3} />
+        <bufferAttribute attach="attributes-position" count={totalVerts} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-aT" count={totalVerts} array={tAttr} itemSize={1} />
+        <bufferAttribute attach="attributes-aColor" count={totalVerts} array={colorValues} itemSize={3} />
+        <bufferAttribute attach="attributes-aHighlight" count={totalVerts} array={highlightValues} itemSize={1} />
+        <bufferAttribute attach="index" count={indices.length} array={indices} itemSize={1} />
       </bufferGeometry>
-      <lineBasicMaterial
-        vertexColors
+      <shaderMaterial
+        vertexShader={connectionLineShader.vertexShader}
+        fragmentShader={connectionLineShader.fragmentShader}
+        uniforms={{ uTime: timeUniform.current }}
         transparent
-        opacity={0.15}
         blending={THREE.AdditiveBlending}
         depthWrite={false}
-        linewidth={1}
       />
     </lineSegments>
+  );
+}
+
+function AmbientDrift({ qualityTier }) {
+  const pointsRef = useRef();
+
+  const isHigh = qualityTier.tier === 'high';
+  const isMedium = qualityTier.tier === 'medium';
+  const particleCount = isHigh ? 800 : (isMedium ? 500 : 300);
+
+  const { positions, velocities, colors, sizes, phases } = useMemo(() => {
+    const pos = new Float32Array(particleCount * 3);
+    const vel = new Float32Array(particleCount * 3);
+    const col = new Float32Array(particleCount * 3);
+    const siz = new Float32Array(particleCount);
+    const pha = new Float32Array(particleCount);
+
+    const driftColors = [
+      new THREE.Color(0xffd700),
+      new THREE.Color(0x00e5ff),
+      new THREE.Color(0xffffff),
+    ];
+
+    for (let i = 0; i < particleCount; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * 200;
+      pos[i * 3 + 1] = (Math.random() - 0.5) * 200;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * 200;
+
+      vel[i * 3] = (Math.random() - 0.5) * 0.3;
+      vel[i * 3 + 1] = (Math.random() - 0.5) * 0.3;
+      vel[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
+
+      const c = driftColors[Math.floor(Math.random() * driftColors.length)];
+      col[i * 3] = c.r;
+      col[i * 3 + 1] = c.g;
+      col[i * 3 + 2] = c.b;
+
+      siz[i] = 2 + Math.random() * 2;
+      pha[i] = Math.random() * Math.PI * 2;
+    }
+
+    return { positions: pos, velocities: vel, colors: col, sizes: siz, phases: pha };
+  }, [particleCount]);
+
+  const material = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        attribute vec3 particleColor;
+        attribute float size;
+        attribute float phase;
+        uniform float time;
+        varying vec3 vColor;
+        varying float vAlpha;
+
+        void main() {
+          vColor = particleColor;
+          float flicker = sin(time * 0.4 + phase) * 0.5 + 0.5;
+          vAlpha = mix(0.05, 0.15, flicker);
+
+          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = size * (120.0 / -mvPos.z);
+          gl_PointSize = clamp(gl_PointSize, 1.0, 6.0);
+          gl_Position = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        varying float vAlpha;
+
+        void main() {
+          vec2 center = gl_PointCoord - 0.5;
+          float dist = length(center);
+          float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
+          alpha = pow(alpha, 2.0);
+          alpha *= vAlpha;
+          if (alpha < 0.003) discard;
+          gl_FragColor = vec4(vColor, alpha);
+        }
+      `,
+      uniforms: {
+        time: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+  }, []);
+
+  useFrame((state, delta) => {
+    material.uniforms.time.value = state.clock.elapsedTime;
+    if (pointsRef.current) {
+      const posAttr = pointsRef.current.geometry.attributes.position;
+      const arr = posAttr.array;
+      const t = state.clock.elapsedTime;
+      for (let i = 0; i < particleCount; i++) {
+        const i3 = i * 3;
+        const turbX = Math.sin(t * 0.1 + phases[i]) * 0.02;
+        const turbY = Math.cos(t * 0.08 + phases[i] * 1.3) * 0.02;
+        const turbZ = Math.sin(t * 0.12 + phases[i] * 0.7) * 0.02;
+        arr[i3] += (velocities[i3] + turbX) * delta;
+        arr[i3 + 1] += (velocities[i3 + 1] + turbY) * delta;
+        arr[i3 + 2] += (velocities[i3 + 2] + turbZ) * delta;
+
+        for (let axis = 0; axis < 3; axis++) {
+          if (arr[i3 + axis] > 100) arr[i3 + axis] = -100;
+          if (arr[i3 + axis] < -100) arr[i3 + axis] = 100;
+        }
+      }
+      posAttr.needsUpdate = true;
+    }
+  });
+
+  return (
+    <points ref={pointsRef} material={material}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={particleCount} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-particleColor" count={particleCount} array={colors} itemSize={3} />
+        <bufferAttribute attach="attributes-size" count={particleCount} array={sizes} itemSize={1} />
+        <bufferAttribute attach="attributes-phase" count={particleCount} array={phases} itemSize={1} />
+      </bufferGeometry>
+    </points>
   );
 }
 
@@ -2081,6 +2366,17 @@ function UnifiedGalaxyScene({
     if (!hoveredHouseholdId) return null;
     return householdPositions.get(hoveredHouseholdId);
   }, [hoveredHouseholdId, householdPositions]);
+
+  const connectedToHovered = useMemo(() => {
+    if (!hoveredHouseholdId || !householdEdges) return null;
+    const connected = new Set();
+    connected.add(hoveredHouseholdId);
+    householdEdges.forEach(edge => {
+      if (edge.from === hoveredHouseholdId) connected.add(edge.to);
+      if (edge.to === hoveredHouseholdId) connected.add(edge.from);
+    });
+    return connected;
+  }, [hoveredHouseholdId, householdEdges]);
   
   return (
     <group>
@@ -2100,6 +2396,7 @@ function UnifiedGalaxyScene({
         const isFocused = household.id === focusedHouseholdId;
         const isHovered = household.id === hoveredHouseholdId;
         const householdStars = starsByHousehold.get(household.id) || [];
+        const isConnectedToHovered = connectedToHovered ? connectedToHovered.has(household.id) : false;
         
         const mc = pos.memberCount || 0;
         const sc = classifyHousehold(mc);
@@ -2112,6 +2409,7 @@ function UnifiedGalaxyScene({
             colorIndex={index}
             isHovered={isHovered}
             isFocused={isFocused}
+            isConnectedToHovered={isConnectedToHovered}
             focusProgress={focusProgress}
             focusedHouseholdId={focusedHouseholdId}
             hoveredPos={hoveredPos}
@@ -2431,6 +2729,92 @@ function FogController() {
   return null;
 }
 
+function BackgroundStarField({ qualityTier }) {
+  const pointsRef = useRef();
+
+  const starCount = qualityTier.tier === 'high' ? 5000 : (qualityTier.tier === 'medium' ? 3500 : 2000);
+
+  const { positions, phases, brightnesses } = useMemo(() => {
+    const pos = new Float32Array(starCount * 3);
+    const pha = new Float32Array(starCount);
+    const bri = new Float32Array(starCount);
+
+    for (let i = 0; i < starCount; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = 200 + Math.random() * 300;
+
+      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      pos[i * 3 + 2] = r * Math.cos(phi);
+
+      pha[i] = Math.random() * Math.PI * 2;
+      bri[i] = 0.3 + Math.random() * 0.7;
+    }
+
+    return { positions: pos, phases: pha, brightnesses: bri };
+  }, [starCount]);
+
+  const material = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        attribute float phase;
+        attribute float brightness;
+        uniform float time;
+        varying float vAlpha;
+
+        void main() {
+          float twinkle = sin(time * (0.5 + brightness * 1.5) + phase) * 0.5 + 0.5;
+          twinkle = twinkle * 0.6 + 0.4;
+          vAlpha = brightness * twinkle * 0.6;
+
+          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = (1.0 + brightness) * (200.0 / -mvPos.z);
+          gl_PointSize = clamp(gl_PointSize, 0.5, 2.5);
+          gl_Position = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        varying float vAlpha;
+
+        void main() {
+          vec2 center = gl_PointCoord - 0.5;
+          float dist = length(center);
+          if (dist > 0.5) discard;
+
+          float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
+          vec3 color = mix(vec3(0.8, 0.85, 1.0), vec3(1.0, 1.0, 1.0), vAlpha);
+          gl_FragColor = vec4(color, alpha * vAlpha);
+        }
+      `,
+      uniforms: {
+        time: { value: 0 },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+  }, []);
+
+  useFrame((state) => {
+    material.uniforms.time.value = state.clock.elapsedTime;
+    if (pointsRef.current) {
+      pointsRef.current.rotation.y += 0.00003;
+      pointsRef.current.rotation.x += 0.00001;
+    }
+  });
+
+  return (
+    <points ref={pointsRef} material={material}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={starCount} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-phase" count={starCount} array={phases} itemSize={1} />
+        <bufferAttribute attach="attributes-brightness" count={starCount} array={brightnesses} itemSize={1} />
+      </bufferGeometry>
+    </points>
+  );
+}
+
 function NebulaScene({
   level,
   households,
@@ -2538,7 +2922,11 @@ function NebulaScene({
       
       <NebulaBackground />
       
+      <BackgroundStarField qualityTier={qualityTier} />
+      
       <NebulaGasCloud count={qualityTier.gasCount} />
+      
+      <AmbientDrift qualityTier={qualityTier} />
       
       <UnifiedGalaxyScene
         households={households}
@@ -2623,28 +3011,91 @@ function CornerBrackets({ children, className = '' }) {
   );
 }
 
-function HoverTooltip({ household, memberCount, starClass, mousePos }) {
+function HoverTooltip({ household, memberCount, starClass, mousePos, generation = 0, members = [], colorIndex = 0 }) {
   if (!household || !mousePos) return null;
+
+  const generationLabels = ['Grandparents', 'Parents', 'Children', 'Grandchildren'];
+  const generationLabel = generationLabels[Math.min(generation, generationLabels.length - 1)];
+
+  const householdColor = HOUSEHOLD_COLORS[Math.abs(colorIndex) % HOUSEHOLD_COLORS.length];
+  const accentColor = householdColor?.primary || '#8B5CF6';
+
+  const memberNames = members.slice(0, 6).map(m => {
+    const firstName = (m.name || '').split(' ')[0];
+    return firstName;
+  });
+  const extraCount = members.length - 6;
 
   return (
     <div
       className="fixed z-[60] pointer-events-none"
       style={{ left: mousePos.x + 16, top: mousePos.y - 12 }}
     >
-      <CornerBrackets className="bg-slate-950/90 backdrop-blur-md px-3 py-2 min-w-[140px]">
-        <div className="text-[11px] uppercase tracking-[0.15em] text-cyan-400/70 mb-1">System Detected</div>
-        <div className="text-sm font-semibold text-slate-100 tracking-wide">{household.name}</div>
-        <div className="flex items-center gap-3 mt-1.5">
-          <span className="text-xs text-slate-400">{memberCount} {memberCount === 1 ? 'body' : 'bodies'}</span>
-          <span className="flex items-center gap-1 text-xs">
+      <div
+        className="rounded-lg min-w-[180px] overflow-hidden"
+        style={{
+          background: 'rgba(8, 8, 24, 0.85)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: `1px solid ${accentColor}33`,
+          boxShadow: `0 0 20px ${accentColor}15, 0 4px 24px rgba(0,0,0,0.5)`,
+        }}
+      >
+        <div className="px-3 py-2.5">
+          <div className="flex items-center gap-2 mb-1.5">
             <span
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: starClass?.colors?.inner || '#fff' }}
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{
+                backgroundColor: accentColor,
+                boxShadow: `0 0 8px ${accentColor}88`,
+              }}
             />
-            <span className="text-slate-300">{starClass?.label || 'Unknown'}</span>
-          </span>
+            <span className="text-sm font-semibold text-slate-100 tracking-wide">{household.name}</span>
+          </div>
+
+          <div className="flex items-center gap-2 mb-2">
+            <span
+              className="text-[10px] uppercase tracking-[0.12em] font-medium px-1.5 py-0.5 rounded"
+              style={{
+                color: accentColor,
+                backgroundColor: `${accentColor}18`,
+                border: `1px solid ${accentColor}30`,
+              }}
+            >
+              {generationLabel}
+            </span>
+            <span className="flex items-center gap-1">
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: starClass?.colors?.inner || '#fff' }}
+              />
+              <span className="text-[10px] text-slate-400">{starClass?.label || 'Unknown'}</span>
+            </span>
+          </div>
+
+          <div
+            className="h-px mb-2"
+            style={{
+              background: `linear-gradient(to right, transparent, ${accentColor}30, transparent)`,
+            }}
+          />
+
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[10px] uppercase tracking-[0.15em] text-slate-500">{memberCount} {memberCount === 1 ? 'member' : 'members'}</span>
+          </div>
+
+          {memberNames.length > 0 && (
+            <div className="flex flex-wrap gap-x-1.5 gap-y-0.5">
+              {memberNames.map((name, i) => (
+                <span key={i} className="text-xs text-slate-300">{name}{i < memberNames.length - 1 || extraCount > 0 ? ',' : ''}</span>
+              ))}
+              {extraCount > 0 && (
+                <span className="text-xs text-slate-500">+{extraCount} more</span>
+              )}
+            </div>
+          )}
         </div>
-      </CornerBrackets>
+      </div>
     </div>
   );
 }
@@ -3039,8 +3490,11 @@ export default function GalaxyView({ people = [], relationships = [], households
     if (!hoveredHouseholdId) return null;
     const pos = householdPositions.get(hoveredHouseholdId);
     const mc = pos?.memberCount || 0;
-    return { memberCount: mc, starClass: classifyHousehold(mc) };
-  }, [hoveredHouseholdId, householdPositions]);
+    const gen = pos?.generation ?? 0;
+    const members = people.filter(p => p.household_id === hoveredHouseholdId);
+    const colorIndex = households.findIndex(h => h.id === hoveredHouseholdId);
+    return { memberCount: mc, starClass: classifyHousehold(mc), generation: gen, members, colorIndex };
+  }, [hoveredHouseholdId, householdPositions, people, households]);
 
   const selectedHouseholdInfo = useMemo(() => {
     if (!selectedHousehold) return null;
@@ -3250,6 +3704,9 @@ export default function GalaxyView({ people = [], relationships = [], households
           memberCount={hoveredHouseholdInfo.memberCount}
           starClass={hoveredHouseholdInfo.starClass}
           mousePos={mousePos}
+          generation={hoveredHouseholdInfo.generation}
+          members={hoveredHouseholdInfo.members}
+          colorIndex={hoveredHouseholdInfo.colorIndex}
         />
       )}
 

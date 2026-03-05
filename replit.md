@@ -27,8 +27,13 @@ Nashiverse is a family management application with a cosmic/space theme. It help
    - **Star Classification System**: Households color-coded by member count (F=Yellow 1-2, K=Red 3-4, E=Green 5-7, O=Blue 8+)
    - **Rich Ambient Nebula Backdrop**: Large-scale volumetric nebula filling the background (gold, emerald, purple, blue zones)
    - **Generational Layout**: Grandparents at center, children in middle ring, grandchildren in outer ring — family tree radiating outward
-   - **Connection Lines**: Parent→child only lines between households, targeting specific child star positions (not household centers), highlighted on hover
-   - **Couple Rings**: CoupleRing drawn around married/partner pairs in system view, with lines radiating from ring edge to child stars
+   - **Connection Lines**: Curved bezier arcs between households with GLSL shader-based energy pulse animation; household-colored; lines originate from parent couple ring edge and target specific child star positions; highlight on hover with connected systems staying bright while others dim
+   - **Couple Rings**: CoupleRing drawn around married/partner pairs in both galaxy and system views; parent stars positioned ON the ring; animated breathing glow with pulse wave effect; lines from ring edge to child stars
+   - **Hover Focus Dimming**: Hovering a system highlights it and connected neighbors (opacity 0.9), dimming unconnected systems to 20%
+   - **Floating Labels**: drei Html-based household name labels appear on hover with household-colored styling
+   - **Background Star Field**: 2000-5000 tiny twinkling background stars (quality-tier dependent) with per-star phase-offset sine wave opacity
+   - **Ambient Particle Drift**: 300-800 slow-moving warm-colored particles with additive blending drifting across scene
+   - **Glass-morphism Hover Tooltip**: Shows generation label, member names, star class with backdrop blur and household-colored accents
    - **Motion Trail Effect**: Subtle visual trails during camera movement
    - **NMS-Style HUD**: Top bar with coordinate readout, filter toggles, minimap, corner-bracket framed panels
    - **Warp Transitions**: Visual warp streaks when zooming into a household system
