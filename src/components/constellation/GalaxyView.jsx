@@ -1532,9 +1532,9 @@ function AnimatedHouseholdGroup({
   const { camera } = useThree();
   const currentState = useRef({
     offsetX: 0, offsetY: 0, offsetZ: 0,
-    scale: 1, opacity: 0.8, starOpacity: 1
+    scale: 1, opacity: 1.0, starOpacity: 1
   });
-  const [renderOpacity, setRenderOpacity] = useState(0.8);
+  const [renderOpacity, setRenderOpacity] = useState(1.0);
   const [starRenderOpacity, setStarRenderOpacity] = useState(1);
   
   const localStars = useMemo(() => {
@@ -1560,7 +1560,7 @@ function AnimatedHouseholdGroup({
     
     let targetOffsetX = 0, targetOffsetY = 0, targetOffsetZ = 0;
     let targetScale = 1;
-    let targetOpacity = 0.8;
+    let targetOpacity = 1.0;
     let targetStarOpacity = 1;
     
     if (isFocused) {
@@ -1586,8 +1586,8 @@ function AnimatedHouseholdGroup({
         targetStarOpacity = 1;
         targetScale = 1.05;
       } else {
-        targetOpacity = 0.15;
-        targetStarOpacity = 0.2;
+        targetOpacity = 0.25;
+        targetStarOpacity = 0.35;
         targetScale = 0.92;
       }
     }
@@ -1684,7 +1684,7 @@ function AnimatedHouseholdGroup({
           center={galaxyCoupleRing.center}
           radius={galaxyCoupleRing.radius}
           colorIndex={colorIndex}
-          opacity={starRenderOpacity * 0.35}
+          opacity={starRenderOpacity * 0.55}
         />
       )}
       {!isOtherFocused && (
@@ -1917,7 +1917,7 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
           center={coupleCenter}
           radius={coupleRadius}
           colorIndex={colorIndex}
-          opacity={opacity * 0.7}
+          opacity={opacity * 0.85}
         />
       )}
       {positions.length > 0 && (
@@ -1964,9 +1964,9 @@ const connectionLineShader = {
     void main() {
       float pulse = fract(uTime * 0.3 - vT);
       float pulseGlow = smoothstep(0.0, 0.08, pulse) * smoothstep(0.2, 0.08, pulse);
-      float baseBrightness = mix(0.12, 0.35, vHighlight);
-      float brightness = baseBrightness + pulseGlow * mix(0.4, 0.8, vHighlight);
-      gl_FragColor = vec4(vColor * brightness, mix(0.3, 0.7, vHighlight));
+      float baseBrightness = mix(0.25, 0.6, vHighlight);
+      float brightness = baseBrightness + pulseGlow * mix(0.5, 0.9, vHighlight);
+      gl_FragColor = vec4(vColor * brightness, mix(0.5, 0.85, vHighlight));
     }
   `
 };
