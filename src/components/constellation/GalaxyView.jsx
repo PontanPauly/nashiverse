@@ -8,6 +8,31 @@ import { ChevronRight, ZoomIn, ZoomOut, RotateCcw, Home, Sparkles, Cloud, Eye, E
 import { generateRandomStarProfile } from '@/lib/starConfig';
 import { StarInstanced } from './Star';
 
+function createRadialGlowTexture(size = 128) {
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.15, 'rgba(255,255,255,0.6)');
+  gradient.addColorStop(0.4, 'rgba(255,255,255,0.15)');
+  gradient.addColorStop(0.7, 'rgba(255,255,255,0.03)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+let _glowTexture = null;
+function getGlowTexture() {
+  if (!_glowTexture) _glowTexture = createRadialGlowTexture(128);
+  return _glowTexture;
+}
+
 const TransitionContext = createContext({
   progress: 0,
   isActive: false,
@@ -1676,8 +1701,8 @@ function SystemLevelScene({
   useFrame((state) => {
     if (!systemGroupRef.current) return;
     const t = state.clock.elapsedTime;
-    systemGroupRef.current.rotation.y = t * 0.008;
-    systemGroupRef.current.position.y = Math.sin(t * 0.15) * 0.08;
+    systemGroupRef.current.rotation.y = t * 0.003;
+    systemGroupRef.current.position.y = Math.sin(t * 0.1) * 0.03;
   });
   
   return (
@@ -1696,9 +1721,10 @@ function SystemLevelScene({
       />
       <sprite position={[centerX, centerY, centerZ]} scale={[14, 14, 1]}>
         <spriteMaterial
+          map={getGlowTexture()}
           color={colors.primary}
           transparent
-          opacity={0.04 * fadeOpacity}
+          opacity={0.06 * fadeOpacity}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
         />
@@ -1883,9 +1909,10 @@ function AnimatedHouseholdGroup({
       {!isOtherFocused && (
         <sprite position={[0, 0, 0]} scale={[8, 8, 1]}>
           <spriteMaterial
+            map={getGlowTexture()}
             color={householdColor.primary}
             transparent
-            opacity={isHovered && !focusedHouseholdId ? 0.15 : 0.06}
+            opacity={isHovered && !focusedHouseholdId ? 0.2 : 0.08}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
           />
@@ -1945,19 +1972,26 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
   const pulseMatRef = useRef();
   const innerGlowMatRef = useRef();
 
+  const tiltRotation = useMemo(() => {
+    const seed = colorIndex * 137.508 + 42.7;
+    const tiltX = (Math.sin(seed) * 0.5) * 0.5;
+    const tiltZ = (Math.cos(seed * 1.3) * 0.5) * 0.5;
+    return [tiltX, 0, tiltZ];
+  }, [colorIndex]);
+
   const points = useMemo(() => {
     const segments = 64;
     const pts = [];
     for (let i = 0; i <= segments; i++) {
       const angle = (i / segments) * Math.PI * 2;
       pts.push(new THREE.Vector3(
-        center[0] + Math.cos(angle) * radius,
-        center[1],
-        center[2] + Math.sin(angle) * radius
+        Math.cos(angle) * radius,
+        0,
+        Math.sin(angle) * radius
       ));
     }
     return pts;
-  }, [center, radius]);
+  }, [radius]);
 
   const glowPoints = useMemo(() => {
     const segments = 64;
@@ -1965,13 +1999,13 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
     for (let i = 0; i <= segments; i++) {
       const angle = (i / segments) * Math.PI * 2;
       pts.push(new THREE.Vector3(
-        center[0] + Math.cos(angle) * radius * 1.08,
-        center[1],
-        center[2] + Math.sin(angle) * radius * 1.08
+        Math.cos(angle) * radius * 1.08,
+        0,
+        Math.sin(angle) * radius * 1.08
       ));
     }
     return pts;
-  }, [center, radius]);
+  }, [radius]);
 
   const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
   const ringColor = new THREE.Color(baseColors.primary);
@@ -2000,7 +2034,7 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
   });
 
   return (
-    <group>
+    <group position={[center[0], center[1], center[2]]} rotation={tiltRotation}>
       <line ref={ringRef}>
         <bufferGeometry>
           <bufferAttribute
@@ -2038,7 +2072,7 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
         />
       </line>
       <group ref={pulseRingRef}>
-        <mesh position={[center[0], center[1], center[2]]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[radius * 1.05, radius * 1.18, 64]} />
           <meshBasicMaterial
             ref={pulseMatRef}
@@ -2051,7 +2085,7 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
           />
         </mesh>
       </group>
-      <mesh position={[center[0], center[1], center[2]]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[radius * 0.92, radius * 1.08, 64]} />
         <meshBasicMaterial
           ref={innerGlowMatRef}
@@ -2071,7 +2105,7 @@ function SystemMeshLines({ lines, colorIndex, opacity = 0.6 }) {
   const meshRef = useRef();
   const timeUniform = useRef({ value: 0 });
   const resolutionUniform = useRef({ value: new THREE.Vector2(1920, 1080) });
-  const lineWidthUniform = useRef({ value: 2.0 });
+  const lineWidthUniform = useRef({ value: 4.0 });
 
   const lineCount = lines.length;
   const totalVerts = lineCount * 4;
@@ -2263,6 +2297,7 @@ const connectionLineShader = {
     varying float vT;
     varying vec3 vColor;
     varying float vHighlight;
+    varying float vEdge;
     void main() {
       vec4 clipStart = projectionMatrix * modelViewMatrix * vec4(aStart, 1.0);
       vec4 clipEnd = projectionMatrix * modelViewMatrix * vec4(aEnd, 1.0);
@@ -2281,6 +2316,7 @@ const connectionLineShader = {
       vT = aT;
       vColor = aColor;
       vHighlight = aHighlight;
+      vEdge = abs(aSide);
     }
   `,
   fragmentShader: `
@@ -2288,14 +2324,20 @@ const connectionLineShader = {
     varying float vT;
     varying vec3 vColor;
     varying float vHighlight;
+    varying float vEdge;
     void main() {
+      float edgeFalloff = 1.0 - smoothstep(0.3, 1.0, vEdge);
+      float coreBright = smoothstep(0.6, 0.0, vEdge);
       float pulse = fract(uTime * 0.3 - vT);
       float pulseGlow = smoothstep(0.0, 0.08, pulse) * smoothstep(0.2, 0.08, pulse);
-      float baseBrightness = mix(0.0, 0.6, vHighlight);
-      float brightness = baseBrightness + pulseGlow * mix(0.0, 0.9, vHighlight);
-      float alpha = mix(0.0, 0.85, vHighlight);
+      float baseBrightness = mix(0.0, 0.7, vHighlight);
+      float brightness = baseBrightness + pulseGlow * mix(0.0, 1.0, vHighlight);
+      brightness *= (0.5 + coreBright * 0.5);
+      float alpha = mix(0.0, 0.9, vHighlight) * edgeFalloff;
       if (alpha < 0.01) discard;
-      gl_FragColor = vec4(vColor * brightness, alpha);
+      vec3 col = vColor * brightness;
+      col += vColor * coreBright * 0.3;
+      gl_FragColor = vec4(col, alpha);
     }
   `
 };
@@ -2304,7 +2346,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
   const meshRef = useRef();
   const timeUniform = useRef({ value: 0 });
   const resolutionUniform = useRef({ value: new THREE.Vector2(1920, 1080) });
-  const lineWidthUniform = useRef({ value: 2.5 });
+  const lineWidthUniform = useRef({ value: 4.0 });
 
   const { edgeData, hoverMask } = useMemo(() => {
     if (!edges || edges.length === 0) {
@@ -3312,7 +3354,7 @@ function NebulaScene({
         minDistance={level === 'system' ? 6 : 20}
         maxDistance={level === 'system' ? 35 : 120}
         autoRotate={autoRotateEnabled && level === 'galaxy' && !hoveredHouseholdId}
-        autoRotateSpeed={0.2}
+        autoRotateSpeed={0.08}
         rotateSpeed={0.4}
         zoomSpeed={0.6}
         panSpeed={0.4}
