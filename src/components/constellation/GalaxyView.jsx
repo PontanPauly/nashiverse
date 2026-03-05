@@ -2333,12 +2333,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
           }
         }
 
-        if (edge.fromPersonLocalOffset && fromGroup) {
-          const scale = fromGroup.scale.x;
-          fromX = fromGroup.position.x + edge.fromPersonLocalOffset[0] * scale;
-          fromY = fromGroup.position.y + edge.fromPersonLocalOffset[1] * scale;
-          fromZ = fromGroup.position.z + edge.fromPersonLocalOffset[2] * scale;
-        } else if (edge.fromHasRing && fromGroup) {
+        if (edge.fromHasRing && fromGroup) {
           const ringRadius = 1.2;
           const scale = fromGroup.scale.x;
           const dx = toX - fromX;
@@ -2348,6 +2343,11 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
             fromX += (dx / len) * ringRadius * scale;
             fromZ += (dz / len) * ringRadius * scale;
           }
+        } else if (!edge.fromHasRing && edge.fromPersonLocalOffset && fromGroup) {
+          const scale = fromGroup.scale.x;
+          fromX = fromGroup.position.x + edge.fromPersonLocalOffset[0] * scale;
+          fromY = fromGroup.position.y + edge.fromPersonLocalOffset[1] * scale;
+          fromZ = fromGroup.position.z + edge.fromPersonLocalOffset[2] * scale;
         }
       }
 
@@ -3230,11 +3230,14 @@ function CornerBrackets({ children, className = '' }) {
   );
 }
 
-function HoverTooltip({ household, memberCount, starClass, mousePos, generation = 0, members = [], colorIndex = 0 }) {
+function HoverTooltip({ household, memberCount, starClass, mousePos, generation = 0, members = [], colorIndex = 0, hasChildren = false, hasParents = false }) {
   if (!household || !mousePos) return null;
 
   const generationLabels = ['Grandparents', 'Parents', 'Children', 'Grandchildren'];
-  const generationLabel = generationLabels[Math.min(generation, generationLabels.length - 1)];
+  let generationLabel = generationLabels[Math.min(generation, generationLabels.length - 1)];
+  if (generation === 1 && !hasChildren) {
+    generationLabel = 'Family';
+  }
 
   const householdColor = HOUSEHOLD_COLORS[Math.abs(colorIndex) % HOUSEHOLD_COLORS.length];
   const accentColor = householdColor?.primary || '#8B5CF6';
@@ -3736,8 +3739,15 @@ export default function GalaxyView({ people = [], relationships = [], households
     const gen = pos?.generation ?? 0;
     const members = people.filter(p => p.household_id === hoveredHouseholdId);
     const colorIndex = households.findIndex(h => h.id === hoveredHouseholdId);
-    return { memberCount: mc, starClass: classifyHousehold(mc), generation: gen, members, colorIndex };
-  }, [hoveredHouseholdId, householdPositions, people, households]);
+    const memberIds = new Set(members.map(m => m.id));
+    const hasChildren = relationships.some(r =>
+      r.relationship_type === 'parent' && memberIds.has(r.person_id) && !memberIds.has(r.related_person_id)
+    );
+    const hasParents = relationships.some(r =>
+      r.relationship_type === 'parent' && memberIds.has(r.related_person_id) && !memberIds.has(r.person_id)
+    );
+    return { memberCount: mc, starClass: classifyHousehold(mc), generation: gen, members, colorIndex, hasChildren, hasParents };
+  }, [hoveredHouseholdId, householdPositions, people, households, relationships]);
 
   const selectedHouseholdInfo = useMemo(() => {
     if (!selectedHousehold) return null;
@@ -3952,6 +3962,8 @@ export default function GalaxyView({ people = [], relationships = [], households
           generation={hoveredHouseholdInfo.generation}
           members={hoveredHouseholdInfo.members}
           colorIndex={hoveredHouseholdInfo.colorIndex}
+          hasChildren={hoveredHouseholdInfo.hasChildren}
+          hasParents={hoveredHouseholdInfo.hasParents}
         />
       )}
 
