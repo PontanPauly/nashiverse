@@ -301,13 +301,15 @@ function ImmersiveNebulaVolume({ qualityTier }) {
         const int RAY_STEPS = ${raySteps};
         const int OCTAVES = ${octaves};
         
-        vec3 deepPurple = vec3(0.08, 0.04, 0.18);
-        vec3 vibrantPurple = vec3(0.35, 0.12, 0.65);
-        vec3 teal = vec3(0.02, 0.25, 0.35);
-        vec3 cyan = vec3(0.08, 0.35, 0.45);
-        vec3 warmPink = vec3(0.55, 0.15, 0.35);
-        vec3 deepBlue = vec3(0.05, 0.08, 0.25);
-        vec3 warmOrange = vec3(0.65, 0.35, 0.1);
+        vec3 deepPurple = vec3(0.12, 0.06, 0.28);
+        vec3 vibrantPurple = vec3(0.45, 0.15, 0.75);
+        vec3 teal = vec3(0.04, 0.32, 0.42);
+        vec3 cyan = vec3(0.12, 0.45, 0.55);
+        vec3 warmPink = vec3(0.65, 0.2, 0.4);
+        vec3 deepBlue = vec3(0.08, 0.12, 0.35);
+        vec3 warmOrange = vec3(0.75, 0.45, 0.15);
+        vec3 emeraldGreen = vec3(0.08, 0.45, 0.2);
+        vec3 warmGold = vec3(0.7, 0.55, 0.15);
         
         float hash(vec3 p) {
           p = fract(p * vec3(443.897, 441.423, 437.195));
@@ -395,7 +397,7 @@ function ImmersiveNebulaVolume({ qualityTier }) {
           
           density = pow(max(density - 0.25, 0.0), 1.5);
           
-          return density * 0.18;
+          return density * 0.28;
         }
         
         vec3 nebulaColor(vec3 p, float density, float t) {
@@ -406,19 +408,20 @@ function ImmersiveNebulaVolume({ qualityTier }) {
           float dist = length(p);
           float distFactor = smoothstep(0.0, 80.0, dist);
           
-          vec3 coreColor = mix(warmOrange, warmPink, n1);
-          vec3 midColor = mix(vibrantPurple, teal, n2);
+          vec3 coreColor = mix(warmGold, warmPink, n1);
+          vec3 midColor = mix(vibrantPurple, emeraldGreen, n2);
           vec3 edgeColor = mix(deepBlue, cyan, n3);
           
           vec3 color = mix(coreColor, midColor, smoothstep(0.0, 0.5, distFactor));
           color = mix(color, edgeColor, smoothstep(0.4, 0.9, distFactor));
           
-          color = mix(color, vibrantPurple, smoothstep(0.6, 0.9, n1) * 0.4);
-          color = mix(color, cyan, smoothstep(0.5, 0.85, n2 * n3) * 0.3);
+          color = mix(color, vibrantPurple, smoothstep(0.5, 0.85, n1) * 0.5);
+          color = mix(color, warmGold, smoothstep(0.4, 0.8, n2 * n3) * 0.4);
+          color = mix(color, emeraldGreen, smoothstep(0.55, 0.85, n3) * 0.35);
           
-          float emissive = pow(density, 0.5) * 1.5;
+          float emissive = pow(density, 0.5) * 2.0;
           
-          return color * (0.6 + emissive);
+          return color * (0.8 + emissive);
         }
         
         void main() {
@@ -462,7 +465,7 @@ function ImmersiveNebulaVolume({ qualityTier }) {
           
           totalColor = pow(totalColor, vec3(0.85));
           
-          gl_FragColor = vec4(totalColor, totalAlpha * 0.5);
+          gl_FragColor = vec4(totalColor, totalAlpha * 0.7);
         }
       `,
       uniforms: {
@@ -502,12 +505,14 @@ function NebulaFilaments({ count = 800, qualityTier }) {
     const pha = new Float32Array(particleCount);
     
     const nebulaColors = [
-      new THREE.Color(0x7c3aed),
-      new THREE.Color(0x0891b2),
-      new THREE.Color(0x22d3d8),
-      new THREE.Color(0xec4899),
-      new THREE.Color(0x1e40af),
-      new THREE.Color(0xf97316),
+      new THREE.Color(0x9b5de5),
+      new THREE.Color(0x0db5d1),
+      new THREE.Color(0x3de8e0),
+      new THREE.Color(0xf472b6),
+      new THREE.Color(0x2563eb),
+      new THREE.Color(0xfbbf24),
+      new THREE.Color(0x34d399),
+      new THREE.Color(0xf59e0b),
     ];
     
     for (let i = 0; i < particleCount; i++) {
@@ -550,7 +555,7 @@ function NebulaFilaments({ count = 800, qualityTier }) {
           vColor = particleColor;
           
           float drift = sin(time * 0.15 + phase) * 0.2 + 0.8;
-          vAlpha = 0.06 * drift;
+          vAlpha = 0.12 * drift;
           
           vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * (150.0 / -mvPos.z);
@@ -667,29 +672,32 @@ function NebulaBackground() {
           float n3 = fbm(dir * 1.5 + time * 0.0005);
           float n4 = fbm(dir * 0.8 + time * 0.0003);
           
-          vec3 deepSpace = vec3(0.02, 0.02, 0.04);
-          vec3 warmGold = vec3(0.12, 0.1, 0.03);
-          vec3 emeraldGreen = vec3(0.03, 0.1, 0.05);
-          vec3 deepPurple = vec3(0.06, 0.02, 0.12);
-          vec3 coolBlue = vec3(0.02, 0.05, 0.12);
-          vec3 amber = vec3(0.1, 0.06, 0.02);
+          vec3 deepSpace = vec3(0.02, 0.02, 0.05);
+          vec3 warmGold = vec3(0.2, 0.16, 0.04);
+          vec3 emeraldGreen = vec3(0.04, 0.18, 0.08);
+          vec3 deepPurple = vec3(0.12, 0.04, 0.22);
+          vec3 coolBlue = vec3(0.04, 0.08, 0.2);
+          vec3 amber = vec3(0.18, 0.1, 0.03);
+          vec3 rosePink = vec3(0.15, 0.04, 0.1);
           
           vec3 baseColor = deepSpace;
           
-          float zone1 = smoothstep(0.4, 0.7, n3);
-          float zone2 = smoothstep(0.4, 0.7, n4);
-          float zone3 = smoothstep(0.45, 0.75, fbm(dir * 1.2 - time * 0.0004));
-          float zone4 = smoothstep(0.4, 0.7, n1);
-          float zone5 = smoothstep(0.45, 0.75, n2);
+          float zone1 = smoothstep(0.35, 0.65, n3);
+          float zone2 = smoothstep(0.35, 0.65, n4);
+          float zone3 = smoothstep(0.38, 0.68, fbm(dir * 1.2 - time * 0.0004));
+          float zone4 = smoothstep(0.35, 0.65, n1);
+          float zone5 = smoothstep(0.38, 0.68, n2);
+          float zone6 = smoothstep(0.4, 0.7, fbm(dir * 1.8 + time * 0.0006));
           
-          baseColor = mix(baseColor, warmGold, zone1 * 0.12);
-          baseColor = mix(baseColor, emeraldGreen, zone2 * 0.15);
-          baseColor = mix(baseColor, deepPurple, zone3 * 0.1);
-          baseColor = mix(baseColor, coolBlue, zone4 * 0.1);
-          baseColor = mix(baseColor, amber, zone5 * 0.08);
+          baseColor = mix(baseColor, warmGold, zone1 * 0.35);
+          baseColor = mix(baseColor, emeraldGreen, zone2 * 0.3);
+          baseColor = mix(baseColor, deepPurple, zone3 * 0.3);
+          baseColor = mix(baseColor, coolBlue, zone4 * 0.28);
+          baseColor = mix(baseColor, amber, zone5 * 0.25);
+          baseColor = mix(baseColor, rosePink, zone6 * 0.2);
           
           float yFactor = (dir.y + 1.0) * 0.5;
-          baseColor = mix(baseColor, deepPurple * 0.4, yFactor * 0.1);
+          baseColor = mix(baseColor, deepPurple * 0.6, yFactor * 0.15);
           
           gl_FragColor = vec4(baseColor, 1.0);
         }
@@ -828,10 +836,13 @@ function NebulaGasCloud({ count = 8000 }) {
     const pha = new Float32Array(count);
     
     const nebulaColors = [
-      new THREE.Color('#0a1520'),
-      new THREE.Color('#0f1a2a'),
-      new THREE.Color('#0d1525'),
-      new THREE.Color('#101830'),
+      new THREE.Color('#1a2840'),
+      new THREE.Color('#2a1545'),
+      new THREE.Color('#0d2535'),
+      new THREE.Color('#302818'),
+      new THREE.Color('#152a20'),
+      new THREE.Color('#251535'),
+      new THREE.Color('#0d2030'),
     ];
     
     for (let i = 0; i < count; i++) {
@@ -845,12 +856,12 @@ function NebulaGasCloud({ count = 8000 }) {
       
       const colorIndex = Math.floor(Math.random() * nebulaColors.length);
       const c = nebulaColors[colorIndex];
-      const brightness = 0.4 + Math.random() * 0.3;
+      const brightness = 0.6 + Math.random() * 0.4;
       col[i * 3] = c.r * brightness;
       col[i * 3 + 1] = c.g * brightness;
       col[i * 3 + 2] = c.b * brightness;
       
-      siz[i] = 1.0 + Math.random() * 2.5;
+      siz[i] = 1.5 + Math.random() * 3.5;
       pha[i] = Math.random() * Math.PI * 2;
     }
     
@@ -870,8 +881,8 @@ function NebulaGasCloud({ count = 8000 }) {
         void main() {
           vColor = gasColor;
           
-          float drift = sin(time * 0.08 + phase) * 0.2;
-          vAlpha = 0.03 + drift * 0.01;
+          float drift = sin(time * 0.08 + phase) * 0.3;
+          vAlpha = 0.08 + drift * 0.03;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * (200.0 / -mvPosition.z);
@@ -1530,6 +1541,7 @@ function AnimatedHouseholdGroup({
 }) {
   const groupRef = useRef();
   const { camera } = useThree();
+  const breathPhase = useMemo(() => (household?.id || 0) * 1.7, [household?.id]);
   const currentState = useRef({
     offsetX: 0, offsetY: 0, offsetZ: 0,
     scale: 1, opacity: 1.0, starOpacity: 1
@@ -1590,6 +1602,9 @@ function AnimatedHouseholdGroup({
         targetStarOpacity = 0.35;
         targetScale = 0.92;
       }
+    } else {
+      const breathe = Math.sin(state.clock.elapsedTime * 0.8 + breathPhase) * 0.03;
+      targetScale = 1.0 + breathe;
     }
     
     const lerpSpeed = 4.5 * delta;
@@ -2720,7 +2735,7 @@ function FogController() {
   const { scene } = useThree();
   
   useEffect(() => {
-    scene.fog = new THREE.FogExp2('#060610', 0.003);
+    scene.fog = new THREE.FogExp2('#080816', 0.004);
     return () => {
       scene.fog = null;
     };
@@ -2921,10 +2936,12 @@ function NebulaScene({
       <pointLight position={[20, -20, 30]} intensity={0.08} color={NEBULA_COLORS.warmPink} />
       
       <NebulaBackground />
+      <ImmersiveNebulaVolume qualityTier={qualityTier} />
       
       <BackgroundStarField qualityTier={qualityTier} />
       
       <NebulaGasCloud count={qualityTier.gasCount} />
+      <NebulaFilaments qualityTier={qualityTier} />
       
       <AmbientDrift qualityTier={qualityTier} />
       
@@ -2961,7 +2978,7 @@ function NebulaScene({
         minDistance={level === 'system' ? 6 : 20}
         maxDistance={level === 'system' ? 35 : 120}
         autoRotate={autoRotateEnabled && level === 'galaxy' && !hoveredHouseholdId}
-        autoRotateSpeed={0.06}
+        autoRotateSpeed={0.2}
         rotateSpeed={0.4}
         zoomSpeed={0.6}
         panSpeed={0.4}

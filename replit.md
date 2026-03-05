@@ -25,7 +25,9 @@ Nashiverse is a family management application with a cosmic/space theme. It help
    - React Three Fiber + Three.js rendering
    - **NMS-Style Star Points**: Three-layer star composition (translucent breathing core, asymmetric rotating flares, cooler-toned pulsing halo)
    - **Star Classification System**: Households color-coded by member count (F=Yellow 1-2, K=Red 3-4, E=Green 5-7, O=Blue 8+)
-   - **Rich Ambient Nebula Backdrop**: Large-scale volumetric nebula filling the background (gold, emerald, purple, blue zones)
+   - **Rich Ambient Nebula Backdrop**: Multi-layered NMS-style nebula atmosphere — NebulaBackground (FBM shader sphere with 6 color zones: gold, emerald, purple, blue, amber, rose), ImmersiveNebulaVolume (ray-marched volumetric 3D gas clouds with warm gold/emerald/purple color mixing), NebulaFilaments (glowing particle wisps in 8 colors), NebulaGasCloud (atmospheric particles with colored tints)
+   - **System Breathing**: Each household system gently pulses in scale (±3%) with per-system phase offset, making the galaxy feel alive
+   - **Galaxy Auto-Rotation**: Slow automatic orbit rotation (speed 0.2) when idle in galaxy view; pauses on hover/interaction
    - **Generational Layout**: Grandparents at center, children in middle ring, grandchildren in outer ring — family tree radiating outward
    - **Connection Lines**: Curved bezier arcs between households with GLSL shader-based energy pulse animation; household-colored; lines originate from parent couple ring edge and target specific child star positions; highlight on hover with connected systems staying bright while others dim
    - **Couple Rings**: CoupleRing drawn around married/partner pairs in both galaxy and system views; parent stars positioned ON the ring; animated breathing glow with pulse wave effect; lines from ring edge to child stars
