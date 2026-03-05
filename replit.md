@@ -30,7 +30,7 @@ Nashiverse is a family management application with a cosmic/space theme. It help
    - **System Breathing**: Each household system gently pulses in scale (±3%) with per-system phase offset, making the galaxy feel alive
    - **Galaxy Auto-Rotation**: Slow automatic orbit rotation (speed 0.2) when idle in galaxy view; pauses on hover/interaction
    - **Generational Layout**: Grandparents at center, children in middle ring, grandchildren in outer ring — family tree radiating outward
-   - **Connection Lines**: Straight lines between households with GLSL shader-based energy pulse animation; household-colored; lines originate from parent couple ring edge and target specific child star positions; lines appear only on hover — hover a system to reveal its family connections
+   - **Connection Lines**: Mesh-based thick quad lines (2.5px screen-space width) between households with GLSL shader-based energy pulse animation; household-colored; lines originate from parent couple ring edge and target specific child star positions; includes intra-household lines (ring → children within same system); lines appear only on hover — hover a system to reveal its family connections
    - **Couple Rings**: CoupleRing drawn around married/partner pairs in both galaxy and system views; parent stars positioned ON the ring; animated breathing glow with pulse wave effect; lines from ring edge to child stars
    - **Hover Focus Dimming**: Hovering a system highlights it and connected neighbors (opacity 0.9), dimming unconnected systems to 20%
    - **Floating Labels**: drei Html-based household name labels appear on hover with household-colored styling

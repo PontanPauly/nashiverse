@@ -2088,18 +2088,36 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
 
 const connectionLineShader = {
   vertexShader: `
+    attribute vec3 aStart;
+    attribute vec3 aEnd;
+    attribute float aSide;
     attribute float aT;
     attribute vec3 aColor;
     attribute float aHighlight;
     uniform float uTime;
+    uniform vec2 uResolution;
+    uniform float uLineWidth;
     varying float vT;
     varying vec3 vColor;
     varying float vHighlight;
     void main() {
+      vec4 clipStart = projectionMatrix * modelViewMatrix * vec4(aStart, 1.0);
+      vec4 clipEnd = projectionMatrix * modelViewMatrix * vec4(aEnd, 1.0);
+      vec2 ndcStart = clipStart.xy / clipStart.w;
+      vec2 ndcEnd = clipEnd.xy / clipEnd.w;
+      vec2 screenStart = (ndcStart * 0.5 + 0.5) * uResolution;
+      vec2 screenEnd = (ndcEnd * 0.5 + 0.5) * uResolution;
+      vec2 dir = screenEnd - screenStart;
+      float len = length(dir);
+      vec2 perp = len > 0.001 ? vec2(-dir.y, dir.x) / len : vec2(0.0, 1.0);
+      vec2 screenOffset = perp * aSide * uLineWidth * 0.5;
+      vec2 ndcOffset = screenOffset / uResolution * 2.0;
+      vec4 clipPos = mix(clipStart, clipEnd, aT);
+      clipPos.xy += ndcOffset * clipPos.w;
+      gl_Position = clipPos;
       vT = aT;
       vColor = aColor;
       vHighlight = aHighlight;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `,
   fragmentShader: `
@@ -2119,11 +2137,11 @@ const connectionLineShader = {
   `
 };
 
-const CURVE_SEGMENTS = 2;
-
 function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold, householdGroupRefs }) {
   const meshRef = useRef();
   const timeUniform = useRef({ value: 0 });
+  const resolutionUniform = useRef({ value: new THREE.Vector2(1920, 1080) });
+  const lineWidthUniform = useRef({ value: 2.5 });
 
   const { edgeData, hoverMask } = useMemo(() => {
     if (!edges || edges.length === 0) {
@@ -2176,6 +2194,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         childLocalOffset,
         fromHasRing,
         fromColorIndex,
+        isIntraHousehold: edge.isIntraHousehold || false,
       });
 
       mask.push({ from: edge.from, to: edge.to });
@@ -2185,27 +2204,56 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
   }, [edges, householdPositions, starsByHousehold]);
 
   const validEdgeCount = useMemo(() => edgeData.filter(e => e !== null).length, [edgeData]);
-  const totalVerts = validEdgeCount * CURVE_SEGMENTS;
+  const totalVerts = validEdgeCount * 4;
+  const totalIndices = validEdgeCount * 6;
 
-  const { positions, tValues, colorValues, highlightValues } = useMemo(() => {
-    const pos = new Float32Array(totalVerts * 3);
+  const { startPos, endPos, sides, tValues, colorValues, highlightValues, indices, dummyPositions } = useMemo(() => {
+    const sp = new Float32Array(totalVerts * 3);
+    const ep = new Float32Array(totalVerts * 3);
+    const sd = new Float32Array(totalVerts);
     const t = new Float32Array(totalVerts);
     const col = new Float32Array(totalVerts * 3);
     const hl = new Float32Array(totalVerts);
-    return { positions: pos, tValues: t, colorValues: col, highlightValues: hl };
-  }, [totalVerts]);
+    const dp = new Float32Array(totalVerts * 3);
+    const idx = new Uint32Array(totalIndices);
+
+    let vertOffset = 0;
+    for (let e = 0; e < validEdgeCount; e++) {
+      sd[vertOffset] = -1; t[vertOffset] = 0;
+      sd[vertOffset + 1] = 1; t[vertOffset + 1] = 0;
+      sd[vertOffset + 2] = -1; t[vertOffset + 2] = 1;
+      sd[vertOffset + 3] = 1; t[vertOffset + 3] = 1;
+
+      const idxOffset = e * 6;
+      idx[idxOffset] = vertOffset;
+      idx[idxOffset + 1] = vertOffset + 1;
+      idx[idxOffset + 2] = vertOffset + 2;
+      idx[idxOffset + 3] = vertOffset + 1;
+      idx[idxOffset + 4] = vertOffset + 3;
+      idx[idxOffset + 5] = vertOffset + 2;
+
+      vertOffset += 4;
+    }
+
+    return { startPos: sp, endPos: ep, sides: sd, tValues: t, colorValues: col, highlightValues: hl, indices: idx, dummyPositions: dp };
+  }, [totalVerts, totalIndices, validEdgeCount]);
 
   useFrame((state) => {
     if (!meshRef.current || !meshRef.current.geometry) return;
     timeUniform.current.value = state.clock.elapsedTime;
 
-    const posAttr = meshRef.current.geometry.getAttribute('position');
+    const renderer = state.gl;
+    const size = renderer.getSize(new THREE.Vector2());
+    resolutionUniform.current.value.set(size.x, size.y);
+
+    const spAttr = meshRef.current.geometry.getAttribute('aStart');
+    const epAttr = meshRef.current.geometry.getAttribute('aEnd');
     const hlAttr = meshRef.current.geometry.getAttribute('aHighlight');
     const colAttr = meshRef.current.geometry.getAttribute('aColor');
-    if (!posAttr) return;
+    if (!spAttr || !epAttr) return;
 
     const groupRefs = householdGroupRefs?.current;
-    let vertIdx = 0;
+    let edgeIdx = 0;
 
     for (let i = 0; i < edgeData.length; i++) {
       const edge = edgeData[i];
@@ -2255,67 +2303,42 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
       const edgeColors = HOUSEHOLD_COLORS[edge.fromColorIndex % HOUSEHOLD_COLORS.length];
       const lineColor = new THREE.Color(edgeColors.glow);
 
-      const vi0 = vertIdx * 3;
-      posAttr.array[vi0] = fromX;
-      posAttr.array[vi0 + 1] = fromY;
-      posAttr.array[vi0 + 2] = fromZ;
-      if (colAttr) {
-        colAttr.array[vi0] = lineColor.r;
-        colAttr.array[vi0 + 1] = lineColor.g;
-        colAttr.array[vi0 + 2] = lineColor.b;
+      const base = edgeIdx * 4;
+      for (let v = 0; v < 4; v++) {
+        const vi = (base + v) * 3;
+        spAttr.array[vi] = fromX;
+        spAttr.array[vi + 1] = fromY;
+        spAttr.array[vi + 2] = fromZ;
+        epAttr.array[vi] = toX;
+        epAttr.array[vi + 1] = toY;
+        epAttr.array[vi + 2] = toZ;
+        if (colAttr) {
+          colAttr.array[vi] = lineColor.r;
+          colAttr.array[vi + 1] = lineColor.g;
+          colAttr.array[vi + 2] = lineColor.b;
+        }
+        if (hlAttr) hlAttr.array[base + v] = hlVal;
       }
-      if (hlAttr) hlAttr.array[vertIdx] = hlVal;
-      vertIdx++;
 
-      const vi1 = vertIdx * 3;
-      posAttr.array[vi1] = toX;
-      posAttr.array[vi1 + 1] = toY;
-      posAttr.array[vi1 + 2] = toZ;
-      if (colAttr) {
-        colAttr.array[vi1] = lineColor.r;
-        colAttr.array[vi1 + 1] = lineColor.g;
-        colAttr.array[vi1 + 2] = lineColor.b;
-      }
-      if (hlAttr) hlAttr.array[vertIdx] = hlVal;
-      vertIdx++;
+      edgeIdx++;
     }
 
-    posAttr.needsUpdate = true;
+    spAttr.needsUpdate = true;
+    epAttr.needsUpdate = true;
     if (colAttr) colAttr.needsUpdate = true;
     if (hlAttr) hlAttr.needsUpdate = true;
   });
 
-  const indices = useMemo(() => {
-    const idx = [];
-    let vertOffset = 0;
-    for (let e = 0; e < validEdgeCount; e++) {
-      for (let s = 0; s < CURVE_SEGMENTS - 1; s++) {
-        idx.push(vertOffset + s, vertOffset + s + 1);
-      }
-      vertOffset += CURVE_SEGMENTS;
-    }
-    return new Uint16Array(idx);
-  }, [validEdgeCount]);
-
-  const tAttr = useMemo(() => {
-    const t = new Float32Array(totalVerts);
-    let vertOffset = 0;
-    for (let e = 0; e < validEdgeCount; e++) {
-      for (let s = 0; s < CURVE_SEGMENTS; s++) {
-        t[vertOffset + s] = s / (CURVE_SEGMENTS - 1);
-      }
-      vertOffset += CURVE_SEGMENTS;
-    }
-    return t;
-  }, [validEdgeCount, totalVerts]);
-
   if (totalVerts === 0) return null;
 
   return (
-    <lineSegments ref={meshRef}>
+    <mesh ref={meshRef} frustumCulled={false}>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={totalVerts} array={positions} itemSize={3} />
-        <bufferAttribute attach="attributes-aT" count={totalVerts} array={tAttr} itemSize={1} />
+        <bufferAttribute attach="attributes-position" count={totalVerts} array={dummyPositions} itemSize={3} />
+        <bufferAttribute attach="attributes-aStart" count={totalVerts} array={startPos} itemSize={3} />
+        <bufferAttribute attach="attributes-aEnd" count={totalVerts} array={endPos} itemSize={3} />
+        <bufferAttribute attach="attributes-aSide" count={totalVerts} array={sides} itemSize={1} />
+        <bufferAttribute attach="attributes-aT" count={totalVerts} array={tValues} itemSize={1} />
         <bufferAttribute attach="attributes-aColor" count={totalVerts} array={colorValues} itemSize={3} />
         <bufferAttribute attach="attributes-aHighlight" count={totalVerts} array={highlightValues} itemSize={1} />
         <bufferAttribute attach="index" count={indices.length} array={indices} itemSize={1} />
@@ -2323,12 +2346,17 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
       <shaderMaterial
         vertexShader={connectionLineShader.vertexShader}
         fragmentShader={connectionLineShader.fragmentShader}
-        uniforms={{ uTime: timeUniform.current }}
+        uniforms={{
+          uTime: timeUniform.current,
+          uResolution: resolutionUniform.current,
+          uLineWidth: lineWidthUniform.current,
+        }}
         transparent
         blending={THREE.AdditiveBlending}
         depthWrite={false}
+        side={THREE.DoubleSide}
       />
-    </lineSegments>
+    </mesh>
   );
 }
 
@@ -3795,7 +3823,7 @@ export default function GalaxyView({ people = [], relationships = [], households
       )}
       <Canvas
         camera={{ position: [25, 20, 50], fov: 55 }}
-        gl={{ antialias: false, alpha: false, powerPreference: 'high-performance' }}
+        gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         style={{ background: '#020208' }}
         dpr={qualityTier.dpr}
         onCreated={handleCanvasCreated}

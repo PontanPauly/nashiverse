@@ -108,6 +108,19 @@ export function computeHouseholdEdges(relationships, people) {
         });
       }
     }
+    if (parentHH && childHH && parentHH === childHH) {
+      const key = parentHH + '|' + parentHH + '|' + childId;
+      if (!edgeSet.has(key)) {
+        edgeSet.add(key);
+        edges.push({
+          from: parentHH,
+          to: parentHH,
+          childPersonId: childId,
+          type: 'intra',
+          isIntraHousehold: true
+        });
+      }
+    }
   }
 
   return edges;
