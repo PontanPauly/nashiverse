@@ -27,11 +27,11 @@ function useQualityTier() {
     const isLowEnd = cores <= 4 || screenPixels > 6000000;
     
     if (isHighEnd) {
-      return { tier: 'high', starCount: 70000, gasCount: 2000, useGlb: true };
+      return { tier: 'high', starCount: 70000, gasCount: 1200, useGlb: true };
     } else if (isLowEnd) {
-      return { tier: 'low', starCount: 40000, gasCount: 600, useGlb: false };
+      return { tier: 'low', starCount: 40000, gasCount: 400, useGlb: false };
     } else {
-      return { tier: 'medium', starCount: 55000, gasCount: 1000, useGlb: true };
+      return { tier: 'medium', starCount: 55000, gasCount: 800, useGlb: true };
     }
   }, []);
 }
@@ -496,7 +496,7 @@ function NebulaFilaments({ count = 800, qualityTier }) {
   
   const isHigh = qualityTier.tier === 'high';
   const isMedium = qualityTier.tier === 'medium';
-  const particleCount = isHigh ? 400 : (isMedium ? 250 : 150);
+  const particleCount = isHigh ? 250 : (isMedium ? 150 : 80);
   
   const { positions, colors, sizes, phases } = useMemo(() => {
     const pos = new Float32Array(particleCount * 3);
@@ -861,7 +861,7 @@ function NebulaGasCloud({ count = 8000 }) {
       col[i * 3 + 1] = c.g * brightness;
       col[i * 3 + 2] = c.b * brightness;
       
-      siz[i] = 1.5 + Math.random() * 3.5;
+      siz[i] = 1.0 + Math.random() * 2.5;
       pha[i] = Math.random() * Math.PI * 2;
     }
     
@@ -2735,7 +2735,7 @@ function FogController() {
   const { scene } = useThree();
   
   useEffect(() => {
-    scene.fog = new THREE.FogExp2('#080816', 0.004);
+    scene.fog = new THREE.FogExp2('#060610', 0.003);
     return () => {
       scene.fog = null;
     };
@@ -2936,7 +2936,6 @@ function NebulaScene({
       <pointLight position={[20, -20, 30]} intensity={0.08} color={NEBULA_COLORS.warmPink} />
       
       <NebulaBackground />
-      <ImmersiveNebulaVolume qualityTier={qualityTier} />
       
       <BackgroundStarField qualityTier={qualityTier} />
       
