@@ -3394,12 +3394,6 @@ function CornerBrackets({ children, className = '' }) {
 function HoverTooltip({ household, memberCount, starClass, mousePos, generation = 0, members = [], colorIndex = 0, hasChildren = false, hasParents = false }) {
   if (!household || !mousePos) return null;
 
-  const generationLabels = ['Grandparents', 'Parents', 'Children', 'Grandchildren'];
-  let generationLabel = generationLabels[Math.min(generation, generationLabels.length - 1)];
-  if (!hasChildren && (generation === 1 || generation === 2)) {
-    generationLabel = 'Adults';
-  }
-
   const householdColor = HOUSEHOLD_COLORS[Math.abs(colorIndex) % HOUSEHOLD_COLORS.length];
   const accentColor = householdColor?.primary || '#8B5CF6';
 
@@ -3431,7 +3425,7 @@ function HoverTooltip({ household, memberCount, starClass, mousePos, generation 
           }}
         />
         <div className="px-3.5 py-3">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-1.5">
             <span
               className="w-2 h-2 rounded-full flex-shrink-0"
               style={{
@@ -3442,18 +3436,7 @@ function HoverTooltip({ household, memberCount, starClass, mousePos, generation 
             <span className="text-[13px] font-semibold text-slate-50 tracking-wide">{household.name}</span>
           </div>
 
-          <div className="flex items-center gap-2 mb-2.5">
-            <span
-              className="text-[9px] uppercase tracking-[0.15em] font-medium px-1.5 py-0.5 rounded-sm"
-              style={{
-                color: `${accentColor}cc`,
-                backgroundColor: `${accentColor}10`,
-              }}
-            >
-              {generationLabel}
-            </span>
-            <span className="text-[9px] text-slate-500 font-mono">{starClass?.label || 'Unknown'}</span>
-          </div>
+          <div className="text-[10px] text-slate-500 mb-2.5">{members.length} {members.length === 1 ? 'member' : 'members'}</div>
 
           <div
             className="h-px mb-2.5"
@@ -3503,29 +3486,10 @@ function SystemInfoPanel({ household, memberCount, starClass, people, onClose })
 
         <div className="h-px bg-gradient-to-r from-transparent via-amber-500/20 to-transparent mb-3" />
 
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <div className="bg-slate-800/40 rounded px-2 py-1.5">
-            <div className="text-[9px] uppercase tracking-widest text-slate-500">Star Class</div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span
-                className="w-2.5 h-2.5 rounded-full shadow-lg"
-                style={{
-                  backgroundColor: starClass?.colors?.inner || '#fff',
-                  boxShadow: `0 0 6px ${starClass?.colors?.glow || '#fff'}`,
-                }}
-              />
-              <span className="text-sm font-medium text-slate-200">{starClass?.label}</span>
-            </div>
-          </div>
-          <div className="bg-slate-800/40 rounded px-2 py-1.5">
-            <div className="text-[9px] uppercase tracking-widest text-slate-500">Bodies</div>
-            <div className="text-sm font-medium text-slate-200 mt-0.5">{memberCount}</div>
-          </div>
+        <div className="bg-slate-800/40 rounded px-2 py-1.5 mb-3">
+          <div className="text-[9px] uppercase tracking-widest text-slate-500">Members</div>
+          <div className="text-sm font-medium text-slate-200 mt-0.5">{memberCount}</div>
         </div>
-
-        {starClass?.description && (
-          <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1.5">{starClass.description}</div>
-        )}
 
         {members.length > 0 && (
           <div className="space-y-1 max-h-[120px] overflow-y-auto pr-1">
