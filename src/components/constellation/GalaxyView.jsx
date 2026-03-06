@@ -1275,7 +1275,7 @@ function CameraController({
     }
     
     if (level === 'galaxy') {
-      targetCamPos.current.set(65, 50, 130);
+      targetCamPos.current.set(45, 35, 95);
       targetLookAt.current.set(0, 0, 0);
       animationPhase.current = 'zoom-out';
     } else if (level === 'system' && targetPosition) {
@@ -1943,7 +1943,9 @@ function AnimatedHouseholdGroup({
       {!isOtherFocused && !focusedHouseholdId && (
         <SystemNebulaCloud
           color={householdColor.primary}
-          opacity={isHovered ? 0.2 : 0.1}
+          opacity={isHovered ? 0.25 : 0.12}
+          starClass={starClass}
+          memberCount={memberCount}
         />
       )}
       <StarMapCluster
@@ -1958,7 +1960,7 @@ function AnimatedHouseholdGroup({
         onPointerOut={onPointerOut}
         showLabels={showLabels}
       />
-      {showLabels && !focusedHouseholdId && (
+      {showLabels && !focusedHouseholdId && !isHovered && (
         <Html position={[0, -2.5, 0]} center style={{ pointerEvents: 'none' }}>
           <div style={{
             color: householdColor.primary,
@@ -1967,7 +1969,7 @@ function AnimatedHouseholdGroup({
             textTransform: 'uppercase',
             letterSpacing: '0.12em',
             whiteSpace: 'nowrap',
-            opacity: isHovered ? 1 : 0.6,
+            opacity: 0.6,
             textShadow: `0 0 6px ${householdColor.primary}44`,
           }}>
             {household?.name || ''}
@@ -1982,12 +1984,10 @@ function AnimatedHouseholdGroup({
           opacity={starRenderOpacity * 0.8}
         />
       )}
-      {!isFocused && !isOtherFocused && galaxyCoupleRing && (
-        <CoupleRing
-          center={galaxyCoupleRing.center}
-          radius={galaxyCoupleRing.radius}
+      {!focusedHouseholdId && isHovered && galaxyCoupleRing && (
+        <HoverSphere
           colorIndex={colorIndex}
-          opacity={starRenderOpacity * 0.55}
+          radius={2.0}
         />
       )}
       {!isOtherFocused && (
@@ -2006,86 +2006,146 @@ function AnimatedHouseholdGroup({
   );
 }
 
-function SystemNebulaCloud({ color, opacity = 0.15 }) {
+function SystemNebulaCloud({ color, opacity = 0.15, starClass, memberCount = 2 }) {
   const pointsRef = useRef();
-  const particleCount = 40;
 
-  const { positions, sizes, phases } = useMemo(() => {
+  const classId = starClass?.id || 'F';
+  const classConfig = useMemo(() => {
+    switch (classId) {
+      case 'O': return { count: 120, radius: 7.0, sizeBase: 2.0, sizeRange: 4.0, flatten: 0.4 };
+      case 'E': return { count: 90, radius: 6.0, sizeBase: 1.8, sizeRange: 3.5, flatten: 0.45 };
+      case 'K': return { count: 70, radius: 5.0, sizeBase: 1.5, sizeRange: 3.0, flatten: 0.5 };
+      default:  return { count: 50, radius: 4.0, sizeBase: 1.2, sizeRange: 2.5, flatten: 0.55 };
+    }
+  }, [classId]);
+
+  const particleCount = classConfig.count;
+
+  const classColor = useMemo(() => {
+    if (!starClass?.colors?.glow) return null;
+    return new THREE.Color(starClass.colors.glow);
+  }, [starClass]);
+
+  const { positions, colors, sizes, phases } = useMemo(() => {
     const pos = new Float32Array(particleCount * 3);
+    const col = new Float32Array(particleCount * 3);
     const siz = new Float32Array(particleCount);
     const pha = new Float32Array(particleCount);
+
+    const primaryCol = new THREE.Color(color);
+    const secondaryCol = classColor || primaryCol.clone();
 
     for (let i = 0; i < particleCount; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const r = 0.5 + Math.pow(Math.random(), 0.6) * 3.5;
+      const r = 0.3 + Math.pow(Math.random(), 0.5) * classConfig.radius;
       pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.5;
+      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * classConfig.flatten;
       pos[i * 3 + 2] = r * Math.cos(phi);
-      siz[i] = 1.5 + Math.random() * 3.0;
+
+      const mix = Math.random();
+      const c = primaryCol.clone().lerp(secondaryCol, mix * 0.4);
+      const brightness = 0.5 + Math.random() * 0.5;
+      col[i * 3] = c.r * brightness;
+      col[i * 3 + 1] = c.g * brightness;
+      col[i * 3 + 2] = c.b * brightness;
+
+      siz[i] = classConfig.sizeBase + Math.random() * classConfig.sizeRange;
       pha[i] = Math.random() * Math.PI * 2;
     }
 
-    return { positions: pos, sizes: siz, phases: pha };
-  }, []);
-
-  const cloudColor = useMemo(() => new THREE.Color(color), [color]);
+    return { positions: pos, colors: col, sizes: siz, phases: pha };
+  }, [particleCount, color, classColor, classConfig]);
 
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
       vertexShader: `
+        attribute vec3 particleColor;
         attribute float size;
         attribute float phase;
         uniform float time;
+        varying vec3 vColor;
         varying float vAlpha;
 
         void main() {
+          vColor = particleColor;
           float drift = sin(time * 0.2 + phase) * 0.3 + 0.7;
-          vAlpha = drift;
+          float flicker = sin(time * 0.8 + phase * 3.0) * 0.15 + 0.85;
+          vAlpha = drift * flicker;
           vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * (100.0 / -mvPos.z);
-          gl_PointSize = clamp(gl_PointSize, 1.0, 20.0);
+          gl_PointSize = size * (120.0 / -mvPos.z);
+          gl_PointSize = clamp(gl_PointSize, 1.0, 25.0);
           gl_Position = projectionMatrix * mvPos;
         }
       `,
       fragmentShader: `
-        uniform vec3 cloudColor;
         uniform float baseOpacity;
+        varying vec3 vColor;
         varying float vAlpha;
 
         void main() {
           vec2 center = gl_PointCoord - 0.5;
           float dist = length(center);
           float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-          alpha = pow(alpha, 2.0);
+          alpha = pow(alpha, 1.8);
           alpha *= vAlpha * baseOpacity;
           if (alpha < 0.003) discard;
-          gl_FragColor = vec4(cloudColor, alpha);
+          gl_FragColor = vec4(vColor, alpha);
         }
       `,
       uniforms: {
         time: { value: 0 },
-        cloudColor: { value: cloudColor },
         baseOpacity: { value: opacity },
       },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-  }, [cloudColor, opacity]);
+  }, [opacity]);
 
   useFrame((state) => {
     material.uniforms.time.value = state.clock.elapsedTime;
+    material.uniforms.baseOpacity.value = opacity;
   });
 
   return (
     <points ref={pointsRef} material={material}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" count={particleCount} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-particleColor" count={particleCount} array={colors} itemSize={3} />
         <bufferAttribute attach="attributes-size" count={particleCount} array={sizes} itemSize={1} />
         <bufferAttribute attach="attributes-phase" count={particleCount} array={phases} itemSize={1} />
       </bufferGeometry>
     </points>
+  );
+}
+
+function HoverSphere({ colorIndex, radius = 2.0 }) {
+  const meshRef = useRef();
+  const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
+  const sphereColor = useMemo(() => new THREE.Color(baseColors.primary), [baseColors]);
+
+  useFrame((state) => {
+    if (meshRef.current) {
+      const t = state.clock.elapsedTime;
+      const pulse = 1.0 + Math.sin(t * 1.5) * 0.08;
+      meshRef.current.scale.setScalar(pulse);
+      meshRef.current.material.opacity = 0.12 + Math.sin(t * 2.0) * 0.04;
+    }
+  });
+
+  return (
+    <mesh ref={meshRef}>
+      <sphereGeometry args={[radius, 24, 24]} />
+      <meshBasicMaterial
+        color={sphereColor}
+        transparent
+        opacity={0.12}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
   );
 }
 
@@ -2533,43 +2593,11 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         return;
       }
 
-      let childLocalOffset = null;
-      if (edge.childPersonId && starsByHousehold) {
-        const targetStars = starsByHousehold.get(edgeTo) || starsByHousehold.get(String(edgeTo)) || starsByHousehold.get(Number(edgeTo));
-        if (targetStars) {
-          const cpId = String(edge.childPersonId);
-          const childStar = targetStars.find(s => String(s.id) === cpId);
-          if (childStar && childStar.position) {
-            childLocalOffset = [
-              childStar.position[0] - toPos.x,
-              childStar.position[1] - toPos.y,
-              childStar.position[2] - toPos.z
-            ];
-          }
-        }
-      }
-
-      let fromHasRing = edge.fromRing || false;
       let fromColorIndex = 0;
-      let fromPersonLocalOffset = null;
       if (starsByHousehold) {
         const fromStars = starsByHousehold.get(edgeFrom) || starsByHousehold.get(String(edgeFrom)) || starsByHousehold.get(Number(edgeFrom));
-        if (fromStars) {
-          const parentCount = fromStars.filter(s => s.isParent).length;
-          if (parentCount < 2) fromHasRing = false;
-          if (fromStars.length > 0) fromColorIndex = fromStars[0].householdIndex || 0;
-
-          if (edge.fromPersonId) {
-            const fpId = String(edge.fromPersonId);
-            const parentStar = fromStars.find(s => String(s.id) === fpId);
-            if (parentStar && parentStar.position) {
-              fromPersonLocalOffset = [
-                parentStar.position[0] - fromPos.x,
-                parentStar.position[1] - fromPos.y,
-                parentStar.position[2] - fromPos.z
-              ];
-            }
-          }
+        if (fromStars && fromStars.length > 0) {
+          fromColorIndex = fromStars[0].householdIndex || 0;
         }
       }
 
@@ -2578,9 +2606,6 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         toHouseholdId: edge.to,
         fromBase: { x: fromPos.x, y: fromPos.y, z: fromPos.z },
         toBase: { x: toPos.x, y: toPos.y, z: toPos.z },
-        childLocalOffset,
-        fromHasRing,
-        fromPersonLocalOffset,
         fromColorIndex,
         isIntraHousehold: edge.isIntraHousehold || false,
       });
@@ -2663,33 +2688,9 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         const thId = edge.toHouseholdId;
         const toGroup = groupRefs.get(thId) ?? groupRefs.get(String(thId)) ?? groupRefs.get(Number(thId));
         if (toGroup) {
-          const scale = toGroup.scale.x;
-          if (edge.childLocalOffset) {
-            toX = toGroup.position.x + edge.childLocalOffset[0] * scale;
-            toY = toGroup.position.y + edge.childLocalOffset[1] * scale;
-            toZ = toGroup.position.z + edge.childLocalOffset[2] * scale;
-          } else {
-            toX = toGroup.position.x;
-            toY = toGroup.position.y;
-            toZ = toGroup.position.z;
-          }
-        }
-
-        if (fromGroup && edge.fromHasRing) {
-          const ringRadius = 1.2;
-          const scale = fromGroup.scale.x;
-          const dx = toX - fromX;
-          const dz = toZ - fromZ;
-          const len = Math.sqrt(dx * dx + dz * dz);
-          if (len > 0) {
-            fromX += (dx / len) * ringRadius * scale;
-            fromZ += (dz / len) * ringRadius * scale;
-          }
-        } else if (!edge.fromHasRing && edge.fromPersonLocalOffset && fromGroup) {
-          const scale = fromGroup.scale.x;
-          fromX = fromGroup.position.x + edge.fromPersonLocalOffset[0] * scale;
-          fromY = fromGroup.position.y + edge.fromPersonLocalOffset[1] * scale;
-          fromZ = fromGroup.position.z + edge.fromPersonLocalOffset[2] * scale;
+          toX = toGroup.position.x;
+          toY = toGroup.position.y;
+          toZ = toGroup.position.z;
         }
       }
 
@@ -4151,7 +4152,7 @@ export default function GalaxyView({ people = [], relationships = [], households
         </div>
       )}
       <Canvas
-        camera={{ position: [65, 50, 130], fov: 55 }}
+        camera={{ position: [45, 35, 95], fov: 55 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         style={{ background: '#060410' }}
         dpr={qualityTier.dpr}
