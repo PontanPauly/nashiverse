@@ -322,7 +322,7 @@ function useOrganicClusterLayout(households, people, viewMode = 'nebula', relati
       genGroups.get(gen).push(h);
     });
     
-    const genRadii = [0, 40, 75, 110];
+    const genRadii = [10, 50, 85, 115];
     const minSeparation = 25.0;
     const GOLDEN_ANGLE = 2.399963229728653;
     
@@ -335,19 +335,27 @@ function useOrganicClusterLayout(households, people, viewMode = 'nebula', relati
     sortedGens.forEach(gen => {
       const group = genGroups.get(gen);
       const baseRadius = genRadii[Math.min(gen, genRadii.length - 1)];
-      const genYBias = gen === 0 ? 6 : gen === 1 ? 0 : -6;
       
       group.forEach((household, idx) => {
         const seed = household.id;
-        const angle = globalIndex * GOLDEN_ANGLE + seededRandom(seed + '-angle') * 0.4;
+        const i = globalIndex;
+        const n = households.length;
         globalIndex++;
         
-        const radiusJitter = (seededRandom(seed + '-rjit') - 0.5) * (gen === 0 ? 8 : 15);
+        const phi = Math.acos(1 - 2 * (i + 0.5) / n);
+        const theta = GOLDEN_ANGLE * i + seededRandom(seed + '-angle') * 0.5;
+        
+        const radiusJitter = (seededRandom(seed + '-rjit') - 0.5) * (gen === 0 ? 6 : 18);
         const radius = baseRadius + radiusJitter;
         
-        let x = Math.cos(angle) * radius;
-        let z = Math.sin(angle) * radius;
-        let y = (seededRandom(seed + '-y') - 0.5) * 50 + genYBias;
+        const phiJitter = (seededRandom(seed + '-phij') - 0.5) * 0.4;
+        const thetaJitter = (seededRandom(seed + '-thj') - 0.5) * 0.4;
+        const adjPhi = phi + phiJitter;
+        const adjTheta = theta + thetaJitter;
+        
+        let x = radius * Math.sin(adjPhi) * Math.cos(adjTheta);
+        let y = radius * Math.cos(adjPhi);
+        let z = radius * Math.sin(adjPhi) * Math.sin(adjTheta);
         
         let attempts = 0;
         while (attempts < 50) {
@@ -364,7 +372,7 @@ function useOrganicClusterLayout(households, people, viewMode = 'nebula', relati
           }
           if (!tooClose) break;
           x += (seededRandom(seed + '-ax-' + attempts) - 0.5) * 16;
-          y += (seededRandom(seed + '-ay-' + attempts) - 0.5) * 20;
+          y += (seededRandom(seed + '-ay-' + attempts) - 0.5) * 16;
           z += (seededRandom(seed + '-az-' + attempts) - 0.5) * 16;
           attempts++;
         }
@@ -3361,8 +3369,8 @@ function NebulaScene({
         rotateSpeed={0.4}
         zoomSpeed={0.6}
         panSpeed={0.4}
-        minPolarAngle={Math.PI * 0.15}
-        maxPolarAngle={Math.PI * 0.85}
+        minPolarAngle={Math.PI * 0.05}
+        maxPolarAngle={Math.PI * 0.95}
       />
     </>
   );
