@@ -2645,7 +2645,7 @@ const connectionLineShader = {
 
 const _lineColor = new THREE.Color();
 
-const _LINE_VERSION = 5;
+const _LINE_VERSION = 6;
 function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold, householdGroupRefs, coupleHouseholds }) {
   const meshRef = useRef();
   const timeUniform = useRef({ value: 0 });
@@ -2831,6 +2831,14 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         }
       }
 
+      let fromScale = 1.0, toScale = 1.0;
+      if (groupRefs) {
+        const fGroup = groupRefs.get(edge.fromHouseholdId) ?? groupRefs.get(String(edge.fromHouseholdId)) ?? groupRefs.get(Number(edge.fromHouseholdId));
+        if (fGroup) fromScale = fGroup.scale.x;
+        const tGroup = groupRefs.get(edge.toHouseholdId) ?? groupRefs.get(String(edge.toHouseholdId)) ?? groupRefs.get(Number(edge.toHouseholdId));
+        if (tGroup) toScale = tGroup.scale.x;
+      }
+
       const dx = toX - fromX;
       const dy = toY - fromY;
       const dz = toZ - fromZ;
@@ -2839,8 +2847,8 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         const nx = dx / len;
         const ny = dy / len;
         const nz = dz / len;
-        const fromR = (edge.fromNebulaRadius || 4.0) + 1.0;
-        const toR = (edge.toNebulaRadius || 4.0) + 1.0;
+        const fromR = GALAXY_RING_RADIUS * fromScale;
+        const toR = GALAXY_RING_RADIUS * toScale;
         fromX += nx * fromR;
         fromY += ny * fromR;
         fromZ += nz * fromR;
