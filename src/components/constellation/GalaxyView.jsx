@@ -2645,6 +2645,7 @@ const connectionLineShader = {
 
 const _lineColor = new THREE.Color();
 
+const _LINE_VERSION = 3;
 function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold, householdGroupRefs, coupleHouseholds }) {
   const meshRef = useRef();
   const timeUniform = useRef({ value: 0 });
