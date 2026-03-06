@@ -2297,7 +2297,7 @@ const connectionLineShader = {
     varying float vT;
     varying vec3 vColor;
     varying float vHighlight;
-    varying float vEdge;
+    varying float vSide;
     void main() {
       vec4 clipStart = projectionMatrix * modelViewMatrix * vec4(aStart, 1.0);
       vec4 clipEnd = projectionMatrix * modelViewMatrix * vec4(aEnd, 1.0);
@@ -2316,7 +2316,7 @@ const connectionLineShader = {
       vT = aT;
       vColor = aColor;
       vHighlight = aHighlight;
-      vEdge = abs(aSide);
+      vSide = aSide;
     }
   `,
   fragmentShader: `
@@ -2324,10 +2324,11 @@ const connectionLineShader = {
     varying float vT;
     varying vec3 vColor;
     varying float vHighlight;
-    varying float vEdge;
+    varying float vSide;
     void main() {
-      float edgeFalloff = 1.0 - smoothstep(0.3, 1.0, vEdge);
-      float coreBright = smoothstep(0.6, 0.0, vEdge);
+      float edge = abs(vSide);
+      float edgeFalloff = 1.0 - smoothstep(0.3, 1.0, edge);
+      float coreBright = smoothstep(0.6, 0.0, edge);
       float pulse = fract(uTime * 0.3 - vT);
       float pulseGlow = smoothstep(0.0, 0.08, pulse) * smoothstep(0.2, 0.08, pulse);
       float baseBrightness = mix(0.0, 0.7, vHighlight);
