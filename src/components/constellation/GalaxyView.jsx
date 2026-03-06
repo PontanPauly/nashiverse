@@ -2530,24 +2530,17 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
         const bothBioOnRing = parentStars.length >= 2 && childBioParents.length >= 2 &&
           childBioParents.every(bp => parentStarIds.has(bp));
 
-        const dx = child.position[0] - centerX;
-        const dz = child.position[2] - centerZ;
-        const angle = Math.atan2(dz, dx);
-        const ringX = centerX + Math.cos(angle) * ringRadius;
-        const ringZ = centerZ + Math.sin(angle) * ringRadius;
-
-        if (bothBioOnRing) {
+        if (parentStars.length >= 2) {
+          const dx = child.position[0] - centerX;
+          const dz = child.position[2] - centerZ;
+          const angle = Math.atan2(dz, dx);
+          const ringX = centerX + Math.cos(angle) * ringRadius;
+          const ringZ = centerZ + Math.sin(angle) * ringRadius;
           lines.push({ from: [ringX, centerY, ringZ], to: child.position });
         } else {
           const bioParentStar = parentStars.find(s => childBioParents.includes(s.id));
-          if (bioParentStar) {
-            lines.push({ from: bioParentStar.position, to: child.position });
-          } else {
-            lines.push({
-              from: parentStars.length >= 2 ? [ringX, centerY, ringZ] : [centerX, centerY, centerZ],
-              to: child.position,
-            });
-          }
+          const fromPos = bioParentStar ? bioParentStar.position : parentStars[0].position;
+          lines.push({ from: fromPos, to: child.position });
         }
       });
     }
@@ -4041,57 +4034,6 @@ function FilterToggles({
   );
 }
 
-function Minimap({ cameraPos, householdPositions, households }) {
-  const size = 80;
-  const mapRange = 100;
-
-  const toMapCoord = (worldX, worldZ) => ({
-    x: ((worldX + mapRange) / (mapRange * 2)) * size,
-    y: ((worldZ + mapRange) / (mapRange * 2)) * size,
-  });
-
-  const cam = cameraPos ? toMapCoord(cameraPos.x, cameraPos.z) : { x: size / 2, y: size / 2 };
-
-  return (
-    <div className="absolute bottom-6 right-6 z-50">
-      <CornerBrackets className="bg-slate-950/80 backdrop-blur-md p-1">
-        <svg width={size} height={size} className="block">
-          <rect width={size} height={size} fill="transparent" />
-          {households.map(h => {
-            const pos = householdPositions.get(h.id);
-            if (!pos) return null;
-            const pt = toMapCoord(pos.x, pos.z);
-            return (
-              <circle
-                key={h.id}
-                cx={Math.max(2, Math.min(size - 2, pt.x))}
-                cy={Math.max(2, Math.min(size - 2, pt.y))}
-                r={1.5}
-                fill="rgba(255,200,100,0.5)"
-              />
-            );
-          })}
-          <rect
-            x={Math.max(0, cam.x - 4)}
-            y={Math.max(0, cam.y - 4)}
-            width={8}
-            height={8}
-            fill="none"
-            stroke="rgba(255,191,0,0.6)"
-            strokeWidth={1}
-          />
-          <circle
-            cx={cam.x}
-            cy={cam.y}
-            r={1.5}
-            fill="#ffbf00"
-          />
-        </svg>
-      </CornerBrackets>
-    </div>
-  );
-}
-
 function ZoomControls({ onZoomIn, onZoomOut, onResetView }) {
   return (
     <div className="absolute bottom-24 right-6 z-50 flex flex-col gap-1.5">
@@ -4442,12 +4384,6 @@ export default function GalaxyView({ people = [], relationships = [], households
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onResetView={handleResetView}
-      />
-
-      <Minimap
-        cameraPos={cameraPos}
-        householdPositions={householdPositions}
-        households={households}
       />
 
       {level === 'galaxy' && hoveredHousehold && hoveredHouseholdInfo && (

@@ -23,8 +23,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { X, Plus, AlertCircle, Upload, Sparkles, User, Star } from "lucide-react";
 import StarEditor from "./StarEditor";
 import { DEFAULT_STAR_PROFILE } from "@/lib/starConfig";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function PersonForm({ person, households, people, onSuccess, onCancel }) {
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: person?.name || "",
     nickname: person?.nickname || "",
@@ -87,47 +89,58 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
     e.preventDefault();
     setLoading(true);
 
-    const dataToSave = {
-      ...formData,
-      birth_year: formData.birth_year ? Number(formData.birth_year) : null,
-    };
+    try {
+      const dataToSave = {
+        ...formData,
+        birth_year: formData.birth_year ? Number(formData.birth_year) : null,
+        birth_date: formData.birth_date || null,
+        death_date: formData.death_date || null,
+      };
 
-    let personId = person?.id;
-    if (person?.id) {
-      await base44.entities.Person.update(person.id, dataToSave);
-    } else {
-      const newPerson = await base44.entities.Person.create(dataToSave);
-      personId = newPerson.id;
+      let personId = person?.id;
+      try {
+        if (person?.id) {
+          await base44.entities.Person.update(person.id, dataToSave);
+        } else {
+          const newPerson = await base44.entities.Person.create(dataToSave);
+          personId = newPerson.id;
+        }
+      } catch (err) {
+        console.error('Failed to save person:', err);
+        toast({ title: "Saving person failed", description: err?.message || "Unknown error", variant: "destructive" });
+        return;
+      }
+
+      if (personId) {
+        try {
+          await saveRelationships(personId);
+        } catch (err) {
+          console.error('Failed to save relationships:', err);
+          toast({ title: "Saving relationships failed", description: err?.message || "Unknown error", variant: "destructive" });
+          return;
+        }
+      }
+
+      onSuccess();
+    } finally {
+      setLoading(false);
     }
-
-    // Save relationships
-    if (personId) {
-      await saveRelationships(personId);
-    }
-
-    setLoading(false);
-    onSuccess();
   };
 
   const saveRelationships = async (personId) => {
-    // Get existing relationships
     const existing = await base44.entities.Relationship.filter({ person_id: personId });
     const existing2 = await base44.entities.Relationship.filter({ related_person_id: personId });
     const allExisting = [...existing, ...existing2];
 
-    // Validate no circular parents
     for (const parentId of parentIds) {
       if (parentId === personId) {
-        alert('A person cannot be their own parent');
-        return;
+        throw new Error('A person cannot be their own parent');
       }
     }
 
-    // Handle parents - create parent->child relationships
     const existingParents = allExisting.filter(r => r.relationship_type === 'parent' && r.related_person_id === personId);
     const existingParentIds = existingParents.map(r => r.person_id);
 
-    // Remove old parents
     for (const parentId of existingParentIds) {
       if (!parentIds.includes(parentId)) {
         const rel = existingParents.find(r => r.person_id === parentId);
@@ -135,7 +148,6 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
       }
     }
 
-    // Add new parents (no duplicates)
     for (const parentId of parentIds) {
       if (!existingParentIds.includes(parentId)) {
         await base44.entities.Relationship.create({
@@ -146,12 +158,10 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
       }
     }
 
-    // Handle partner - bidirectional sync
     const existingPartner = allExisting.find(r => r.relationship_type === 'partner' && 
       (r.person_id === personId || r.related_person_id === personId));
 
     if (existingPartner && !partnerId) {
-      // Remove both directions
       await base44.entities.Relationship.delete(existingPartner.id);
       const reverseRel = await base44.entities.Relationship.filter({ 
         person_id: existingPartner.related_person_id === personId ? existingPartner.person_id : existingPartner.related_person_id,
@@ -170,7 +180,6 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
         });
         if (reverseRel[0]) await base44.entities.Relationship.delete(reverseRel[0].id);
       }
-      // Create bidirectional partner relationship
       await base44.entities.Relationship.create({
         person_id: personId,
         related_person_id: partnerId,
@@ -278,7 +287,7 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
         <div>
           <label className="cursor-pointer">
             <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-            <Button type="button" variant="outline" size="sm" className="border-amber-500/50 text-slate-100 hover:bg-amber-500/10 hover:border-amber-500" disabled={uploading}>
+            <Button type="button" variant="ghost" size="sm" className="bg-slate-700 border border-amber-500/50 text-slate-100 hover:bg-amber-500/20 hover:border-amber-500" disabled={uploading}>
               <Upload className="w-4 h-4 mr-2" />
               {uploading ? "Uploading..." : "Upload Photo"}
             </Button>
