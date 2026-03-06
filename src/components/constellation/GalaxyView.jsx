@@ -2522,7 +2522,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
       }
 
       const isHighlighted = hoveredHouseholdId && (hoverMask[i]?.from === hoveredHouseholdId || hoverMask[i]?.to === hoveredHouseholdId);
-      const hlVal = isHighlighted ? 1.0 : 0.0;
+      const hlVal = isHighlighted ? 1.0 : 0.25;
 
       const edgeColors = HOUSEHOLD_COLORS[edge.fromColorIndex % HOUSEHOLD_COLORS.length];
       const lineColor = new THREE.Color(edgeColors.glow);
