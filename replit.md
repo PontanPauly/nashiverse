@@ -23,7 +23,7 @@ Nashiverse is a family management application with a cosmic/space theme. It help
 ### Key Features
 1. **Family Galaxy** - 3D WebGL-powered family constellation inspired by No Man's Sky galaxy map
    - React Three Fiber + Three.js rendering
-   - **NMS-Style Star Points**: Three-layer star composition (translucent breathing core, asymmetric rotating flares, cooler-toned pulsing halo)
+   - **NMS-Style Star Points**: Layered Gaussian shader composition — blazing pinpoint center (k=2500-4000, overexposed HDR), hot core, inner corona, outer corona, atmospheric envelope; 6 distinct shader styles (classic, nebula, plasma, crystal, pulse, nova); JS-side animation system with 5 brightness modes (steady, gentle, twinkle/scintillation, breathing, dancing); glowStyle maps control falloff shape and radius; atmospheric haze always visible; diffraction spikes for bright stars
    - **Star Classification System**: Households color-coded by member count (F=Yellow 1-2, K=Red 3-4, E=Green 5-7, O=Blue 8+)
    - **Rich Ambient Nebula Backdrop**: Subtle, muted multi-layered nebula atmosphere — NebulaBackground (FBM shader sphere with 6 muted color zones), NebulaFilaments (faint glowing particle wisps), NebulaGasCloud (very subtle atmospheric particles). Background is primarily dark space with faint color hints. ImmersiveNebulaVolume (ray-marched volumetric 3D gas clouds) exists but is disabled by default for performance
    - **Adaptive Quality System**: GPU-aware 4-tier quality (ultra/high/medium/low) with auto-detection via WEBGL_debug_renderer_info, runtime FPS monitoring with auto-downgrade, manual quality selector in filter panel, localStorage persistence

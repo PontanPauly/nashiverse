@@ -4,11 +4,14 @@ import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { getStarVisuals, DEFAULT_STAR_PROFILE } from '@/lib/starConfig';
 
+// ============================================================================
+// TEXTURE
+// ============================================================================
+
 const createGlowTexture = () => {
   const size = 64;
   const data = new Uint8Array(size * size * 4);
   const center = size / 2;
-  
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const dx = x - center;
@@ -22,7 +25,6 @@ const createGlowTexture = () => {
       data[i + 3] = Math.floor(alpha * 255);
     }
   }
-  
   const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
   texture.needsUpdate = true;
   return texture;
@@ -30,7 +32,10 @@ const createGlowTexture = () => {
 
 const glowTexture = createGlowTexture();
 
-// Shared noise functions for all shaders
+// ============================================================================
+// SHARED GLSL NOISE + UTILITY LIBRARY
+// ============================================================================
+
 const noiseLib = `
   vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
   vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
@@ -69,46 +74,6 @@ const noiseLib = `
     return sum;
   }
   
-  // Organic edge function - creates irregular, wispy boundaries
-  // Uses scaled UV space (0.28 max) so content fits within larger plane geometry
-  float organicEdge(vec2 center, float baseRadius, float time, float uniqueOffset) {
-    float angle = atan(center.y, center.x);
-    
-    // Noise layers for natural variation (operates in smaller range)
-    float edgeNoise1 = snoise(vec2(angle * 2.5 + uniqueOffset * 10.0, time * 0.15)) * 0.04;
-    float edgeNoise2 = snoise(vec2(angle * 5.0 - uniqueOffset * 5.0, time * 0.25)) * 0.03;
-    float edgeNoise3 = snoise(vec2(angle * 9.0 + time * 0.08, uniqueOffset * 3.0)) * 0.015;
-    
-    // Shape deformation
-    float shapeWarp = snoise(vec2(angle * 1.5 + uniqueOffset * 8.0, 0.3)) * 0.03;
-    
-    float irregularRadius = baseRadius + edgeNoise1 + edgeNoise2 + edgeNoise3 + shapeWarp;
-    // Clamp to stay well within plane bounds (leave big margin for smooth fade)
-    return min(irregularRadius, 0.28);
-  }
-  
-  // Universal edge fade - guarantees smooth falloff to zero at plane edges
-  float universalEdgeFade(float dist) {
-    // Start fading at 0.3, reach zero well before 0.5 edge
-    float fade = 1.0 - smoothstep(0.25, 0.42, dist);
-    return fade * fade; // Quadratic falloff for softer edge
-  }
-`;
-
-// Style 1: Nebula - Complex turbulent multi-color clouds with organic edges
-const nebulaShader = `
-  uniform vec3 primaryColor;
-  uniform vec3 secondaryColor;
-  uniform vec3 glowColor;
-  uniform float time;
-  uniform float brightness;
-  uniform float uniqueOffset;
-  uniform float styleVariant;
-  uniform float globalOpacity;
-  varying vec2 vUv;
-  
-  ${noiseLib}
-  
   float ridgedNoise(vec2 p) { return 1.0 - abs(snoise(p)); }
   
   float ridgedFbm(vec2 p, int oct) {
@@ -122,16 +87,57 @@ const nebulaShader = `
     return sum;
   }
   
+  // Organic edge — creates irregular, wispy boundaries
+  float organicEdge(vec2 center, float baseRadius, float time, float uniqueOffset) {
+    float angle = atan(center.y, center.x);
+    float edgeNoise1 = snoise(vec2(angle * 2.5 + uniqueOffset * 10.0, time * 0.15)) * 0.04;
+    float edgeNoise2 = snoise(vec2(angle * 5.0 - uniqueOffset * 5.0, time * 0.25)) * 0.03;
+    float edgeNoise3 = snoise(vec2(angle * 9.0 + time * 0.08, uniqueOffset * 3.0)) * 0.015;
+    float shapeWarp = snoise(vec2(angle * 1.5 + uniqueOffset * 8.0, 0.3)) * 0.03;
+    float irregularRadius = baseRadius + edgeNoise1 + edgeNoise2 + edgeNoise3 + shapeWarp;
+    return min(irregularRadius, 0.28);
+  }
+  
+  // Universal edge fade — smooth falloff to zero at plane edges
+  float universalEdgeFade(float dist) {
+    float fade = 1.0 - smoothstep(0.25, 0.42, dist);
+    return fade * fade;
+  }
+`;
+
+// ============================================================================
+// FRAGMENT SHADERS — NMS-style luminous cores with layered atmospheric depth
+//
+// Design principles:
+//   - Gaussian falloffs (exp(-d^2*k)) for natural light distribution
+//   - Pinpoint center (k=2500+) for overexposed HDR look
+//   - Color gradient: white center -> primary color -> glow color at edges
+//   - No hardcoded brightness shimmer — animation system handles modulation
+// ============================================================================
+
+// Style 1: Nebula — Turbulent multi-color clouds with bright stellar core
+const nebulaShader = `
+  uniform vec3 primaryColor;
+  uniform vec3 secondaryColor;
+  uniform vec3 glowColor;
+  uniform float time;
+  uniform float brightness;
+  uniform float uniqueOffset;
+  uniform float styleVariant;
+  uniform float globalOpacity;
+  varying vec2 vUv;
+  
+  ${noiseLib}
+  
   void main() {
     vec2 center = vUv - 0.5;
     float dist = length(center);
     float angle = atan(center.y, center.x);
     float t = time * 0.25 + uniqueOffset * 10.0;
     
-    // Organic irregular boundary
+    // Organic boundary with tendrils
     float edgeRadius = organicEdge(center, 0.28, t, uniqueOffset);
     
-    // Wispy tendrils extending outward
     float tendrils = 0.0;
     for (float i = 0.0; i < 8.0; i++) {
       float tendrilAngle = i * 0.785 + uniqueOffset * 6.28 + t * 0.05;
@@ -143,18 +149,16 @@ const nebulaShader = `
       tendrils += tendril * 0.3;
     }
     
-    // Soft discard with organic edge
     float edgeFade = 1.0 - smoothstep(edgeRadius - 0.1, edgeRadius + 0.15, dist);
     edgeFade = max(edgeFade, tendrils);
     if (edgeFade < 0.01) discard;
     
     vec2 wUv = center * (4.0 + styleVariant * 2.0);
     
-    // Multi-layer warping
+    // Warping
     float warpX = fbm(wUv + t * 0.08, 5);
     float warpY = fbm(wUv + vec2(5.2, 1.3) + t * 0.1, 5);
     vec2 warped = wUv + vec2(warpX, warpY) * (0.4 + styleVariant * 0.4);
-    
     float warpX2 = fbm(warped * 0.7 + t * 0.05, 3);
     float warpY2 = fbm(warped * 0.7 + vec2(3.1, 7.2) + t * 0.06, 3);
     warped += vec2(warpX2, warpY2) * 0.25;
@@ -166,10 +170,14 @@ const nebulaShader = `
     float structure = largeStructure * 0.45 + medStructure * 0.35 + fineDetail * 0.2;
     structure = structure * 0.5 + 0.5;
     
-    // Filaments
     float filaments = ridgedFbm(warped * 1.5 + t * 0.08, 4);
     float filaments2 = ridgedFbm(warped * 2.5 - t * 0.06, 3);
     float filamentGlow = pow(filaments, 1.8) * 0.6 + pow(filaments2, 2.2) * 0.4;
+    
+    // NMS-style stellar core embedded in nebula
+    float pinpoint = exp(-dist * dist * 2500.0);
+    float hotCore = exp(-dist * dist * 350.0);
+    float innerGlow = exp(-dist * dist * 50.0);
     
     // Colors
     vec3 hotWhite = vec3(1.0, 0.99, 0.96);
@@ -182,25 +190,23 @@ const nebulaShader = `
     float zone1 = fbm(warped * 0.8 + t * 0.04, 4) * 0.5 + 0.5;
     float zone2 = fbm(warped * 1.0 + vec2(5.0, 9.0) + t * 0.05, 4) * 0.5 + 0.5;
     
-    vec3 colorMix = primaryColor;
-    colorMix = mix(colorMix, electricBlue, smoothstep(0.3, 0.65, zone1) * 0.55);
-    colorMix = mix(colorMix, deepPurple, smoothstep(0.35, 0.75, zone2) * 0.5);
-    colorMix = mix(colorMix, hotPink, filamentGlow * 0.4);
-    colorMix = mix(colorMix, cyan, pow(filaments, 2.0) * 0.4);
+    vec3 nebulaColor = primaryColor;
+    nebulaColor = mix(nebulaColor, electricBlue, smoothstep(0.3, 0.65, zone1) * 0.55);
+    nebulaColor = mix(nebulaColor, deepPurple, smoothstep(0.35, 0.75, zone2) * 0.5);
+    nebulaColor = mix(nebulaColor, hotPink, filamentGlow * 0.4);
+    nebulaColor = mix(nebulaColor, cyan, pow(filaments, 2.0) * 0.4);
     
-    // Core
-    float coreGlow = pow(1.0 - smoothstep(0.0, 0.2, dist), 1.8);
-    colorMix = mix(colorMix, hotWhite, coreGlow * 0.75);
-    colorMix = mix(colorMix, hotYellow, coreGlow * pow(max(fbm(warped * 2.0 + t * 0.15, 3), 0.0), 2.5) * 0.5);
-    
-    float intensity = structure * 0.55 + filamentGlow * 0.9 + coreGlow * 1.3 + tendrils * 0.5;
-    intensity *= brightness * (0.88 + 0.12 * sin(time * 1.8 + uniqueOffset * 5.0));
-    
-    vec3 finalColor = colorMix * intensity;
+    // Compose: stellar core sits above nebula
+    vec3 finalColor = nebulaColor * (structure * 0.55 + filamentGlow * 0.9 + tendrils * 0.5);
+    finalColor += hotWhite * pinpoint * 3.0;
+    finalColor += hotYellow * hotCore * 1.5;
+    finalColor += mix(primaryColor, hotWhite, 0.5) * innerGlow * 0.8;
     finalColor += hotWhite * pow(filaments, 3.5) * 0.35;
     finalColor += cyan * pow(filaments2, 3.0) * 0.25;
+    finalColor *= brightness;
     
-    float alpha = (structure * 0.4 + filamentGlow * 0.85 + coreGlow * 1.1 + tendrils * 0.6) * edgeFade;
+    float alpha = pinpoint + hotCore * 0.8 + innerGlow * 0.4;
+    alpha += (structure * 0.4 + filamentGlow * 0.85 + tendrils * 0.6) * edgeFade;
     alpha *= universalEdgeFade(dist);
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.6);
     
@@ -208,7 +214,7 @@ const nebulaShader = `
   }
 `;
 
-// Style 2: Classic - Soft radiant star with gentle organic glow
+// Style 2: Classic — NMS-style radiant star with tight luminous core
 const classicShader = `
   uniform vec3 primaryColor;
   uniform vec3 glowColor;
@@ -228,68 +234,62 @@ const classicShader = `
     float angle = atan(center.y, center.x);
     float t = time + uniqueOffset * 10.0;
     
-    // Very soft inner core
-    float coreRadius = 0.04 + styleVariant * 0.02;
-    float core = 1.0 - smoothstep(0.0, coreRadius * 2.0, dist);
-    core = pow(core, 0.8);
+    // === NMS-STYLE LAYERED CORE ===
+    // Layer 1: Blazing pinpoint — near-white, very small, overexposed
+    float pinpoint = exp(-dist * dist * 3000.0);
     
-    // Soft corona - main body of the star
-    float coronaNoise = snoise(vec2(angle * 3.0 + uniqueOffset * 5.0, t * 0.15)) * 0.03;
-    float corona = 1.0 - smoothstep(0.0, 0.15 + coronaNoise, dist);
-    corona = pow(corona, 1.5);
+    // Layer 2: Hot core — tight bright region
+    float hotCore = exp(-dist * dist * 400.0);
     
-    // Extended soft halo
-    float haloNoise = snoise(vec2(angle * 2.0, t * 0.1)) * 0.05;
-    float halo = 1.0 - smoothstep(0.0, 0.35 + haloNoise, dist);
-    halo = pow(halo, 2.5);
+    // Layer 3: Inner corona — where primary color appears
+    float innerCorona = exp(-dist * dist * 60.0);
     
-    // Outer atmospheric glow
-    float atmosphere = 1.0 - smoothstep(0.0, 0.5, dist);
-    atmosphere = pow(atmosphere, 4.0) * 0.3;
+    // Layer 4: Outer corona with noise variation
+    float coronaNoise = snoise(vec2(angle * 3.0 + uniqueOffset * 5.0, t * 0.12)) * 0.025;
+    float outerCorona = exp(-pow(dist / (0.18 + coronaNoise), 2.0));
     
-    // Soft subtle rays (not harsh spikes)
+    // Layer 5: Atmospheric envelope — very wide, faint
+    float haloNoise = snoise(vec2(angle * 2.0, t * 0.08)) * 0.04;
+    float atmosphere = exp(-pow(dist / (0.35 + haloNoise), 1.8));
+    
+    // Soft diffraction rays
     float rays = 0.0;
     float numRays = rayCount;
     for (float i = 0.0; i < 8.0; i++) {
       if (i >= numRays) break;
       float rayAngle = i * 6.28318 / numRays + uniqueOffset * 3.14159;
-      float rayLengthVar = 0.7 + snoise(vec2(i, uniqueOffset * 10.0)) * 0.3;
-      
+      float rayLengthVar = 0.6 + snoise(vec2(i, uniqueOffset * 10.0)) * 0.4;
       float angleDiff = abs(mod(angle - rayAngle + 3.14159, 6.28318) - 3.14159);
-      float spikeIntensity = exp(-angleDiff * angleDiff * (15.0 + styleVariant * 10.0));
-      spikeIntensity *= exp(-dist * (3.0 / rayLengthVar));
-      spikeIntensity *= (0.8 + snoise(vec2(dist * 5.0, i + t * 0.2)) * 0.2);
-      
-      rays += spikeIntensity * 0.3;
+      float spikeIntensity = exp(-angleDiff * angleDiff * 30.0);
+      spikeIntensity *= exp(-dist * (4.5 / rayLengthVar));
+      spikeIntensity *= (0.85 + snoise(vec2(dist * 5.0, i + t * 0.15)) * 0.15);
+      rays += spikeIntensity * 0.12;
     }
     
-    // Gentle shimmer
-    float shimmer = 0.92 + 0.08 * sin(t * 1.8) * sin(t * 2.7 + 1.5);
+    // === COLOR COMPOSITION ===
+    vec3 hotWhite = vec3(1.0, 0.99, 0.96);
+    vec3 warmWhite = vec3(1.0, 0.95, 0.85);
     
-    // Colors - warm core fading to cooler edges
-    vec3 hotWhite = vec3(1.0, 0.995, 0.97);
-    vec3 warmCore = vec3(1.0, 0.96, 0.9);
-    vec3 coreColor = mix(warmCore, hotWhite, core * 0.8);
+    vec3 finalColor = vec3(0.0);
+    finalColor += hotWhite * pinpoint * 3.5;
+    finalColor += warmWhite * hotCore * 1.8;
+    finalColor += mix(primaryColor, hotWhite, 0.45) * innerCorona * 1.0;
+    finalColor += mix(primaryColor, glowColor, 0.3) * outerCorona * 0.5;
+    finalColor += glowColor * 0.5 * atmosphere * 0.15;
+    finalColor += mix(glowColor, hotWhite, 0.35) * rays;
+    finalColor *= brightness;
     
-    vec3 finalColor = coreColor * core * 2.0;
-    finalColor += mix(primaryColor, hotWhite, 0.3) * corona * 1.2;
-    finalColor += mix(primaryColor, glowColor, 0.4) * halo * 0.6;
-    finalColor += glowColor * atmosphere;
-    finalColor += mix(glowColor, hotWhite, 0.3) * rays;
-    finalColor *= brightness * shimmer;
-    
-    // Very soft alpha falloff - no hard edges
-    float alpha = core * 1.0 + corona * 0.8 + halo * 0.4 + atmosphere * 0.5 + rays * 0.3;
+    float alpha = pinpoint + hotCore * 0.9 + innerCorona * 0.5 + outerCorona * 0.25 + atmosphere * 0.06 + rays * 0.25;
     alpha *= universalEdgeFade(dist);
-    alpha = pow(clamp(alpha, 0.0, 1.0), 0.6);
+    alpha = clamp(alpha, 0.0, 1.0);
     
-    if (alpha < 0.005) discard;
+    if (alpha < 0.003) discard;
     
     gl_FragColor = vec4(finalColor * globalOpacity, alpha * globalOpacity);
   }
 `;
 
-// Style 3: Plasma - Swirling energy with organic boundaries
+// Style 3: Plasma — Swirling energy with luminous core
 const plasmaShader = `
   uniform vec3 primaryColor;
   uniform vec3 secondaryColor;
@@ -314,7 +314,7 @@ const plasmaShader = `
     float edgeFade = 1.0 - smoothstep(edgeRadius - 0.12, edgeRadius + 0.12, dist);
     if (edgeFade < 0.01) discard;
     
-    // Plasma tendrils extending outward
+    // Plasma tendrils
     float plasmaTendrils = 0.0;
     for (float i = 0.0; i < 6.0; i++) {
       float tAngle = i * 1.047 + t * 0.2 + uniqueOffset * 3.0;
@@ -325,7 +325,7 @@ const plasmaShader = `
       plasmaTendrils += tendril * 0.25;
     }
     
-    // Swirling plasma
+    // Swirling plasma patterns
     float swirl1 = sin(angle * (3.0 + styleVariant * 2.0) + dist * 12.0 - t * 2.2);
     float swirl2 = sin(angle * (5.0 + styleVariant) - dist * 9.0 + t * 1.7);
     float swirl3 = sin(angle * 7.0 + dist * 6.0 - t * 0.9);
@@ -343,13 +343,10 @@ const plasmaShader = `
       arcs += arc;
     }
     
-    // Core
-    float core = 1.0 - smoothstep(0.0, 0.1 + sin(t * 2.5) * 0.025, dist);
-    core = pow(core, 1.6);
-    
-    // Corona
-    float corona = 1.0 - smoothstep(0.0, 0.3, dist);
-    corona = pow(corona, 2.5);
+    // NMS-style core
+    float pinpoint = exp(-dist * dist * 2500.0);
+    float hotCore = exp(-dist * dist * 350.0);
+    float corona = exp(-dist * dist * 40.0);
     
     // Colors
     vec3 hotWhite = vec3(1.0, 0.98, 0.96);
@@ -357,16 +354,19 @@ const plasmaShader = `
     vec3 plasmaColor = mix(primaryColor, secondaryColor, plasmaPattern * 0.5 + 0.5);
     plasmaColor = mix(plasmaColor, hotBlue, arcs * 0.6);
     plasmaColor = mix(plasmaColor, glowColor, corona * 0.3);
-    plasmaColor = mix(plasmaColor, hotWhite, core * 0.85);
     
     float intensity = (plasmaPattern * 0.25 + 0.75) * (1.0 - dist * 1.2);
-    intensity += arcs * 0.7 + core * 1.8 + plasmaTendrils;
-    intensity *= brightness * (0.92 + 0.08 * sin(t * 4.5));
+    intensity += arcs * 0.7 + plasmaTendrils;
     
     vec3 finalColor = plasmaColor * intensity;
+    finalColor += hotWhite * pinpoint * 3.5;
+    finalColor += hotWhite * hotCore * 1.5;
+    finalColor += mix(primaryColor, hotWhite, 0.4) * corona * 0.6;
     finalColor += hotWhite * arcs * 0.35;
+    finalColor *= brightness;
     
-    float alpha = (intensity * 0.65 + core * 0.8 + plasmaTendrils * 0.5) * edgeFade;
+    float alpha = pinpoint + hotCore * 0.8 + corona * 0.4;
+    alpha += (intensity * 0.5 + plasmaTendrils * 0.5) * edgeFade;
     alpha *= universalEdgeFade(dist);
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.65);
     
@@ -374,7 +374,7 @@ const plasmaShader = `
   }
 `;
 
-// Style 4: Crystal - Geometric with organic glow overflow
+// Style 4: Crystal — Geometric facets with luminous gem core
 const crystalShader = `
   uniform vec3 primaryColor;
   uniform vec3 secondaryColor;
@@ -394,37 +394,35 @@ const crystalShader = `
     float angle = atan(center.y, center.x);
     float t = time * 0.4 + uniqueOffset * 10.0;
     
-    // Organic outer glow that extends beyond crystal
+    // Organic outer glow
     float glowRadius = organicEdge(center, 0.32, t, uniqueOffset);
     float outerGlow = 1.0 - smoothstep(0.0, glowRadius, dist);
     outerGlow = pow(outerGlow, 2.5) * 0.4;
     
-    // Crystal facets (sharper inner boundary)
+    // Crystal facets
     float facets = 6.0 + floor(styleVariant * 4.0);
     float facetAngle = mod(angle + t * 0.08, 6.28318 / facets);
     float facetCenter = 3.14159 / facets;
     float facetEdge = abs(facetAngle - facetCenter) / facetCenter;
     facetEdge = 1.0 - pow(facetEdge, 0.5);
     
-    // Inner facets
     float innerAngle = mod(angle - t * 0.05, 6.28318 / (facets * 2.0));
     float innerEdge = abs(innerAngle - 3.14159 / (facets * 2.0));
     innerEdge = 1.0 - smoothstep(0.0, 0.25, innerEdge);
     
-    // Crystal body with slightly irregular edge
     float crystalRadius = 0.28 + snoise(vec2(angle * facets, uniqueOffset * 5.0)) * 0.03;
     float crystalBody = 1.0 - smoothstep(crystalRadius - 0.05, crystalRadius + 0.02, dist);
     
-    // Core
-    float core = 1.0 - smoothstep(0.0, 0.08, dist);
-    core = pow(core, 1.3);
+    // NMS-style gem core
+    float pinpoint = exp(-dist * dist * 2000.0);
+    float hotCore = exp(-dist * dist * 300.0);
     
     // Fire inside
     float fire = sin(angle * 8.0 + dist * 15.0 + t * 2.0) * 0.5 + 0.5;
     fire *= sin(angle * 5.0 - dist * 10.0 - t * 1.5) * 0.5 + 0.5;
     fire = pow(fire, 2.0) * crystalBody;
     
-    // Sparkles
+    // Sparkle flashes
     float sparkle = 0.0;
     for (float i = 0.0; i < 10.0; i++) {
       float sparkAngle = i * 0.628318 + t * 0.15 + uniqueOffset * 6.28;
@@ -445,19 +443,19 @@ const crystalShader = `
     gemColor += facetEdge * 0.2 * glowColor * crystalBody;
     gemColor += innerEdge * 0.15 * secondaryColor * crystalBody;
     gemColor = mix(gemColor, fireColor, fire * 0.5);
-    gemColor = mix(gemColor, hotWhite, core * 0.8);
     gemColor += hotWhite * sparkle * 0.6;
     
-    // Add outer glow color
     vec3 glowColor2 = mix(primaryColor, glowColor, 0.5);
     gemColor = mix(glowColor2, gemColor, crystalBody + 0.3);
     
-    float intensity = 0.5 + facetEdge * 0.25 + core * 1.2 + fire * 0.4 + sparkle * 0.4 + outerGlow;
-    intensity *= brightness * (0.92 + 0.08 * sin(t * 1.5));
+    float gemIntensity = 0.5 + facetEdge * 0.25 + fire * 0.4 + sparkle * 0.4 + outerGlow;
     
-    vec3 finalColor = gemColor * intensity;
+    vec3 finalColor = gemColor * gemIntensity;
+    finalColor += hotWhite * pinpoint * 3.5;
+    finalColor += mix(primaryColor, hotWhite, 0.6) * hotCore * 1.4;
+    finalColor *= brightness;
     
-    float alpha = 0.55 * crystalBody + facetEdge * 0.2 + core * 0.6 + sparkle * 0.3 + outerGlow;
+    float alpha = pinpoint + hotCore * 0.7 + 0.55 * crystalBody + facetEdge * 0.2 + sparkle * 0.3 + outerGlow;
     alpha *= universalEdgeFade(dist);
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.7);
     
@@ -467,7 +465,7 @@ const crystalShader = `
   }
 `;
 
-// Style 5: Pulse - Rippling rings with organic dissipation
+// Style 5: Pulse — Rippling rings emanating from a luminous core
 const pulseShader = `
   uniform vec3 primaryColor;
   uniform vec3 glowColor;
@@ -491,17 +489,12 @@ const pulseShader = `
     float edgeFade = 1.0 - smoothstep(edgeRadius - 0.15, edgeRadius + 0.15, dist);
     if (edgeFade < 0.01) discard;
     
-    // Core
+    // NMS-style core
     float pulseFreq = 2.0 + styleVariant;
-    float coreSize = 0.06 + sin(t * pulseFreq) * 0.02 + sin(t * pulseFreq * 1.7) * 0.012;
-    float core = 1.0 - smoothstep(0.0, coreSize, dist);
-    core = pow(core, 1.3);
-    
-    // Inner glow
-    float innerNoise = snoise(vec2(angle * 4.0, t * 0.3)) * 0.03;
-    float innerSize = 0.15 + sin(t * pulseFreq * 0.7) * 0.025 + innerNoise;
-    float innerGlow = 1.0 - smoothstep(0.0, innerSize, dist);
-    innerGlow = pow(innerGlow, 2.0);
+    float coreBreath = sin(t * pulseFreq) * 0.005;
+    float pinpoint = exp(-dist * dist * 2500.0);
+    float hotCore = exp(-dist * dist * 350.0);
+    float innerGlow = exp(-pow(dist / (0.1 + coreBreath), 2.0));
     
     // Rippling rings with organic distortion
     float rings = 0.0;
@@ -510,11 +503,8 @@ const pulseShader = `
       if (i >= ringCount) break;
       float ringPhase = t * 1.5 - i * 0.4;
       float ringRadius = fract(ringPhase * 0.25) * 0.45;
-      
-      // Distort ring shape
       float ringDistort = snoise(vec2(angle * 3.0 + i, t * 0.2)) * 0.03;
       float distortedDist = dist + ringDistort;
-      
       float ringWidth = 0.012 + i * 0.002;
       float ring = 1.0 - smoothstep(0.0, ringWidth, abs(distortedDist - ringRadius));
       float ringFade = 1.0 - fract(ringPhase * 0.25) * 1.8;
@@ -525,22 +515,23 @@ const pulseShader = `
     
     // Outer halo
     float haloNoise = snoise(vec2(angle * 2.0, t * 0.1)) * 0.06;
-    float halo = 1.0 - smoothstep(0.0, 0.38 + haloNoise, dist);
-    halo = pow(halo, 3.0);
+    float halo = exp(-pow(dist / (0.35 + haloNoise), 2.5));
     halo *= 0.75 + 0.25 * sin(t * pulseFreq * 0.6);
     
     // Colors
     vec3 hotWhite = vec3(1.0, 0.99, 0.97);
     vec3 ringColor = mix(glowColor, hotWhite, 0.35);
-    vec3 coreColor = mix(primaryColor, hotWhite, 0.75);
     
-    vec3 finalColor = coreColor * core * 2.2;
-    finalColor += mix(primaryColor, glowColor, 0.4) * halo * 0.5;
-    finalColor += primaryColor * innerGlow * 0.7;
+    vec3 finalColor = vec3(0.0);
+    finalColor += hotWhite * pinpoint * 3.5;
+    finalColor += mix(primaryColor, hotWhite, 0.5) * hotCore * 1.8;
+    finalColor += primaryColor * innerGlow * 0.6;
+    finalColor += mix(primaryColor, glowColor, 0.4) * halo * 0.3;
     finalColor += ringColor * rings * 0.85;
     finalColor *= brightness;
     
-    float alpha = (core * 1.1 + innerGlow * 0.6 + halo * 0.35 + rings * 0.7) * edgeFade;
+    float alpha = pinpoint + hotCore * 0.8 + innerGlow * 0.4 + halo * 0.15 + rings * 0.6;
+    alpha *= edgeFade;
     alpha *= universalEdgeFade(dist);
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.65);
     
@@ -548,7 +539,7 @@ const pulseShader = `
   }
 `;
 
-// Style 6: Nova - Explosive burst with chaotic edges
+// Style 6: Nova — Explosive burst with chaotic rays from a blazing core
 const novaShader = `
   uniform vec3 primaryColor;
   uniform vec3 secondaryColor;
@@ -572,16 +563,14 @@ const novaShader = `
     
     // Very organic, chaotic boundary
     float edgeRadius = organicEdge(center, 0.26, t, uniqueOffset);
-    
-    // Extra chaos for nova
     float chaos = snoise(vec2(angle * 5.0, t * 0.3)) * 0.08;
     chaos += snoise(vec2(angle * 11.0, t * 0.5)) * 0.04;
     edgeRadius += chaos;
     
-    // Core
-    float coreSize = 0.07 + styleVariant * 0.03;
-    float core = 1.0 - smoothstep(0.0, coreSize, dist);
-    core = pow(core, 1.1);
+    // NMS-style blazing core — nova should be the brightest
+    float pinpoint = exp(-dist * dist * 4000.0);
+    float hotCore = exp(-dist * dist * 500.0);
+    float coreHalo = exp(-dist * dist * 80.0);
     
     // Explosive rays with varying lengths
     float rays = 0.0;
@@ -592,8 +581,6 @@ const novaShader = `
       float rayLength = 0.2 + hash(i * 2.0 + uniqueOffset * 50.0) * 0.25;
       float rayWidth = 0.008 + hash(i * 3.0) * 0.02;
       float rayBrightness = 0.4 + hash(i * 4.0) * 0.6;
-      
-      // Ray noise for organic look
       float rayNoise = snoise(vec2(dist * 8.0, i + t * 0.5)) * 0.4;
       
       float angleDiff = abs(mod(angle - rayAngle + 3.14159, 6.28318) - 3.14159);
@@ -604,15 +591,14 @@ const novaShader = `
       rays += rayIntensity;
     }
     
-    // Shockwave
+    // Shockwave ring
     float shockPhase = fract(t * 0.25);
     float shockRadius = shockPhase * 0.5;
     float shockNoise = snoise(vec2(angle * 4.0, t)) * 0.02;
     float shock = 1.0 - smoothstep(0.0, 0.015, abs(dist - shockRadius + shockNoise));
-    shock *= 1.0 - shockPhase * 1.3;
-    shock = max(shock, 0.0);
+    shock *= max(1.0 - shockPhase * 1.3, 0.0);
     
-    // Debris
+    // Debris particles
     float debris = 0.0;
     for (float i = 0.0; i < 18.0; i++) {
       float debrisAngle = hash(i + 0.5 + uniqueOffset) * 6.28318;
@@ -633,19 +619,21 @@ const novaShader = `
     vec3 hotWhite = vec3(1.0, 0.99, 0.97);
     vec3 hotYellow = vec3(1.0, 0.92, 0.55);
     
-    vec3 finalColor = mix(primaryColor, hotWhite, core * 0.85) * core * 2.8;
+    vec3 finalColor = vec3(0.0);
+    finalColor += hotWhite * pinpoint * 4.0;
+    finalColor += mix(hotWhite, hotYellow, 0.3) * hotCore * 2.0;
+    finalColor += mix(primaryColor, hotWhite, 0.4) * coreHalo * 0.8;
     finalColor += mix(glowColor, hotYellow, 0.35) * rays * 0.85;
     finalColor += mix(secondaryColor, hotWhite, 0.4) * shock * 0.7;
     finalColor += hotWhite * debris * 0.45;
     finalColor += mix(primaryColor, secondaryColor, nebula) * nebula;
-    finalColor *= brightness * (0.88 + 0.12 * sin(t * 2.5));
+    finalColor *= brightness;
     
-    float alpha = core + rays * 0.5 + shock * 0.45 + debris * 0.4 + nebula * 0.5;
-    
-    // Organic edge
-    float edgeFade = 1.0 - smoothstep(edgeRadius - 0.1, edgeRadius + 0.15, dist);
-    edgeFade = max(edgeFade, rays * 0.7 + debris * 0.5);
-    alpha *= edgeFade;
+    float alpha = pinpoint + hotCore * 0.9 + coreHalo * 0.4;
+    alpha += rays * 0.5 + shock * 0.45 + debris * 0.4 + nebula * 0.5;
+    float novaEdgeFade = 1.0 - smoothstep(edgeRadius - 0.1, edgeRadius + 0.15, dist);
+    novaEdgeFade = max(novaEdgeFade, rays * 0.7 + debris * 0.5);
+    alpha *= novaEdgeFade;
     alpha *= universalEdgeFade(dist);
     alpha = pow(clamp(alpha, 0.0, 1.0), 0.6);
     
@@ -654,6 +642,10 @@ const novaShader = `
     gl_FragColor = vec4(finalColor * globalOpacity, alpha * globalOpacity);
   }
 `;
+
+// ============================================================================
+// VERTEX SHADER + MAPS
+// ============================================================================
 
 const vertexShader = `
   varying vec2 vUv;
@@ -683,10 +675,73 @@ const SHAPE_TO_STYLE = {
   cluster: 'nebula',
 };
 
-function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOpacity = 1, frozen = false, timeScale = 1 }) {
+// ============================================================================
+// ANIMATION SYSTEM — Computes per-frame brightness modulation on JS side
+//
+// Instead of just speeding up time, each mode changes the CHARACTER:
+//   steady      — constant brightness, patterns barely evolve
+//   gentle      — slow sinusoidal breathing
+//   twinkle     — rapid stochastic scintillation (like atmospheric shimmer)
+//   breathing   — deep slow breath
+//   dancing     — dramatic pulsing with intensity bursts
+// ============================================================================
+
+const ANIM_TIME_SCALE = {
+  'steady': 0.15,
+  'gentle-pulse': 0.4,
+  'twinkle': 0.8,
+  'breathing': 0.35,
+  'dancing': 1.5,
+};
+
+const ANIM_MODE = {
+  'steady': 0,
+  'gentle-pulse': 1,
+  'twinkle': 2,
+  'breathing': 3,
+  'dancing': 4,
+};
+
+function computeAnimBrightness(elapsedTime, uniqueOffset, mode) {
+  const t = elapsedTime + uniqueOffset * 100;
+  switch (mode) {
+    case 0: // steady
+      return 1.0;
+    case 1: { // gentle — subtle sinusoidal
+      return 0.92 + 0.08 * Math.sin(t * 1.2);
+    }
+    case 2: { // twinkle — stochastic scintillation
+      const n1 = Math.sin(t * 7.3 + uniqueOffset * 137.5);
+      const n2 = Math.sin(t * 13.1 + uniqueOffset * 59.3);
+      const n3 = Math.sin(t * 19.7 + uniqueOffset * 23.7);
+      const n4 = Math.cos(t * 11.3 + uniqueOffset * 83.1);
+      const n5 = Math.sin(t * 29.3 + uniqueOffset * 41.9);
+      const flicker = (n1 * 0.25 + n2 * 0.2 + n3 * 0.2 + n4 * 0.2 + n5 * 0.15) * 0.5 + 0.5;
+      return 0.55 + flicker * 0.55;
+    }
+    case 3: { // breathing — deep slow cycle
+      const breath = Math.sin(t * 0.6) * 0.5 + 0.5;
+      return 0.75 + breath * 0.3;
+    }
+    case 4: { // dancing — dramatic pulses with bursts
+      const pulse = Math.sin(t * 2.5) * 0.2;
+      const burst = Math.pow(Math.max(Math.sin(t * 1.3), 0), 4) * 0.35;
+      return 0.8 + pulse + burst;
+    }
+    default:
+      return 1.0;
+  }
+}
+
+// ============================================================================
+// STAR SPRITE — Main body with shape-specific fragment shader
+// ============================================================================
+
+function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOpacity = 1, frozen = false, timeScale = 1, animMode = 1 }) {
   const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
   const frozenTime = useMemo(() => uniqueOffset * 50, [uniqueOffset]);
+  const baseBrightness = brightness;
   
   const styleKey = SHAPE_TO_STYLE[shapeId] || 'classic';
   const fragmentShader = STYLE_SHADERS[styleKey];
@@ -703,7 +758,7 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOp
         secondaryColor: { value: new THREE.Color(colors.secondary) },
         glowColor: { value: new THREE.Color(colors.glow) },
         time: { value: frozen ? frozenTime : 0 },
-        brightness: { value: brightness * 1.4 },
+        brightness: { value: baseBrightness * 1.4 },
         uniqueOffset: { value: uniqueOffset },
         styleVariant: { value: styleVariant },
         rayCount: { value: rayCount },
@@ -714,15 +769,17 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOp
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
-  }, [colors, brightness, uniqueOffset, fragmentShader, frozen, frozenTime]);
+  }, [colors, baseBrightness, uniqueOffset, fragmentShader, frozen, frozenTime]);
   
   useFrame((state, delta) => {
     if (!frozen) {
       timeRef.current += delta * timeScale;
       material.uniforms.time.value = timeRef.current;
+      // Animate brightness based on animation mode
+      const animBright = computeAnimBrightness(state.clock.elapsedTime, uniqueOffset, animMode);
+      material.uniforms.brightness.value = baseBrightness * 1.4 * animBright;
     }
     material.uniforms.globalOpacity.value = globalOpacity;
-    
     if (meshRef.current) {
       meshRef.current.lookAt(state.camera.position);
     }
@@ -738,10 +795,15 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOp
   );
 }
 
-function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, frozen = false, timeScale = 1 }) {
+// ============================================================================
+// OUTER GLOW — Multi-layer atmospheric glow, configurable by glowStyle
+// ============================================================================
+
+function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, frozen = false, timeScale = 1, animMode = 1, glowRadius = 1.0, glowFalloff = 2.5 }) {
   const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
   const frozenTime = useMemo(() => uniqueOffset * 50, [uniqueOffset]);
+  const baseIntensity = intensity;
   
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -753,6 +815,7 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, 
         uniform float intensity;
         uniform float uniqueOffset;
         uniform float globalOpacity;
+        uniform float falloffPow;
         varying vec2 vUv;
         
         ${noiseLib}
@@ -762,33 +825,25 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, 
           float dist = length(center);
           float angle = atan(center.y, center.x);
           
-          // Multi-layer glow for atmospheric depth
-          float innerGlow = 1.0 - smoothstep(0.0, 0.15, dist);
-          innerGlow = pow(innerGlow, 2.0);
+          // Multi-layer glow with configurable falloff
+          float innerGlow = exp(-pow(dist / 0.12, falloffPow));
+          float midGlow = exp(-pow(dist / 0.22, falloffPow));
+          float outerGlow = exp(-pow(dist / 0.38, falloffPow + 0.5));
           
-          float midGlow = 1.0 - smoothstep(0.0, 0.28, dist);
-          midGlow = pow(midGlow, 2.5);
-          
-          float outerGlow = 1.0 - smoothstep(0.0, 0.42, dist);
-          outerGlow = pow(outerGlow, 3.0);
-          
-          // Combine layers with organic variation
+          // Organic variation
           float edgeNoise = snoise(vec2(angle * 2.5 + uniqueOffset * 8.0, time * 0.1)) * 0.15 + 0.85;
-          float glow = innerGlow * 0.5 + midGlow * 0.35 + outerGlow * 0.25;
+          float glow = innerGlow * 0.45 + midGlow * 0.35 + outerGlow * 0.2;
           glow *= edgeNoise;
           
-          // Slow breathing
-          float breath = 0.82 + 0.18 * sin(time * 0.8 + uniqueOffset * 5.0);
-          
-          // Color transitions for atmospheric blending
+          // Color transitions
           vec3 innerColor = glowColor;
           vec3 midColor = mix(glowColor, secondaryColor, 0.4);
-          vec3 outerColor = mix(secondaryColor * 0.7, vec3(0.15, 0.2, 0.35), 0.3); // Blend toward space
+          vec3 outerColor = mix(secondaryColor * 0.7, vec3(0.15, 0.2, 0.35), 0.3);
           
           vec3 color = mix(innerColor, midColor, smoothstep(0.0, 0.2, dist));
           color = mix(color, outerColor, smoothstep(0.15, 0.4, dist));
           
-          float alpha = glow * intensity * breath * 0.55 * globalOpacity;
+          float alpha = glow * intensity * 0.55 * globalOpacity;
           alpha *= universalEdgeFade(dist);
           
           if (alpha < 0.003) discard;
@@ -803,27 +858,30 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, 
         intensity: { value: intensity },
         uniqueOffset: { value: uniqueOffset },
         globalOpacity: { value: 1.0 },
+        falloffPow: { value: glowFalloff },
       },
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
-  }, [colors, intensity, uniqueOffset, frozen, frozenTime]);
+  }, [colors, intensity, uniqueOffset, frozen, frozenTime, glowFalloff]);
   
   useFrame((state, delta) => {
     if (!frozen) {
       timeRef.current += delta * timeScale;
       material.uniforms.time.value = timeRef.current;
+      // Glow breathes with animation
+      const animBright = computeAnimBrightness(state.clock.elapsedTime, uniqueOffset, animMode);
+      material.uniforms.intensity.value = baseIntensity * animBright;
     }
     material.uniforms.globalOpacity.value = globalOpacity;
-    
     if (meshRef.current) {
       meshRef.current.lookAt(state.camera.position);
     }
   });
   
-  const glowSize = 3.5 * scale;
+  const glowSize = (3.0 + glowRadius * 0.5) * scale;
   
   return (
     <mesh ref={meshRef}>
@@ -833,7 +891,10 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, 
   );
 }
 
-// Atmospheric Haze - very wide, soft glow that bleeds into surrounding space
+// ============================================================================
+// ATMOSPHERIC HAZE — Very wide, faint glow bleeding into space
+// ============================================================================
+
 function AtmosphericHaze({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, frozen = false, timeScale = 1 }) {
   const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
@@ -858,26 +919,18 @@ function AtmosphericHaze({ colors, scale, intensity, uniqueOffset, globalOpacity
           float dist = length(center);
           float angle = atan(center.y, center.x);
           
-          // Very soft, wide falloff for atmospheric blending
-          float haze = 1.0 - smoothstep(0.0, 0.45, dist);
-          haze = pow(haze, 1.5); // Gentle falloff
+          float haze = exp(-pow(dist / 0.32, 1.8));
           
-          // Slow, subtle breathing
           float breath = 0.85 + 0.15 * sin(time * 0.5 + uniqueOffset * 3.0);
           
-          // Wispy atmospheric variations
           float wisp1 = snoise(vec2(angle * 2.0 + time * 0.05, dist * 3.0)) * 0.2 + 0.8;
           float wisp2 = snoise(vec2(angle * 4.0 - time * 0.03, dist * 6.0 + uniqueOffset * 5.0)) * 0.15 + 0.85;
           haze *= wisp1 * wisp2;
           
-          // Color shifts toward edges - blend with space
           vec3 color = mix(glowColor, secondaryColor * 0.6, dist * 1.5);
-          // Add slight blue shift at edges for space blending
           color = mix(color, vec3(0.2, 0.3, 0.5), smoothstep(0.2, 0.45, dist) * 0.3);
           
           float alpha = haze * intensity * breath * 0.25 * globalOpacity;
-          
-          // Smooth edge fade
           alpha *= 1.0 - smoothstep(0.35, 0.5, dist);
           
           if (alpha < 0.002) discard;
@@ -906,13 +959,11 @@ function AtmosphericHaze({ colors, scale, intensity, uniqueOffset, globalOpacity
       material.uniforms.time.value = timeRef.current;
     }
     material.uniforms.globalOpacity.value = globalOpacity;
-    
     if (meshRef.current) {
       meshRef.current.lookAt(state.camera.position);
     }
   });
   
-  // Very large haze layer
   const hazeSize = 5.0 * scale;
   
   return (
@@ -923,7 +974,10 @@ function AtmosphericHaze({ colors, scale, intensity, uniqueOffset, globalOpacity
   );
 }
 
-// Diffraction Spikes - subtle light rays extending from bright stars
+// ============================================================================
+// DIFFRACTION SPIKES — Subtle light rays from bright stars
+// ============================================================================
+
 function DiffractionSpikes({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, frozen = false, timeScale = 1 }) {
   const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
@@ -948,35 +1002,28 @@ function DiffractionSpikes({ colors, scale, intensity, uniqueOffset, globalOpaci
           float angle = atan(center.y, center.x);
           
           // 4-point diffraction spike pattern
-          float spikeAngle = mod(angle + uniqueOffset * 0.5, 1.5708); // PI/2
           float spike = 1.0 - smoothstep(0.0, 0.12, abs(sin(angle * 2.0 + uniqueOffset)));
           spike *= 1.0 - smoothstep(0.0, 0.12, abs(cos(angle * 2.0 + uniqueOffset)));
-          
-          // Spike intensity falls off with distance but extends far
           float spikeFalloff = exp(-dist * 4.0);
           spike *= spikeFalloff;
           
-          // Add 6-point secondary spikes (fainter)
+          // Fainter 6-point secondary spikes
           float spike2 = 1.0 - smoothstep(0.0, 0.15, abs(sin(angle * 3.0 + uniqueOffset * 0.7)));
           spike2 *= exp(-dist * 5.0) * 0.4;
           spike += spike2;
           
-          // Subtle shimmer
           float shimmer = 0.9 + 0.1 * sin(time * 2.0 + dist * 10.0 + uniqueOffset * 8.0);
           spike *= shimmer;
           
-          // Noise breakup for natural look
           float breakup = snoise(vec2(angle * 8.0, dist * 4.0 + time * 0.1)) * 0.2 + 0.8;
           spike *= breakup;
           
           float alpha = spike * intensity * 0.35 * globalOpacity;
-          
-          // Fade at edges
           alpha *= 1.0 - smoothstep(0.35, 0.5, dist);
           
           if (alpha < 0.003) discard;
           
-          vec3 color = mix(glowColor, vec3(1.0), 0.3); // Slightly whiter than glow
+          vec3 color = mix(glowColor, vec3(1.0), 0.3);
           
           gl_FragColor = vec4(color * globalOpacity, alpha);
         }
@@ -1001,7 +1048,6 @@ function DiffractionSpikes({ colors, scale, intensity, uniqueOffset, globalOpaci
       material.uniforms.time.value = timeRef.current;
     }
     material.uniforms.globalOpacity.value = globalOpacity;
-    
     if (meshRef.current) {
       meshRef.current.lookAt(state.camera.position);
     }
@@ -1017,99 +1063,9 @@ function DiffractionSpikes({ colors, scale, intensity, uniqueOffset, globalOpaci
   );
 }
 
-// Dust Cloud - floating particles around the star
-function DustCloud({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, frozen = false, timeScale = 1 }) {
-  const meshRef = useRef(null);
-  const timeRef = useRef(uniqueOffset * 100);
-  const frozenTime = useMemo(() => uniqueOffset * 50, [uniqueOffset]);
-  
-  const material = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      vertexShader,
-      fragmentShader: `
-        uniform vec3 glowColor;
-        uniform vec3 secondaryColor;
-        uniform float time;
-        uniform float intensity;
-        uniform float uniqueOffset;
-        uniform float globalOpacity;
-        varying vec2 vUv;
-        
-        ${noiseLib}
-        
-        void main() {
-          vec2 center = vUv - 0.5;
-          float dist = length(center);
-          float angle = atan(center.y, center.x);
-          
-          // Particle-like noise pattern
-          float particles = 0.0;
-          
-          // Multiple scales of "dust"
-          float dust1 = snoise(center * 15.0 + time * 0.1 + uniqueOffset * 10.0);
-          float dust2 = snoise(center * 25.0 - time * 0.08 + vec2(uniqueOffset * 5.0, 3.0));
-          float dust3 = snoise(center * 40.0 + time * 0.05 + vec2(1.0, uniqueOffset * 8.0));
-          
-          // Threshold to create discrete particles
-          dust1 = smoothstep(0.6, 0.9, dust1);
-          dust2 = smoothstep(0.65, 0.95, dust2);
-          dust3 = smoothstep(0.7, 1.0, dust3);
-          
-          particles = dust1 * 0.5 + dust2 * 0.3 + dust3 * 0.2;
-          
-          // Concentrate dust in a ring around the star
-          float ringMask = smoothstep(0.1, 0.2, dist) * (1.0 - smoothstep(0.35, 0.45, dist));
-          particles *= ringMask;
-          
-          // Gentle rotation feel
-          float rotateNoise = snoise(vec2(angle * 2.0 + time * 0.2, dist * 4.0)) * 0.2 + 0.8;
-          particles *= rotateNoise;
-          
-          vec3 color = mix(glowColor * 0.8, secondaryColor * 0.6, dist * 2.0);
-          
-          float alpha = particles * intensity * 0.2 * globalOpacity;
-          
-          if (alpha < 0.003) discard;
-          
-          gl_FragColor = vec4(color * globalOpacity, alpha);
-        }
-      `,
-      uniforms: {
-        glowColor: { value: new THREE.Color(colors.glow) },
-        secondaryColor: { value: new THREE.Color(colors.secondary) },
-        time: { value: frozen ? frozenTime : 0 },
-        intensity: { value: intensity },
-        uniqueOffset: { value: uniqueOffset },
-        globalOpacity: { value: 1.0 },
-      },
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-    });
-  }, [colors, intensity, uniqueOffset, frozen, frozenTime]);
-  
-  useFrame((state, delta) => {
-    if (!frozen) {
-      timeRef.current += delta * timeScale;
-      material.uniforms.time.value = timeRef.current;
-    }
-    material.uniforms.globalOpacity.value = globalOpacity;
-    
-    if (meshRef.current) {
-      meshRef.current.lookAt(state.camera.position);
-    }
-  });
-  
-  const dustSize = 3.5 * scale;
-  
-  return (
-    <mesh ref={meshRef}>
-      <planeGeometry args={[dustSize, dustSize, 1, 1]} />
-      <primitive object={material} attach="material" />
-    </mesh>
-  );
-}
+// ============================================================================
+// STAR LABEL
+// ============================================================================
 
 function StarLabel({ name, isVisible }) {
   if (!isVisible || !name) return null;
@@ -1118,10 +1074,7 @@ function StarLabel({ name, isVisible }) {
     <Html
       position={[0, 0.5, 0]}
       center
-      style={{
-        pointerEvents: 'none',
-        whiteSpace: 'nowrap',
-      }}
+      style={{ pointerEvents: 'none', whiteSpace: 'nowrap' }}
     >
       <div
         style={{
@@ -1146,13 +1099,37 @@ function StarLabel({ name, isVisible }) {
   );
 }
 
-const ANIMATION_TIME_SCALE = {
-  'steady': 0.0,
-  'gentle-pulse': 0.3,
-  'twinkle': 1.0,
-  'breathing': 0.3,
-  'dancing': 2.5,
+// ============================================================================
+// GLOW STYLE MAPS — translate glowStyle names into shader parameters
+// ============================================================================
+
+const GLOW_FALLOFF_MAP = {
+  'soft-halo': 2.0,
+  'sharp-rays': 3.5,
+  'pulsing-aura': 2.0,
+  'flame': 2.8,
+  'mist': 1.5,
+  'sparkle': 3.5,
 };
+
+const GLOW_RADIUS_MAP = {
+  'soft-halo': 1.0,
+  'sharp-rays': 0.6,
+  'pulsing-aura': 1.3,
+  'flame': 0.9,
+  'mist': 1.6,
+  'sparkle': 0.5,
+};
+
+// ============================================================================
+// MAIN STAR COMPONENT
+//
+// Layer composition (inside -> out):
+//   1. StarSprite        — shape-specific shader with NMS core (1.6x scale)
+//   2. OuterGlow         — atmospheric color glow (3.0-3.5x scale)
+//   3. AtmosphericHaze   — ALWAYS visible, faint wide glow (5.0x scale)
+//   4. DiffractionSpikes — visible for bright stars + hover (4.0x scale)
+// ============================================================================
 
 export default function Star({ 
   position = [0, 0, 0],
@@ -1185,11 +1162,14 @@ export default function Star({
   }, [personId]);
   
   const shapeId = starProfile?.shape || visuals.shape?.id || 'classic';
+  const animKey = starProfile?.animation || 'gentle-pulse';
+  const glowStyleKey = starProfile?.glowStyle || 'soft-halo';
   
-  const timeScale = useMemo(() => {
-    const anim = starProfile?.animation || 'gentle-pulse';
-    return ANIMATION_TIME_SCALE[anim] ?? 1.0;
-  }, [starProfile?.animation]);
+  const timeScale = useMemo(() => ANIM_TIME_SCALE[animKey] ?? 0.4, [animKey]);
+  const animMode = useMemo(() => ANIM_MODE[animKey] ?? 1, [animKey]);
+  
+  const glowFalloff = GLOW_FALLOFF_MAP[glowStyleKey] || 2.0;
+  const glowRadiusMult = GLOW_RADIUS_MAP[glowStyleKey] || 1.0;
   
   const activeScale = useMemo(() => {
     let base = visuals.scale;
@@ -1198,162 +1178,114 @@ export default function Star({
     return base * globalScale;
   }, [isHovered, isFocused, visuals.scale, globalScale]);
   
+  // Glow intensity: decoupled from brightness — even dim stars glow
+  const baseGlowIntensity = visuals.glow?.intensity || 0.7;
   const activeIntensity = useMemo(() => {
-    const base = visuals.glow?.intensity || 0.7;
+    const dimFloor = 0.35;
+    const base = Math.max(baseGlowIntensity, dimFloor);
     if (isFocused) return base * 1.8;
     if (isHovered) return base * 1.6;
     return base;
-  }, [isHovered, isFocused, visuals.glow]);
+  }, [isHovered, isFocused, baseGlowIntensity]);
   
-  // Show extra atmospheric effects only for hovered/focused stars to save GPU
-  const showAtmosphericEffects = isHovered || isFocused;
+  // Diffraction spikes: always for bright stars, enhanced on hover
+  const starBrightness = visuals.brightness || 0.8;
+  const showSpikes = isHovered || isFocused || starBrightness > 0.7;
+  const spikeIntensity = (isHovered || isFocused)
+    ? activeIntensity * 0.5
+    : activeIntensity * 0.15 * starBrightness;
   
-  if (!animated) {
-    return (
-      <group 
-        ref={groupRef} 
-        position={position}
-      >
-        <StarLabel name={personName} isVisible={isHovered || isFocused} />
-        
-        {/* Atmospheric layers only for highlighted stars */}
-        {showAtmosphericEffects && (
-          <>
-            <AtmosphericHaze
-              colors={visuals.colors}
-              scale={activeScale * 0.6}
-              intensity={activeIntensity * 0.4}
-              uniqueOffset={uniqueOffset}
-              globalOpacity={globalOpacity}
-              frozen={true}
-            />
-            
-            <DiffractionSpikes
-              colors={visuals.colors}
-              scale={activeScale * 0.7}
-              intensity={activeIntensity * 0.3}
-              uniqueOffset={uniqueOffset}
-              globalOpacity={globalOpacity}
-              frozen={true}
-            />
-          </>
-        )}
-        
-        <OuterGlow
-          colors={visuals.colors}
-          scale={activeScale * 0.8}
-          intensity={activeIntensity * 0.5}
-          uniqueOffset={uniqueOffset}
-          globalOpacity={globalOpacity}
-          frozen={true}
-        />
-        
-        <StarSprite
-          colors={visuals.colors}
-          scale={activeScale * 0.8}
-          brightness={visuals.brightness * 0.9}
-          uniqueOffset={uniqueOffset}
-          shapeId={shapeId}
-          globalOpacity={globalOpacity}
-          frozen={true}
-        />
-        
-        {/* Larger invisible hitbox for easier hover detection */}
-        <mesh 
-          visible={false}
-          onPointerOver={(e) => {
-            e.stopPropagation();
-            document.body.style.cursor = 'pointer';
-            onPointerOver?.(e);
-          }}
-          onPointerOut={(e) => {
-            document.body.style.cursor = 'default';
-            onPointerOut?.(e);
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onClick?.(e);
-          }}
-        >
-          <sphereGeometry args={[0.6 * activeScale, 8, 8]} />
-          <meshBasicMaterial transparent opacity={0} />
-        </mesh>
-      </group>
-    );
-  }
+  // Atmospheric haze: ALWAYS visible, enhanced on hover
+  const hazeIntensity = (isHovered || isFocused)
+    ? activeIntensity * 0.5
+    : activeIntensity * 0.2;
+  
+  const hitboxScale = 0.7 * activeScale;
+  const frozen = !animated;
+  
+  const pointerHandlers = {
+    onPointerOver: (e) => {
+      e.stopPropagation();
+      document.body.style.cursor = 'pointer';
+      onPointerOver?.(e);
+    },
+    onPointerOut: (e) => {
+      document.body.style.cursor = 'default';
+      onPointerOut?.(e);
+    },
+    onClick: (e) => {
+      e.stopPropagation();
+      onClick?.(e);
+    },
+  };
   
   return (
-    <group 
-      ref={groupRef} 
-      position={position}
-    >
+    <group ref={groupRef} position={position}>
       <StarLabel name={personName} isVisible={isHovered || isFocused} />
       
-      {/* Atmospheric layers only for highlighted stars */}
-      {showAtmosphericEffects && (
-        <>
-          <AtmosphericHaze
-            colors={visuals.colors}
-            scale={activeScale}
-            intensity={activeIntensity * 0.5}
-            uniqueOffset={uniqueOffset}
-            globalOpacity={globalOpacity}
-            timeScale={timeScale}
-          />
-          
-          <DiffractionSpikes
-            colors={visuals.colors}
-            scale={activeScale}
-            intensity={activeIntensity * 0.4}
-            uniqueOffset={uniqueOffset}
-            globalOpacity={globalOpacity}
-            timeScale={timeScale}
-          />
-        </>
-      )}
-      
-      <OuterGlow
+      {/* Layer 4 (outermost): Atmospheric haze — always visible */}
+      <AtmosphericHaze
         colors={visuals.colors}
-        scale={activeScale}
-        intensity={activeIntensity * 0.65}
+        scale={frozen ? activeScale * 0.6 : activeScale}
+        intensity={hazeIntensity}
         uniqueOffset={uniqueOffset}
         globalOpacity={globalOpacity}
+        frozen={frozen}
         timeScale={timeScale}
       />
       
+      {/* Layer 3: Diffraction spikes */}
+      {showSpikes && (
+        <DiffractionSpikes
+          colors={visuals.colors}
+          scale={frozen ? activeScale * 0.7 : activeScale}
+          intensity={spikeIntensity}
+          uniqueOffset={uniqueOffset}
+          globalOpacity={globalOpacity}
+          frozen={frozen}
+          timeScale={timeScale}
+        />
+      )}
+      
+      {/* Layer 2: Outer glow — always visible, style-configurable */}
+      <OuterGlow
+        colors={visuals.colors}
+        scale={frozen ? activeScale * 0.8 : activeScale}
+        intensity={activeIntensity * 0.65}
+        uniqueOffset={uniqueOffset}
+        globalOpacity={globalOpacity}
+        frozen={frozen}
+        timeScale={timeScale}
+        animMode={animMode}
+        glowRadius={glowRadiusMult}
+        glowFalloff={glowFalloff}
+      />
+      
+      {/* Layer 1 (innermost): Star sprite — shape-specific shader */}
       <StarSprite
         colors={visuals.colors}
-        scale={activeScale}
+        scale={frozen ? activeScale * 0.8 : activeScale}
         brightness={visuals.brightness}
         uniqueOffset={uniqueOffset}
         shapeId={shapeId}
         globalOpacity={globalOpacity}
+        frozen={frozen}
         timeScale={timeScale}
+        animMode={animMode}
       />
       
-      {/* Larger invisible hitbox for easier hover detection */}
-      <mesh 
-        visible={false}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          document.body.style.cursor = 'pointer';
-          onPointerOver?.(e);
-        }}
-        onPointerOut={(e) => {
-          document.body.style.cursor = 'default';
-          onPointerOut?.(e);
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          onClick?.(e);
-        }}
-      >
-        <sphereGeometry args={[0.7 * activeScale, 8, 8]} />
+      {/* Invisible hitbox */}
+      <mesh visible={false} {...pointerHandlers}>
+        <sphereGeometry args={[hitboxScale, 8, 8]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
     </group>
   );
 }
+
+// ============================================================================
+// STAR INSTANCED
+// ============================================================================
 
 export function StarInstanced({ stars, onStarClick, onStarHover, hoveredId, focusedId, globalOpacity = 1, globalScale = 1, animated = true }) {
   return (
