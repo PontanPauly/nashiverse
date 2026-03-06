@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export default function MealManager({ tripId, trip, meals, people, participants }) {
   const [showMealForm, setShowMealForm] = useState(false);
@@ -268,25 +269,30 @@ function MealForm({ meal, tripId, tripDays, people, onSuccess, onCancel }) {
     e.preventDefault();
     setLoading(true);
 
-    const dataToSave = {
-      trip_id: formData.trip_id,
-      date: formData.date,
-      meal_type: formData.meal_type,
-      title: formData.title,
-      description: formData.description || null,
-      chef_ids: formData.chef_id ? [formData.chef_id] : null,
-      location: formData.location || null,
-      notes: formData.notes || null,
-    };
+    try {
+      const dataToSave = {
+        trip_id: formData.trip_id,
+        date: formData.date,
+        meal_type: formData.meal_type,
+        title: formData.title,
+        description: formData.description || null,
+        chef_ids: formData.chef_id ? [formData.chef_id] : null,
+        location: formData.location || null,
+        notes: formData.notes || null,
+      };
 
-    if (meal?.id) {
-      await base44.entities.Meal.update(meal.id, dataToSave);
-    } else {
-      await base44.entities.Meal.create(dataToSave);
+      if (meal?.id) {
+        await base44.entities.Meal.update(meal.id, dataToSave);
+      } else {
+        await base44.entities.Meal.create(dataToSave);
+      }
+
+      setLoading(false);
+      onSuccess();
+    } catch (error) {
+      setLoading(false);
+      toast.error(error?.message || "Failed to save meal");
     }
-
-    setLoading(false);
-    onSuccess();
   };
 
   const adultPeople = people.filter(p => p.role_type === 'adult');

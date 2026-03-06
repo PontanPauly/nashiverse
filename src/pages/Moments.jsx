@@ -12,7 +12,8 @@ import {
   X,
   User,
   MapPin,
-  Trash2
+  Trash2,
+  Pencil
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,7 @@ import { cn } from "@/lib/utils";
 
 export default function Moments() {
   const [showMomentForm, setShowMomentForm] = useState(false);
+  const [editingMoment, setEditingMoment] = useState(null);
   const [selectedMoment, setSelectedMoment] = useState(null);
   
   const queryClient = useQueryClient();
@@ -191,20 +193,23 @@ export default function Moments() {
         </div>
       )}
 
-      {/* Add Moment Dialog */}
-      <Dialog open={showMomentForm} onOpenChange={setShowMomentForm}>
+      {/* Add/Edit Moment Dialog */}
+      <Dialog open={showMomentForm} onOpenChange={(open) => { if (!open) { setShowMomentForm(false); setEditingMoment(null); } }}>
         <DialogContent className="bg-slate-900 border-slate-700 max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="text-slate-100">Add a Moment</DialogTitle>
+            <DialogTitle className="text-slate-100">{editingMoment ? "Edit Moment" : "Add a Moment"}</DialogTitle>
           </DialogHeader>
           <MomentForm 
+            key={editingMoment?.id || 'new'}
             trips={trips}
             people={people}
+            moment={editingMoment}
             onSuccess={() => {
               setShowMomentForm(false);
+              setEditingMoment(null);
               queryClient.invalidateQueries(['moments']);
             }}
-            onCancel={() => setShowMomentForm(false)}
+            onCancel={() => { setShowMomentForm(false); setEditingMoment(null); }}
           />
         </DialogContent>
       </Dialog>
@@ -267,7 +272,19 @@ export default function Moments() {
                 </div>
               )}
               
-              <div className="mt-6 pt-4 border-t border-slate-700 flex justify-end">
+              <div className="mt-6 pt-4 border-t border-slate-700 flex justify-end gap-2">
+                <Button 
+                  variant="ghost" 
+                  className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/20 font-semibold"
+                  onClick={() => {
+                    setEditingMoment(selectedMoment);
+                    setShowMomentForm(true);
+                    setSelectedMoment(null);
+                  }}
+                >
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
                 <Button 
                   variant="ghost" 
                   className="text-red-400 hover:text-red-300 hover:bg-red-500/20 font-semibold"
@@ -288,15 +305,15 @@ export default function Moments() {
   );
 }
 
-function MomentForm({ trips, people, onSuccess, onCancel }) {
+function MomentForm({ trips, people, moment, onSuccess, onCancel }) {
   const [formData, setFormData] = useState({
-    content: "",
-    media_urls: [],
-    media_type: "text",
-    trip_id: "",
-    tagged_person_ids: [],
-    captured_date: format(new Date(), 'yyyy-MM-dd'),
-    author_person_id: "",
+    content: moment?.content || "",
+    media_urls: moment?.media_urls || [],
+    media_type: moment?.media_type || "text",
+    trip_id: moment?.trip_id || "",
+    tagged_person_ids: moment?.tagged_person_ids || [],
+    captured_date: moment?.captured_date ? moment.captured_date.split('T')[0] : format(new Date(), 'yyyy-MM-dd'),
+    author_person_id: moment?.author_person_id || "",
   });
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -305,15 +322,24 @@ function MomentForm({ trips, people, onSuccess, onCancel }) {
     e.preventDefault();
     setLoading(true);
 
-    const dataToSave = {
-      ...formData,
-      trip_id: formData.trip_id || null,
-      author_person_id: formData.author_person_id || null,
-    };
+    try {
+      const dataToSave = {
+        ...formData,
+        trip_id: formData.trip_id || null,
+        author_person_id: formData.author_person_id || null,
+      };
 
-    await base44.entities.Moment.create(dataToSave);
-    setLoading(false);
-    onSuccess();
+      if (moment?.id) {
+        await base44.entities.Moment.update(moment.id, dataToSave);
+      } else {
+        await base44.entities.Moment.create(dataToSave);
+      }
+      onSuccess();
+    } catch (error) {
+      alert(error.message || "Failed to save moment");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleFileUpload = async (e) => {
@@ -487,7 +513,7 @@ function MomentForm({ trips, people, onSuccess, onCancel }) {
           className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold" 
           disabled={loading || (!formData.content && !formData.media_urls.length)}
         >
-          {loading ? "Saving..." : "Add Moment"}
+          {loading ? "Saving..." : (moment ? "Save Changes" : "Add Moment")}
         </Button>
       </div>
     </form>

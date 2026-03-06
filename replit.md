@@ -78,7 +78,7 @@ Key tables:
 ## API Routes
 - `/api/auth/*` - Authentication (register, login, logout, me)
 - `/api/entities/:type` - Secured CRUD with column whitelisting (no users table access)
-- `/api/functions/:functionName` - Backend functions (exportFamilyData, makeAdmin, cleanupTestData, getFamilyInsights, seedFamilyData)
+- `/api/functions/:functionName` - Backend functions (exportFamilyData, makeAdmin, cleanupTestData, getFamilyInsights, seedFamilyData, transferAdmin)
 - `/api/upload` - File uploads
 - `/api/health` - Health check endpoint
 

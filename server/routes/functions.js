@@ -94,6 +94,40 @@ const functionHandlers = {
     return { data: { insight: 'Family insights feature coming soon! This will provide AI-powered observations about your family universe.' } };
   },
 
+  async transferAdmin(req) {
+    await requireAdminRole(req);
+    const { targetEmail } = req.body || {};
+    if (!targetEmail) throw new Error('targetEmail is required');
+
+    const { rows: targetUsers } = await pool.query(`SELECT id, email FROM users WHERE email = $1`, [targetEmail]);
+    if (!targetUsers.length) throw new Error('Target user not found');
+
+    const currentUserId = req.session.userId;
+    const { rows: currentUsers } = await pool.query(`SELECT email FROM users WHERE id = $1`, [currentUserId]);
+    const currentEmail = currentUsers[0]?.email;
+
+    await pool.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [targetUsers[0].id]);
+    await pool.query(`UPDATE users SET role = 'member' WHERE id = $1`, [currentUserId]);
+
+    await pool.query(`
+      UPDATE family_settings
+      SET admin_emails = array_append(
+        COALESCE(admin_emails, ARRAY[]::TEXT[]),
+        $1
+      )
+      WHERE NOT ($1 = ANY(COALESCE(admin_emails, ARRAY[]::TEXT[])))
+    `, [targetEmail]);
+
+    if (currentEmail) {
+      await pool.query(`
+        UPDATE family_settings
+        SET admin_emails = array_remove(COALESCE(admin_emails, ARRAY[]::TEXT[]), $1)
+      `, [currentEmail]);
+    }
+
+    return { data: { success: true, newAdmin: targetEmail } };
+  },
+
   async seedFamilyData(req) {
     await requireAdminRole(req);
     if (req.body?.confirm !== 'SEED') {

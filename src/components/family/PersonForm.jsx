@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,11 +27,11 @@ import { useToast } from "@/components/ui/use-toast";
 
 export default function PersonForm({ person, households, people, onSuccess, onCancel }) {
   const { toast } = useToast();
+  const inputRef = useRef(null);
   const [formData, setFormData] = useState({
     name: person?.name || "",
     nickname: person?.nickname || "",
     birth_date: person?.birth_date || "",
-    birth_year: person?.birth_year || "",
     role_type: person?.role_type || "adult",
     is_deceased: person?.is_deceased || false,
     death_date: person?.death_date || "",
@@ -92,7 +92,6 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
     try {
       const dataToSave = {
         ...formData,
-        birth_year: formData.birth_year ? Number(formData.birth_year) : null,
         birth_date: formData.birth_date || null,
         death_date: formData.death_date || null,
       };
@@ -285,13 +284,24 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
           )}
         </div>
         <div>
-          <label className="cursor-pointer">
-            <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-            <Button type="button" variant="ghost" size="sm" className="bg-slate-700 border border-amber-500/50 text-slate-100 hover:bg-amber-500/20 hover:border-amber-500" disabled={uploading}>
-              <Upload className="w-4 h-4 mr-2" />
-              {uploading ? "Uploading..." : "Upload Photo"}
-            </Button>
-          </label>
+          <input 
+            ref={inputRef}
+            type="file" 
+            accept="image/*" 
+            onChange={handlePhotoUpload} 
+            className="hidden" 
+          />
+          <Button 
+            type="button" 
+            onClick={() => inputRef.current?.click()}
+            variant="ghost" 
+            size="sm" 
+            className="bg-slate-700 border border-amber-500/50 text-slate-100 hover:bg-amber-500/20 hover:border-amber-500" 
+            disabled={uploading}
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            {uploading ? "Uploading..." : "Upload Photo"}
+          </Button>
         </div>
       </div>
 
@@ -359,16 +369,6 @@ export default function PersonForm({ person, households, people, onSuccess, onCa
             value={formData.birth_date}
             onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })}
             className="bg-slate-800 border-slate-700 text-slate-100"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-slate-300">Or Birth Year</Label>
-          <Input
-            type="number"
-            value={formData.birth_year}
-            onChange={(e) => setFormData({ ...formData, birth_year: e.target.value })}
-            className="bg-slate-800 border-slate-700 text-slate-100"
-            placeholder="e.g., 1985"
           />
         </div>
       </div>

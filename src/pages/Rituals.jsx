@@ -276,7 +276,7 @@ export default function Rituals() {
         <DialogContent className="bg-slate-900 border-slate-700 max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-slate-100">
-              {editingRitual ? 'Edit Ritual' : 'Add New Ritual'}
+              {editingRitual ? 'Edit Tradition' : 'Add New Tradition'}
             </DialogTitle>
           </DialogHeader>
           <RitualForm 
@@ -349,7 +349,7 @@ function RitualForm({ ritual, people, households, onSuccess, onCancel }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-2">
-        <Label className="text-slate-300">Ritual Name *</Label>
+        <Label className="text-slate-300">Tradition Name *</Label>
         <Input
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -522,7 +522,7 @@ function RitualForm({ ritual, people, households, onSuccess, onCancel }) {
           Cancel
         </Button>
         <Button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-900" disabled={loading}>
-          {loading ? "Saving..." : (ritual ? "Update Ritual" : "Create Ritual")}
+          {loading ? "Saving..." : (ritual ? "Update Tradition" : "Create Tradition")}
         </Button>
       </div>
     </form>

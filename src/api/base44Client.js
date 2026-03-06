@@ -176,7 +176,12 @@ class FunctionsProxy {
     });
     
     if (!response.ok) {
-      throw new Error(`Function ${functionName} failed`);
+      let errorMsg = `Function ${functionName} failed`;
+      try {
+        const errBody = await response.json();
+        if (errBody.error) errorMsg = errBody.error;
+      } catch {}
+      throw new Error(errorMsg);
     }
     return response.json();
   }

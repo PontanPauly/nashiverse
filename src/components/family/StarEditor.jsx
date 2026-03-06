@@ -4,7 +4,7 @@ import { OrbitControls } from "@react-three/drei";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Sparkles, Shuffle, Check } from "lucide-react";
+import { Star as StarIcon, Shuffle, Check } from "lucide-react";
 import Star from "@/components/constellation/Star";
 import {
   COLOR_PALETTES,
@@ -128,7 +128,7 @@ export default function StarEditor({ value, onChange }) {
     <div className="space-y-6">
       <div className="text-center">
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-500/10 to-violet-500/10 border border-amber-500/30 mb-3">
-          <Sparkles className="w-4 h-4 text-amber-400" />
+          <StarIcon className="w-4 h-4 text-amber-400" />
           <span className="text-sm font-medium bg-gradient-to-r from-amber-300 to-violet-300 bg-clip-text text-transparent">
             Design Your Star
           </span>

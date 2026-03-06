@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export default function ActivityManager({ tripId, trip, activities, people }) {
   const [showActivityForm, setShowActivityForm] = useState(false);
@@ -220,24 +221,29 @@ function ActivityForm({ activity, tripId, tripDays, people, onSuccess, onCancel 
     e.preventDefault();
     setLoading(true);
 
-    const dataToSave = {
-      trip_id: formData.trip_id,
-      name: formData.name,
-      date: formData.date,
-      time: formData.time || null,
-      location: formData.location || null,
-      description: formData.description || null,
-      organizer_ids: formData.organizer_id ? [formData.organizer_id] : null,
-    };
+    try {
+      const dataToSave = {
+        trip_id: formData.trip_id,
+        name: formData.name,
+        date: formData.date,
+        time: formData.time || null,
+        location: formData.location || null,
+        description: formData.description || null,
+        organizer_ids: formData.organizer_id ? [formData.organizer_id] : null,
+      };
 
-    if (activity?.id) {
-      await base44.entities.Activity.update(activity.id, dataToSave);
-    } else {
-      await base44.entities.Activity.create(dataToSave);
+      if (activity?.id) {
+        await base44.entities.Activity.update(activity.id, dataToSave);
+      } else {
+        await base44.entities.Activity.create(dataToSave);
+      }
+
+      setLoading(false);
+      onSuccess();
+    } catch (error) {
+      setLoading(false);
+      toast.error(error?.message || "Failed to save activity");
     }
-
-    setLoading(false);
-    onSuccess();
   };
 
   const adultPeople = people.filter(p => p.role_type === 'adult');

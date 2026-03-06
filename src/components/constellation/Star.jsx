@@ -683,7 +683,7 @@ const SHAPE_TO_STYLE = {
   cluster: 'nebula',
 };
 
-function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOpacity = 1, frozen = false }) {
+function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOpacity = 1, frozen = false, timeScale = 1 }) {
   const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
   const frozenTime = useMemo(() => uniqueOffset * 50, [uniqueOffset]);
@@ -718,7 +718,7 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOp
   
   useFrame((state, delta) => {
     if (!frozen) {
-      timeRef.current += delta;
+      timeRef.current += delta * timeScale;
       material.uniforms.time.value = timeRef.current;
     }
     material.uniforms.globalOpacity.value = globalOpacity;
@@ -738,7 +738,7 @@ function StarSprite({ colors, scale, brightness, uniqueOffset, shapeId, globalOp
   );
 }
 
-function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, frozen = false }) {
+function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, frozen = false, timeScale = 1 }) {
   const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
   const frozenTime = useMemo(() => uniqueOffset * 50, [uniqueOffset]);
@@ -813,7 +813,7 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, 
   
   useFrame((state, delta) => {
     if (!frozen) {
-      timeRef.current += delta;
+      timeRef.current += delta * timeScale;
       material.uniforms.time.value = timeRef.current;
     }
     material.uniforms.globalOpacity.value = globalOpacity;
@@ -834,7 +834,7 @@ function OuterGlow({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, 
 }
 
 // Atmospheric Haze - very wide, soft glow that bleeds into surrounding space
-function AtmosphericHaze({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, frozen = false }) {
+function AtmosphericHaze({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, frozen = false, timeScale = 1 }) {
   const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
   const frozenTime = useMemo(() => uniqueOffset * 50, [uniqueOffset]);
@@ -902,7 +902,7 @@ function AtmosphericHaze({ colors, scale, intensity, uniqueOffset, globalOpacity
   
   useFrame((state, delta) => {
     if (!frozen) {
-      timeRef.current += delta;
+      timeRef.current += delta * timeScale;
       material.uniforms.time.value = timeRef.current;
     }
     material.uniforms.globalOpacity.value = globalOpacity;
@@ -924,7 +924,7 @@ function AtmosphericHaze({ colors, scale, intensity, uniqueOffset, globalOpacity
 }
 
 // Diffraction Spikes - subtle light rays extending from bright stars
-function DiffractionSpikes({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, frozen = false }) {
+function DiffractionSpikes({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, frozen = false, timeScale = 1 }) {
   const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
   const frozenTime = useMemo(() => uniqueOffset * 50, [uniqueOffset]);
@@ -997,7 +997,7 @@ function DiffractionSpikes({ colors, scale, intensity, uniqueOffset, globalOpaci
   
   useFrame((state, delta) => {
     if (!frozen) {
-      timeRef.current += delta;
+      timeRef.current += delta * timeScale;
       material.uniforms.time.value = timeRef.current;
     }
     material.uniforms.globalOpacity.value = globalOpacity;
@@ -1018,7 +1018,7 @@ function DiffractionSpikes({ colors, scale, intensity, uniqueOffset, globalOpaci
 }
 
 // Dust Cloud - floating particles around the star
-function DustCloud({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, frozen = false }) {
+function DustCloud({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, frozen = false, timeScale = 1 }) {
   const meshRef = useRef(null);
   const timeRef = useRef(uniqueOffset * 100);
   const frozenTime = useMemo(() => uniqueOffset * 50, [uniqueOffset]);
@@ -1091,7 +1091,7 @@ function DustCloud({ colors, scale, intensity, uniqueOffset, globalOpacity = 1, 
   
   useFrame((state, delta) => {
     if (!frozen) {
-      timeRef.current += delta;
+      timeRef.current += delta * timeScale;
       material.uniforms.time.value = timeRef.current;
     }
     material.uniforms.globalOpacity.value = globalOpacity;
@@ -1146,6 +1146,14 @@ function StarLabel({ name, isVisible }) {
   );
 }
 
+const ANIMATION_TIME_SCALE = {
+  'steady': 0.0,
+  'gentle-pulse': 0.3,
+  'twinkle': 1.0,
+  'breathing': 0.3,
+  'dancing': 2.5,
+};
+
 export default function Star({ 
   position = [0, 0, 0],
   starProfile = DEFAULT_STAR_PROFILE,
@@ -1177,6 +1185,11 @@ export default function Star({
   }, [personId]);
   
   const shapeId = starProfile?.shape || visuals.shape?.id || 'classic';
+  
+  const timeScale = useMemo(() => {
+    const anim = starProfile?.animation || 'gentle-pulse';
+    return ANIMATION_TIME_SCALE[anim] ?? 1.0;
+  }, [starProfile?.animation]);
   
   const activeScale = useMemo(() => {
     let base = visuals.scale;
@@ -1285,6 +1298,7 @@ export default function Star({
             intensity={activeIntensity * 0.5}
             uniqueOffset={uniqueOffset}
             globalOpacity={globalOpacity}
+            timeScale={timeScale}
           />
           
           <DiffractionSpikes
@@ -1293,6 +1307,7 @@ export default function Star({
             intensity={activeIntensity * 0.4}
             uniqueOffset={uniqueOffset}
             globalOpacity={globalOpacity}
+            timeScale={timeScale}
           />
         </>
       )}
@@ -1303,6 +1318,7 @@ export default function Star({
         intensity={activeIntensity * 0.65}
         uniqueOffset={uniqueOffset}
         globalOpacity={globalOpacity}
+        timeScale={timeScale}
       />
       
       <StarSprite
@@ -1312,6 +1328,7 @@ export default function Star({
         uniqueOffset={uniqueOffset}
         shapeId={shapeId}
         globalOpacity={globalOpacity}
+        timeScale={timeScale}
       />
       
       {/* Larger invisible hitbox for easier hover detection */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Component } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
@@ -37,6 +37,42 @@ import PersonForm from "@/components/family/PersonForm";
 import HouseholdForm from "@/components/family/HouseholdForm";
 import LineageView from "@/components/family/LineageView";
 import GalaxyView from "@/components/constellation/GalaxyView";
+
+class WebGLErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error, info) {
+    console.error('WebGL Error:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center p-8">
+          <AlertCircle className="w-12 h-12 text-amber-400 mb-4" />
+          <h2 className="text-xl font-semibold text-slate-200 mb-2">3D View Unavailable</h2>
+          <p className="text-slate-400 mb-6 max-w-md">
+            The 3D galaxy view could not load on this device. Try switching to list view.
+          </p>
+          <Button
+            onClick={() => {
+              this.setState({ hasError: false });
+              this.props.onSwitchView?.();
+            }}
+            className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
+          >
+            Switch to List View
+          </Button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function Family() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -149,12 +185,14 @@ export default function Family() {
       {/* Galaxy View - 3D WebGL Universe */}
       {viewMode === 'galaxy' ? (
         <div className="fixed inset-0 lg:left-64 z-0">
-          <GalaxyView 
-            people={people}
-            households={households}
-            relationships={relationships}
-            onPersonClick={(person) => setEditingPerson(person)}
-          />
+          <WebGLErrorBoundary onSwitchView={() => setViewMode('list')}>
+            <GalaxyView 
+              people={people}
+              households={households}
+              relationships={relationships}
+              onPersonClick={(person) => setEditingPerson(person)}
+            />
+          </WebGLErrorBoundary>
           {/* Floating Controls */}
           <div className="fixed top-4 left-4 lg:left-68 right-4 z-50 flex items-center justify-between gap-4 pointer-events-none">
             <div className="glass-card rounded-xl px-4 py-3 border border-slate-700/50 pointer-events-auto">

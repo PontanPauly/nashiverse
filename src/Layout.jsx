@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "./utils";
 import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/lib/AuthContext";
 import { 
   Home, 
   Users, 
@@ -28,6 +29,7 @@ export default function Layout({ children, currentPageName }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
+  const { logout } = useAuth();
 
   useEffect(() => {
     loadUser();
@@ -285,7 +287,7 @@ export default function Layout({ children, currentPageName }) {
                   variant="ghost" 
                   size="sm"
                   className="text-slate-100 hover:text-red-400 hover:bg-slate-700"
-                  onClick={() => base44.auth.logout()}
+                  onClick={() => logout()}
                 >
                   <LogOut className="w-4 h-4" />
                 </Button>

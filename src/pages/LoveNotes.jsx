@@ -8,7 +8,8 @@ import {
   Send,
   User,
   MapPin,
-  Trash2
+  Trash2,
+  Pencil
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 export default function LoveNotes() {
   const [showNoteForm, setShowNoteForm] = useState(false);
+  const [editingNote, setEditingNote] = useState(null);
   const [myPersonId, setMyPersonId] = useState(null);
   
   const queryClient = useQueryClient();
@@ -184,14 +186,24 @@ export default function LoveNotes() {
                       <span>{format(new Date(note.created_date), 'MMM d')}</span>
                     </div>
                   </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    className="opacity-0 group-hover:opacity-100 text-slate-200 hover:text-red-400 hover:bg-red-500/20"
-                    onClick={() => deleteLoveNote.mutate(note.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100">
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      className="text-slate-200 hover:text-amber-400 hover:bg-amber-500/20"
+                      onClick={() => { setEditingNote(note); setShowNoteForm(true); }}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      className="text-slate-200 hover:text-red-400 hover:bg-red-500/20"
+                      onClick={() => deleteLoveNote.mutate(note.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -244,23 +256,26 @@ export default function LoveNotes() {
       )}
 
       {/* Note Form Dialog */}
-      <Dialog open={showNoteForm} onOpenChange={setShowNoteForm}>
+      <Dialog open={showNoteForm} onOpenChange={(open) => { if (!open) { setShowNoteForm(false); setEditingNote(null); } }}>
         <DialogContent className="bg-slate-900 border-slate-700">
           <DialogHeader>
             <DialogTitle className="text-slate-100 flex items-center gap-2">
               <Heart className="w-5 h-5 text-rose-400" />
-              Send a Love Note
+              {editingNote ? "Edit Love Note" : "Send a Love Note"}
             </DialogTitle>
           </DialogHeader>
           <LoveNoteForm 
+            key={editingNote?.id || 'new'}
             people={people}
             trips={trips}
             myPersonId={myPersonId}
+            note={editingNote}
             onSuccess={() => {
               setShowNoteForm(false);
+              setEditingNote(null);
               queryClient.invalidateQueries(['love-notes']);
             }}
-            onCancel={() => setShowNoteForm(false)}
+            onCancel={() => { setShowNoteForm(false); setEditingNote(null); }}
           />
         </DialogContent>
       </Dialog>
@@ -268,12 +283,12 @@ export default function LoveNotes() {
   );
 }
 
-function LoveNoteForm({ people, trips, myPersonId, onSuccess, onCancel }) {
+function LoveNoteForm({ people, trips, myPersonId, note, onSuccess, onCancel }) {
   const [formData, setFormData] = useState({
-    content: "",
-    from_person_id: myPersonId || "",
-    to_person_id: "",
-    trip_id: "",
+    content: note?.content || "",
+    from_person_id: note?.from_person_id || myPersonId || "",
+    to_person_id: note?.to_person_id || "",
+    trip_id: note?.trip_id || "",
   });
   const [loading, setLoading] = useState(false);
 
@@ -287,14 +302,23 @@ function LoveNoteForm({ people, trips, myPersonId, onSuccess, onCancel }) {
     e.preventDefault();
     setLoading(true);
 
-    const dataToSave = {
-      ...formData,
-      trip_id: formData.trip_id || null,
-    };
+    try {
+      const dataToSave = {
+        ...formData,
+        trip_id: formData.trip_id || null,
+      };
 
-    await base44.entities.LoveNote.create(dataToSave);
-    setLoading(false);
-    onSuccess();
+      if (note?.id) {
+        await base44.entities.LoveNote.update(note.id, dataToSave);
+      } else {
+        await base44.entities.LoveNote.create(dataToSave);
+      }
+      onSuccess();
+    } catch (error) {
+      alert(error.message || "Failed to save note");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -375,7 +399,7 @@ function LoveNoteForm({ people, trips, myPersonId, onSuccess, onCancel }) {
           disabled={loading || !formData.content || !formData.from_person_id || !formData.to_person_id}
         >
           <Send className="w-4 h-4 mr-2" />
-          {loading ? "Sending..." : "Send Note"}
+          {loading ? "Saving..." : (note ? "Save Changes" : "Send Note")}
         </Button>
       </div>
     </form>

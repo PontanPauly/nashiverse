@@ -10,8 +10,22 @@ import {
   Check,
   X,
   Copy,
-  RefreshCw
+  RefreshCw,
+  ArrowRightLeft
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,6 +123,33 @@ export default function Settings() {
     } catch (error) {
       toast.error("Failed to cleanup data");
     }
+  };
+
+  const [transferTarget, setTransferTarget] = useState("");
+  const [showTransferConfirm, setShowTransferConfirm] = useState(false);
+  const [transferring, setTransferring] = useState(false);
+
+  const handleTransferAdmin = async () => {
+    if (!transferTarget) return;
+    setTransferring(true);
+    try {
+      const targetPerson = people.find(p => p.id === transferTarget);
+      const targetEmail = targetPerson?.linked_user_email;
+      if (!targetEmail) {
+        toast.error("Selected person does not have a linked user account");
+        setTransferring(false);
+        return;
+      }
+      await base44.functions.invoke('transferAdmin', { targetEmail });
+      toast.success("Admin role transferred successfully");
+      setShowTransferConfirm(false);
+      setTransferTarget("");
+      await loadUser();
+      queryClient.invalidateQueries(['family-settings']);
+    } catch (error) {
+      toast.error(error.message || "Failed to transfer admin role");
+    }
+    setTransferring(false);
   };
 
   if (!user) {
@@ -231,6 +272,66 @@ export default function Settings() {
               <p className="text-slate-500 text-center py-8">No pending requests</p>
             )}
           </div>
+
+          {/* Transfer Admin */}
+          {isAdmin && (
+            <div className="glass-card rounded-xl p-6">
+              <h3 className="font-medium text-slate-200 mb-4 flex items-center gap-2">
+                <ArrowRightLeft className="w-5 h-5 text-amber-400" />
+                Transfer Admin Role
+              </h3>
+              <p className="text-sm text-slate-400 mb-4">
+                Transfer your admin privileges to another family member. You will lose admin access.
+              </p>
+              <div className="flex gap-2">
+                <Select value={transferTarget} onValueChange={setTransferTarget}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-100 flex-1">
+                    <SelectValue placeholder="Select a family member" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700">
+                    {people
+                      .filter(p => p.linked_user_email && p.linked_user_email !== user?.email)
+                      .map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name} ({p.linked_user_email})</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={() => setShowTransferConfirm(true)}
+                  disabled={!transferTarget}
+                  className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold"
+                >
+                  Transfer
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Transfer Confirm Dialog */}
+          <Dialog open={showTransferConfirm} onOpenChange={setShowTransferConfirm}>
+            <DialogContent className="bg-slate-900 border-slate-700">
+              <DialogHeader>
+                <DialogTitle className="text-slate-100">Confirm Admin Transfer</DialogTitle>
+              </DialogHeader>
+              <p className="text-slate-300">
+                Are you sure you want to transfer admin privileges to{' '}
+                <strong>{people.find(p => p.id === transferTarget)?.name}</strong>?
+                You will lose admin access.
+              </p>
+              <div className="flex justify-end gap-3 pt-4">
+                <Button variant="ghost" onClick={() => setShowTransferConfirm(false)} className="text-slate-200 hover:text-white hover:bg-slate-700">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleTransferAdmin}
+                  disabled={transferring}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {transferring ? "Transferring..." : "Yes, Transfer Admin"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Cleanup Data */}
           <div className="glass-card rounded-xl p-6 border-red-900/30">
