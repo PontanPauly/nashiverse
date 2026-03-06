@@ -1880,32 +1880,6 @@ function AnimatedHouseholdGroup({
 
   return (
     <group ref={groupRef}>
-      {isHovered && !focusedHouseholdId && (
-        <Html
-          position={[0, 3.5, 0]}
-          center
-          style={{ pointerEvents: 'none' }}
-          zIndexRange={[100, 0]}
-        >
-          <div style={{
-            background: 'rgba(0, 0, 0, 0.7)',
-            backdropFilter: 'blur(8px)',
-            border: `1px solid ${householdColor.primary}44`,
-            borderRadius: '6px',
-            padding: '4px 10px',
-            whiteSpace: 'nowrap',
-            color: householdColor.glow,
-            fontSize: '12px',
-            fontWeight: 500,
-            fontFamily: 'system-ui, sans-serif',
-            letterSpacing: '0.03em',
-            textShadow: `0 0 8px ${householdColor.primary}88`,
-            boxShadow: `0 0 12px ${householdColor.primary}22`,
-          }}>
-            {household.name}
-          </div>
-        </Html>
-      )}
       {!isOtherFocused && (
         <sprite position={[0, 0, 0]} scale={[8, 8, 1]}>
           <spriteMaterial
@@ -2352,7 +2326,7 @@ const connectionLineShader = {
       float baseBrightness = mix(0.15, 0.7, vHighlight);
       float brightness = baseBrightness + pulseGlow * mix(0.2, 1.0, vHighlight);
       brightness *= (0.5 + coreBright * 0.5);
-      float alpha = mix(0.06, 0.9, vHighlight) * edgeFalloff;
+      float alpha = mix(0.03, 0.9, vHighlight) * edgeFalloff;
       if (alpha < 0.01) discard;
       vec3 col = vColor * brightness;
       col += vColor * coreBright * 0.3;
@@ -2444,7 +2418,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
     return { edgeData: data, hoverMask: mask };
   }, [edges, householdPositions, starsByHousehold]);
 
-  const validEdgeCount = useMemo(() => edgeData.filter(e => e !== null && !e.isIntraHousehold).length, [edgeData]);
+  const validEdgeCount = useMemo(() => edgeData.filter(e => e !== null).length, [edgeData]);
   const totalVerts = validEdgeCount * 4;
   const totalIndices = validEdgeCount * 6;
 
@@ -2455,7 +2429,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
     const t = new Float32Array(totalVerts);
     const col = new Float32Array(totalVerts * 3);
     const hl = new Float32Array(totalVerts);
-    hl.fill(0.15);
+    hl.fill(0.10);
     const dp = new Float32Array(totalVerts * 3);
     const idx = new Uint32Array(totalIndices);
 
@@ -2499,7 +2473,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
 
     for (let i = 0; i < edgeData.length; i++) {
       const edge = edgeData[i];
-      if (!edge || edge.isIntraHousehold) continue;
+      if (!edge) continue;
 
       let fromX = edge.fromBase.x, fromY = edge.fromBase.y, fromZ = edge.fromBase.z;
       let toX = edge.toBase.x, toY = edge.toBase.y, toZ = edge.toBase.z;
@@ -2547,7 +2521,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
       }
 
       const isHighlighted = hoveredHouseholdId && (String(hoverMask[i]?.from) === String(hoveredHouseholdId) || String(hoverMask[i]?.to) === String(hoveredHouseholdId));
-      const hlVal = isHighlighted ? 1.0 : 0.15;
+      const hlVal = isHighlighted ? 1.0 : 0.10;
 
       const edgeColors = HOUSEHOLD_COLORS[edge.fromColorIndex % HOUSEHOLD_COLORS.length];
       const lineColor = new THREE.Color(edgeColors.glow);
