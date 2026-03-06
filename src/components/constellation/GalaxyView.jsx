@@ -2505,7 +2505,7 @@ function ConstellationLines({ stars, relationships, colorIndex, opacity = 0.6 })
       centerZ = parentStars.reduce((sum, s) => sum + s.position[2], 0) / parentStars.length;
     }
 
-    const ringRadius = 1.2;
+    const ringRadius = 1.6;
     const parentStarIds = new Set(parentStars.map(s => s.id));
 
     const bioParentsOf = {};
@@ -2688,6 +2688,8 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         fromColorIndex,
         isIntraHousehold: edge.isIntraHousehold || false,
         fromRing: edge.fromRing || false,
+        childPersonId: edge.childPersonId,
+        fromPersonId: edge.fromPersonId,
       });
 
       mask.push({ from: edge.from, to: edge.to });
@@ -2695,6 +2697,18 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
 
     return { edgeData: data, hoverMask: mask };
   }, [edges, householdPositions, starsByHousehold]);
+
+  const starLookup = useMemo(() => {
+    const lookup = new Map();
+    if (starsByHousehold) {
+      for (const [hhId, stars] of starsByHousehold.entries()) {
+        for (const star of stars) {
+          lookup.set(String(hhId) + ':' + String(star.id), star);
+        }
+      }
+    }
+    return lookup;
+  }, [starsByHousehold]);
 
   const validEdgeCount = useMemo(() => edgeData.filter(e => e !== null).length, [edgeData]);
   const totalVerts = validEdgeCount * 4;
@@ -2819,6 +2833,18 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         }
       }
 
+      if (!edge.fromRing && edge.fromPersonId) {
+        const parentStar = starLookup.get(String(edge.fromHouseholdId) + ':' + String(edge.fromPersonId));
+        if (parentStar && parentStar.position) {
+          const fPos = householdPositions.get(edge.fromHouseholdId) || householdPositions.get(String(edge.fromHouseholdId)) || householdPositions.get(Number(edge.fromHouseholdId));
+          if (fPos) {
+            fromX += (parentStar.position[0] - fPos.x);
+            fromY += (parentStar.position[1] - fPos.y);
+            fromZ += (parentStar.position[2] - fPos.z);
+          }
+        }
+      }
+
       const dx = toX - fromX;
       const dy = toY - fromY;
       const dz = toZ - fromZ;
@@ -2830,6 +2856,18 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         fromX += nx * GALAXY_RING_RADIUS;
         fromY += ny * GALAXY_RING_RADIUS;
         fromZ += nz * GALAXY_RING_RADIUS;
+      }
+
+      if (edge.childPersonId) {
+        const childStar = starLookup.get(String(edge.toHouseholdId) + ':' + String(edge.childPersonId));
+        if (childStar && childStar.position) {
+          const toPos = householdPositions.get(edge.toHouseholdId) || householdPositions.get(String(edge.toHouseholdId)) || householdPositions.get(Number(edge.toHouseholdId));
+          if (toPos) {
+            toX += (childStar.position[0] - toPos.x);
+            toY += (childStar.position[1] - toPos.y);
+            toZ += (childStar.position[2] - toPos.z);
+          }
+        }
       }
 
       const isHighlighted = hoveredHouseholdId && (String(hoverMask[i]?.from) === String(hoveredHouseholdId) || String(hoverMask[i]?.to) === String(hoveredHouseholdId));
