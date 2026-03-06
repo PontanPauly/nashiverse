@@ -2645,7 +2645,7 @@ const connectionLineShader = {
 
 const _lineColor = new THREE.Color();
 
-const _LINE_VERSION = 4;
+const _LINE_VERSION = 5;
 function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold, householdGroupRefs, coupleHouseholds }) {
   const meshRef = useRef();
   const timeUniform = useRef({ value: 0 });
@@ -2839,8 +2839,8 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         const nx = dx / len;
         const ny = dy / len;
         const nz = dz / len;
-        const fromR = edge.fromNebulaRadius || 4.0;
-        const toR = edge.toNebulaRadius || 4.0;
+        const fromR = (edge.fromNebulaRadius || 4.0) + 1.0;
+        const toR = (edge.toNebulaRadius || 4.0) + 1.0;
         fromX += nx * fromR;
         fromY += ny * fromR;
         fromZ += nz * fromR;
