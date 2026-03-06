@@ -324,7 +324,7 @@ function useOrganicClusterLayout(households, people, viewMode = 'nebula', relati
     
     const minSeparation = 28.0;
     const GOLDEN_ANGLE = 2.399963229728653;
-    const BRANCH_DISTANCE = 45;
+    const BRANCH_DISTANCE = 32;
     
     const positions = new Map();
     const placedPositions = [];
@@ -359,7 +359,7 @@ function useOrganicClusterLayout(households, people, viewMode = 'nebula', relati
         if (gen === 0) {
           const phi = Math.acos(1 - 2 * (idx + 0.5) / Math.max(n, 3));
           const theta = GOLDEN_ANGLE * idx + seededRandom(seed + '-angle') * 0.6;
-          const radius = 8 + seededRandom(seed + '-r0') * 10;
+          const radius = 6 + seededRandom(seed + '-r0') * 8;
           x = radius * Math.sin(phi) * Math.cos(theta);
           y = radius * Math.cos(phi);
           z = radius * Math.sin(phi) * Math.sin(theta);
@@ -368,7 +368,7 @@ function useOrganicClusterLayout(households, people, viewMode = 'nebula', relati
           
           if (parentPos) {
             const dist = Math.sqrt(parentPos.x * parentPos.x + parentPos.y * parentPos.y + parentPos.z * parentPos.z);
-            const baseDist = BRANCH_DISTANCE + seededRandom(seed + '-bd') * 15;
+            const baseDist = BRANCH_DISTANCE + seededRandom(seed + '-bd') * 10;
             
             const randPhi = Math.acos(1 - 2 * seededRandom(seed + '-phi'));
             const randTheta = seededRandom(seed + '-theta') * Math.PI * 2;
@@ -754,7 +754,7 @@ function NebulaFilaments({ count = 800, qualityTier }) {
           vColor = particleColor;
           
           float drift = sin(time * 0.15 + phase) * 0.2 + 0.8;
-          vAlpha = 0.12 * drift;
+          vAlpha = 0.04 * drift;
           
           vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * (150.0 / -mvPos.z);
@@ -875,12 +875,12 @@ function NebulaBackground({ qualityTier }) {
           float n3 = fbm(dir * 0.8 + time * 0.001);
           
           vec3 deepSpace = vec3(0.02, 0.02, 0.05);
-          vec3 warmGold = vec3(0.2, 0.16, 0.04);
-          vec3 emeraldGreen = vec3(0.04, 0.18, 0.08);
-          vec3 deepPurple = vec3(0.12, 0.04, 0.22);
-          vec3 coolBlue = vec3(0.04, 0.08, 0.2);
-          vec3 amber = vec3(0.18, 0.1, 0.03);
-          vec3 rosePink = vec3(0.15, 0.04, 0.1);
+          vec3 warmGold = vec3(0.08, 0.06, 0.02);
+          vec3 emeraldGreen = vec3(0.02, 0.07, 0.03);
+          vec3 deepPurple = vec3(0.06, 0.02, 0.12);
+          vec3 coolBlue = vec3(0.02, 0.04, 0.1);
+          vec3 amber = vec3(0.07, 0.04, 0.01);
+          vec3 rosePink = vec3(0.06, 0.02, 0.04);
           
           vec3 baseColor = deepSpace;
           
@@ -889,17 +889,17 @@ function NebulaBackground({ qualityTier }) {
           float zone3 = smoothstep(0.38, 0.68, n1);
           float zone4 = smoothstep(0.4, 0.7, n1 * n2);
           
-          baseColor = mix(baseColor, warmGold, zone1 * 0.5);
-          baseColor = mix(baseColor, emeraldGreen, zone2 * 0.4);
-          baseColor = mix(baseColor, deepPurple, zone3 * 0.45);
-          baseColor = mix(baseColor, coolBlue, zone4 * 0.35);
-          baseColor = mix(baseColor, amber, smoothstep(0.25, 0.55, n2 * n3) * 0.35);
-          baseColor = mix(baseColor, rosePink, smoothstep(0.35, 0.65, n3 * n1) * 0.28);
+          baseColor = mix(baseColor, warmGold, zone1 * 0.3);
+          baseColor = mix(baseColor, emeraldGreen, zone2 * 0.2);
+          baseColor = mix(baseColor, deepPurple, zone3 * 0.25);
+          baseColor = mix(baseColor, coolBlue, zone4 * 0.2);
+          baseColor = mix(baseColor, amber, smoothstep(0.25, 0.55, n2 * n3) * 0.2);
+          baseColor = mix(baseColor, rosePink, smoothstep(0.35, 0.65, n3 * n1) * 0.15);
           
           float yFactor = (dir.y + 1.0) * 0.5;
-          baseColor = mix(baseColor, deepPurple * 0.8, yFactor * 0.2);
+          baseColor = mix(baseColor, deepPurple * 0.5, yFactor * 0.15);
           
-          baseColor *= 1.3;
+          baseColor *= 0.7;
           
           gl_FragColor = vec4(baseColor, 1.0);
         }
@@ -1084,7 +1084,7 @@ function NebulaGasCloud({ count = 8000 }) {
           vColor = gasColor;
           
           float drift = sin(time * 0.08 + phase) * 0.3;
-          vAlpha = 0.08 + drift * 0.03;
+          vAlpha = 0.03 + drift * 0.01;
           
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * (200.0 / -mvPosition.z);
@@ -1275,7 +1275,7 @@ function CameraController({
     }
     
     if (level === 'galaxy') {
-      targetCamPos.current.set(45, 35, 90);
+      targetCamPos.current.set(65, 50, 130);
       targetLookAt.current.set(0, 0, 0);
       animationPhase.current = 'zoom-out';
     } else if (level === 'system' && targetPosition) {
@@ -1940,6 +1940,12 @@ function AnimatedHouseholdGroup({
           />
         </sprite>
       )}
+      {!isOtherFocused && !focusedHouseholdId && (
+        <SystemNebulaCloud
+          color={householdColor.primary}
+          opacity={isHovered ? 0.2 : 0.1}
+        />
+      )}
       <StarMapCluster
         position={[0, 0, 0]}
         household={household}
@@ -1952,6 +1958,22 @@ function AnimatedHouseholdGroup({
         onPointerOut={onPointerOut}
         showLabels={showLabels}
       />
+      {showLabels && !focusedHouseholdId && (
+        <Html position={[0, -2.5, 0]} center style={{ pointerEvents: 'none' }}>
+          <div style={{
+            color: householdColor.primary,
+            fontSize: '9px',
+            fontFamily: 'monospace',
+            textTransform: 'uppercase',
+            letterSpacing: '0.12em',
+            whiteSpace: 'nowrap',
+            opacity: isHovered ? 1 : 0.6,
+            textShadow: `0 0 6px ${householdColor.primary}44`,
+          }}>
+            {household?.name || ''}
+          </div>
+        </Html>
+      )}
       {isFocused && (
         <ConstellationLines
           stars={localStars}
@@ -1981,6 +2003,89 @@ function AnimatedHouseholdGroup({
         />
       )}
     </group>
+  );
+}
+
+function SystemNebulaCloud({ color, opacity = 0.15 }) {
+  const pointsRef = useRef();
+  const particleCount = 40;
+
+  const { positions, sizes, phases } = useMemo(() => {
+    const pos = new Float32Array(particleCount * 3);
+    const siz = new Float32Array(particleCount);
+    const pha = new Float32Array(particleCount);
+
+    for (let i = 0; i < particleCount; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const r = 0.5 + Math.pow(Math.random(), 0.6) * 3.5;
+      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.5;
+      pos[i * 3 + 2] = r * Math.cos(phi);
+      siz[i] = 1.5 + Math.random() * 3.0;
+      pha[i] = Math.random() * Math.PI * 2;
+    }
+
+    return { positions: pos, sizes: siz, phases: pha };
+  }, []);
+
+  const cloudColor = useMemo(() => new THREE.Color(color), [color]);
+
+  const material = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        attribute float size;
+        attribute float phase;
+        uniform float time;
+        varying float vAlpha;
+
+        void main() {
+          float drift = sin(time * 0.2 + phase) * 0.3 + 0.7;
+          vAlpha = drift;
+          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = size * (100.0 / -mvPos.z);
+          gl_PointSize = clamp(gl_PointSize, 1.0, 20.0);
+          gl_Position = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 cloudColor;
+        uniform float baseOpacity;
+        varying float vAlpha;
+
+        void main() {
+          vec2 center = gl_PointCoord - 0.5;
+          float dist = length(center);
+          float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
+          alpha = pow(alpha, 2.0);
+          alpha *= vAlpha * baseOpacity;
+          if (alpha < 0.003) discard;
+          gl_FragColor = vec4(cloudColor, alpha);
+        }
+      `,
+      uniforms: {
+        time: { value: 0 },
+        cloudColor: { value: cloudColor },
+        baseOpacity: { value: opacity },
+      },
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+  }, [cloudColor, opacity]);
+
+  useFrame((state) => {
+    material.uniforms.time.value = state.clock.elapsedTime;
+  });
+
+  return (
+    <points ref={pointsRef} material={material}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={particleCount} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-size" count={particleCount} array={sizes} itemSize={1} />
+        <bufferAttribute attach="attributes-phase" count={particleCount} array={phases} itemSize={1} />
+      </bufferGeometry>
+    </points>
   );
 }
 
@@ -2070,9 +2175,29 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
     }
   });
 
+  const { camera } = useThree();
+  const ringGroupRef = useRef();
+  const _worldPos = useMemo(() => new THREE.Vector3(), []);
+  const _dir = useMemo(() => new THREE.Vector3(), []);
+  const _right = useMemo(() => new THREE.Vector3(), []);
+  const _up = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+  const _corrUp = useMemo(() => new THREE.Vector3(), []);
+  const _mat = useMemo(() => new THREE.Matrix4(), []);
+
+  useFrame(() => {
+    if (ringGroupRef.current) {
+      ringGroupRef.current.getWorldPosition(_worldPos);
+      _dir.copy(camera.position).sub(_worldPos).normalize();
+      _right.crossVectors(_up.set(0, 1, 0), _dir).normalize();
+      _corrUp.crossVectors(_dir, _right).normalize();
+      _mat.makeBasis(_right, _corrUp, _dir);
+      ringGroupRef.current.quaternion.setFromRotationMatrix(_mat);
+    }
+  });
+
   return (
     <group position={[center[0], center[1], center[2]]}>
-      <group>
+      <group ref={ringGroupRef}>
         {ringLines.map((layer, li) => (
           <line key={`ring-layer-${li}`}>
             <bufferGeometry>
@@ -2094,7 +2219,7 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
           </line>
         ))}
 
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh>
           <circleGeometry args={[radius * 0.9, 64]} />
           <meshBasicMaterial
             ref={innerFillMatRef}
@@ -2108,7 +2233,7 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
         </mesh>
 
         <group ref={pulseRingRef}>
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <mesh>
             <ringGeometry args={[radius * 1.02, radius * 1.14, 64]} />
             <meshBasicMaterial
               ref={pulseMatRef}
@@ -2371,10 +2496,10 @@ const connectionLineShader = {
       float coreBright = smoothstep(0.6, 0.0, edge);
       float pulse = fract(uTime * 0.3 - vT);
       float pulseGlow = smoothstep(0.0, 0.08, pulse) * smoothstep(0.2, 0.08, pulse);
-      float baseBrightness = mix(0.15, 0.7, vHighlight);
-      float brightness = baseBrightness + pulseGlow * mix(0.2, 1.0, vHighlight);
+      float baseBrightness = mix(0.06, 0.7, vHighlight);
+      float brightness = baseBrightness + pulseGlow * mix(0.1, 1.0, vHighlight);
       brightness *= (0.5 + coreBright * 0.5);
-      float alpha = mix(0.03, 0.9, vHighlight) * edgeFalloff;
+      float alpha = mix(0.015, 0.9, vHighlight) * edgeFalloff;
       if (alpha < 0.01) discard;
       vec3 col = vColor * brightness;
       col += vColor * coreBright * 0.3;
@@ -3612,38 +3737,10 @@ function FilterToggles({
   qualityTier,
   onSetQuality,
 }) {
-  const classButtons = [
-    { key: 'F', label: 'F', color: '#FFD700', desc: 'Yellow' },
-    { key: 'K', label: 'K', color: '#FF6B4A', desc: 'Red' },
-    { key: 'E', label: 'E', color: '#50C878', desc: 'Green' },
-    { key: 'O', label: 'O', color: '#4DA6FF', desc: 'Blue' },
-  ];
-
   return (
     <div className="absolute top-16 left-4 z-50">
       <CornerBrackets className="bg-slate-950/80 backdrop-blur-md p-2.5 space-y-2.5">
         <div className="text-[9px] uppercase tracking-[0.2em] text-slate-500 px-1">Filters</div>
-
-        <div className="flex gap-1">
-          {classButtons.map(cls => {
-            const active = filters.starClasses[cls.key];
-            return (
-              <button
-                key={cls.key}
-                onClick={() => onToggleFilter('starClass', cls.key)}
-                className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold border transition-all ${
-                  active
-                    ? 'border-current'
-                    : 'border-slate-700 opacity-30'
-                }`}
-                style={{ color: cls.color, borderColor: active ? cls.color + '66' : undefined }}
-                title={`${cls.desc} Stars (${cls.label})`}
-              >
-                {cls.label}
-              </button>
-            );
-          })}
-        </div>
 
         <div className="space-y-1">
           <button
@@ -3852,7 +3949,6 @@ export default function GalaxyView({ people = [], relationships = [], households
   const [cameraPos, setCameraPos] = useState(null);
   const [mousePos, setMousePos] = useState(null);
   const [filters, setFilters] = useState({
-    starClasses: { F: true, K: true, E: true, O: true },
     showLines: true,
     showLabels: true,
   });
@@ -3880,13 +3976,8 @@ export default function GalaxyView({ people = [], relationships = [], households
     setViewMode(prev => prev === 'nebula' ? 'starmap' : 'nebula');
   }, []);
 
-  const handleToggleFilter = useCallback((type, value) => {
-    setFilters(prev => {
-      if (type === 'starClass') {
-        return { ...prev, starClasses: { ...prev.starClasses, [value]: !prev.starClasses[value] } };
-      }
-      return { ...prev, [type]: !prev[type] };
-    });
+  const handleToggleFilter = useCallback((type) => {
+    setFilters(prev => ({ ...prev, [type]: !prev[type] }));
   }, []);
 
   const handleMouseMove = useCallback((e) => {
@@ -4060,7 +4151,7 @@ export default function GalaxyView({ people = [], relationships = [], households
         </div>
       )}
       <Canvas
-        camera={{ position: [50, 40, 100], fov: 55 }}
+        camera={{ position: [65, 50, 130], fov: 55 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         style={{ background: '#060410' }}
         dpr={qualityTier.dpr}
