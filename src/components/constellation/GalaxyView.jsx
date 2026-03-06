@@ -2680,33 +2680,6 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         }
       }
 
-      let toOffsetX = 0, toOffsetY = 0, toOffsetZ = 0;
-      let fromOffsetX = 0, fromOffsetY = 0, fromOffsetZ = 0;
-
-      if (edge.childPersonId && starsByHousehold) {
-        const toStars = starsByHousehold.get(edgeTo) || starsByHousehold.get(String(edgeTo)) || starsByHousehold.get(Number(edgeTo));
-        if (toStars) {
-          const childStar = toStars.find(s => String(s.id) === String(edge.childPersonId));
-          if (childStar && childStar.position) {
-            toOffsetX = childStar.position[0] - toPos.x;
-            toOffsetY = childStar.position[1] - toPos.y;
-            toOffsetZ = childStar.position[2] - toPos.z;
-          }
-        }
-      }
-
-      if (!edge.fromRing && edge.fromPersonId && starsByHousehold) {
-        const fromStarsList = starsByHousehold.get(edgeFrom) || starsByHousehold.get(String(edgeFrom)) || starsByHousehold.get(Number(edgeFrom));
-        if (fromStarsList) {
-          const parentStar = fromStarsList.find(s => String(s.id) === String(edge.fromPersonId));
-          if (parentStar && parentStar.position) {
-            fromOffsetX = parentStar.position[0] - fromPos.x;
-            fromOffsetY = parentStar.position[1] - fromPos.y;
-            fromOffsetZ = parentStar.position[2] - fromPos.z;
-          }
-        }
-      }
-
       data.push({
         fromHouseholdId: edge.from,
         toHouseholdId: edge.to,
@@ -2715,8 +2688,6 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         fromColorIndex,
         isIntraHousehold: edge.isIntraHousehold || false,
         fromRing: edge.fromRing || false,
-        toOffset: { x: toOffsetX, y: toOffsetY, z: toOffsetZ },
-        fromOffset: { x: fromOffsetX, y: fromOffsetY, z: fromOffsetZ },
       });
 
       mask.push({ from: edge.from, to: edge.to });
@@ -2761,16 +2732,16 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
     return { startPos: sp, endPos: ep, sides: sd, tValues: t, colorValues: col, highlightValues: hl, indices: idx, dummyPositions: dp };
   }, [totalVerts, totalIndices, validEdgeCount]);
 
-  const ringEdgeCount = useMemo(() => edgeData.filter(e => e && e.fromRing).length, [edgeData]);
+  const nodeGlowCount = validEdgeCount * 2;
   const nodeGlowRef = useRef();
 
   const { nodePositions, nodeColors, nodeAlphas } = useMemo(() => {
-    const np = new Float32Array(ringEdgeCount * 3);
-    const nc = new Float32Array(ringEdgeCount * 3);
-    const na = new Float32Array(ringEdgeCount);
+    const np = new Float32Array(nodeGlowCount * 3);
+    const nc = new Float32Array(nodeGlowCount * 3);
+    const na = new Float32Array(nodeGlowCount);
     na.fill(0.2);
     return { nodePositions: np, nodeColors: nc, nodeAlphas: na };
-  }, [ringEdgeCount]);
+  }, [nodeGlowCount]);
 
   const nodeGlowMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -2848,25 +2819,20 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         }
       }
 
-      fromX += edge.fromOffset.x;
-      fromY += edge.fromOffset.y;
-      fromZ += edge.fromOffset.z;
-
-      toX += edge.toOffset.x;
-      toY += edge.toOffset.y;
-      toZ += edge.toOffset.z;
-
       const dx = toX - fromX;
       const dy = toY - fromY;
       const dz = toZ - fromZ;
       const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (len > 0.01 && edge.fromRing) {
+      if (len > 0.01) {
         const nx = dx / len;
         const ny = dy / len;
         const nz = dz / len;
         fromX += nx * GALAXY_RING_RADIUS;
         fromY += ny * GALAXY_RING_RADIUS;
         fromZ += nz * GALAXY_RING_RADIUS;
+        toX -= nx * GALAXY_RING_RADIUS;
+        toY -= ny * GALAXY_RING_RADIUS;
+        toZ -= nz * GALAXY_RING_RADIUS;
       }
 
       const isHighlighted = hoveredHouseholdId && (String(hoverMask[i]?.from) === String(hoveredHouseholdId) || String(hoverMask[i]?.to) === String(hoveredHouseholdId));
@@ -2910,20 +2876,27 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         for (let i = 0; i < edgeData.length; i++) {
           const edge = edgeData[i];
           if (!edge) continue;
-          if (edge.fromRing && nodeIdx < ringEdgeCount) {
+          if (nodeIdx + 1 < nodeGlowCount) {
             const base = validIdx * 4;
-            const vi = base * 3;
-            ngPosAttr.array[nodeIdx * 3] = spAttr.array[vi];
-            ngPosAttr.array[nodeIdx * 3 + 1] = spAttr.array[vi + 1];
-            ngPosAttr.array[nodeIdx * 3 + 2] = spAttr.array[vi + 2];
+            const svi = base * 3;
+            const evi = (base + 2) * 3;
+            ngPosAttr.array[nodeIdx * 3] = spAttr.array[svi];
+            ngPosAttr.array[nodeIdx * 3 + 1] = spAttr.array[svi + 1];
+            ngPosAttr.array[nodeIdx * 3 + 2] = spAttr.array[svi + 2];
+            ngPosAttr.array[(nodeIdx + 1) * 3] = epAttr.array[evi];
+            ngPosAttr.array[(nodeIdx + 1) * 3 + 1] = epAttr.array[evi + 1];
+            ngPosAttr.array[(nodeIdx + 1) * 3 + 2] = epAttr.array[evi + 2];
             if (colAttr) {
-              ngColAttr.array[nodeIdx * 3] = colAttr.array[vi];
-              ngColAttr.array[nodeIdx * 3 + 1] = colAttr.array[vi + 1];
-              ngColAttr.array[nodeIdx * 3 + 2] = colAttr.array[vi + 2];
+              for (let ci = 0; ci < 3; ci++) {
+                ngColAttr.array[nodeIdx * 3 + ci] = colAttr.array[svi + ci];
+                ngColAttr.array[(nodeIdx + 1) * 3 + ci] = colAttr.array[svi + ci];
+              }
             }
             const isHl = hoveredHouseholdId && (String(hoverMask[i]?.from) === String(hoveredHouseholdId) || String(hoverMask[i]?.to) === String(hoveredHouseholdId));
-            ngAlphaAttr.array[nodeIdx] = isHl ? 0.6 : 0.2;
-            nodeIdx++;
+            const alpha = isHl ? 0.6 : 0.2;
+            ngAlphaAttr.array[nodeIdx] = alpha;
+            ngAlphaAttr.array[nodeIdx + 1] = alpha;
+            nodeIdx += 2;
           }
           validIdx++;
         }
@@ -2963,12 +2936,12 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
           side={THREE.DoubleSide}
         />
       </mesh>
-      {ringEdgeCount > 0 && (
+      {nodeGlowCount > 0 && (
         <points ref={nodeGlowRef} frustumCulled={false} material={nodeGlowMaterial}>
           <bufferGeometry>
-            <bufferAttribute attach="attributes-position" count={ringEdgeCount} array={nodePositions} itemSize={3} />
-            <bufferAttribute attach="attributes-nodeColor" count={ringEdgeCount} array={nodeColors} itemSize={3} />
-            <bufferAttribute attach="attributes-nodeAlpha" count={ringEdgeCount} array={nodeAlphas} itemSize={1} />
+            <bufferAttribute attach="attributes-position" count={nodeGlowCount} array={nodePositions} itemSize={3} />
+            <bufferAttribute attach="attributes-nodeColor" count={nodeGlowCount} array={nodeColors} itemSize={3} />
+            <bufferAttribute attach="attributes-nodeAlpha" count={nodeGlowCount} array={nodeAlphas} itemSize={1} />
           </bufferGeometry>
         </points>
       )}
