@@ -2680,6 +2680,33 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         }
       }
 
+      let toOffsetX = 0, toOffsetY = 0, toOffsetZ = 0;
+      let fromOffsetX = 0, fromOffsetY = 0, fromOffsetZ = 0;
+
+      if (edge.childPersonId && starsByHousehold) {
+        const toStars = starsByHousehold.get(edgeTo) || starsByHousehold.get(String(edgeTo)) || starsByHousehold.get(Number(edgeTo));
+        if (toStars) {
+          const childStar = toStars.find(s => String(s.id) === String(edge.childPersonId));
+          if (childStar && childStar.position) {
+            toOffsetX = childStar.position[0] - toPos.x;
+            toOffsetY = childStar.position[1] - toPos.y;
+            toOffsetZ = childStar.position[2] - toPos.z;
+          }
+        }
+      }
+
+      if (!edge.fromRing && edge.fromPersonId && starsByHousehold) {
+        const fromStarsList = starsByHousehold.get(edgeFrom) || starsByHousehold.get(String(edgeFrom)) || starsByHousehold.get(Number(edgeFrom));
+        if (fromStarsList) {
+          const parentStar = fromStarsList.find(s => String(s.id) === String(edge.fromPersonId));
+          if (parentStar && parentStar.position) {
+            fromOffsetX = parentStar.position[0] - fromPos.x;
+            fromOffsetY = parentStar.position[1] - fromPos.y;
+            fromOffsetZ = parentStar.position[2] - fromPos.z;
+          }
+        }
+      }
+
       data.push({
         fromHouseholdId: edge.from,
         toHouseholdId: edge.to,
@@ -2688,8 +2715,8 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         fromColorIndex,
         isIntraHousehold: edge.isIntraHousehold || false,
         fromRing: edge.fromRing || false,
-        childPersonId: edge.childPersonId,
-        fromPersonId: edge.fromPersonId,
+        toOffset: { x: toOffsetX, y: toOffsetY, z: toOffsetZ },
+        fromOffset: { x: fromOffsetX, y: fromOffsetY, z: fromOffsetZ },
       });
 
       mask.push({ from: edge.from, to: edge.to });
@@ -2697,18 +2724,6 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
 
     return { edgeData: data, hoverMask: mask };
   }, [edges, householdPositions, starsByHousehold]);
-
-  const starLookup = useMemo(() => {
-    const lookup = new Map();
-    if (starsByHousehold) {
-      for (const [hhId, stars] of starsByHousehold.entries()) {
-        for (const star of stars) {
-          lookup.set(String(hhId) + ':' + String(star.id), star);
-        }
-      }
-    }
-    return lookup;
-  }, [starsByHousehold]);
 
   const validEdgeCount = useMemo(() => edgeData.filter(e => e !== null).length, [edgeData]);
   const totalVerts = validEdgeCount * 4;
@@ -2833,17 +2848,13 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         }
       }
 
-      if (!edge.fromRing && edge.fromPersonId) {
-        const parentStar = starLookup.get(String(edge.fromHouseholdId) + ':' + String(edge.fromPersonId));
-        if (parentStar && parentStar.position) {
-          const fPos = householdPositions.get(edge.fromHouseholdId) || householdPositions.get(String(edge.fromHouseholdId)) || householdPositions.get(Number(edge.fromHouseholdId));
-          if (fPos) {
-            fromX += (parentStar.position[0] - fPos.x);
-            fromY += (parentStar.position[1] - fPos.y);
-            fromZ += (parentStar.position[2] - fPos.z);
-          }
-        }
-      }
+      fromX += edge.fromOffset.x;
+      fromY += edge.fromOffset.y;
+      fromZ += edge.fromOffset.z;
+
+      toX += edge.toOffset.x;
+      toY += edge.toOffset.y;
+      toZ += edge.toOffset.z;
 
       const dx = toX - fromX;
       const dy = toY - fromY;
@@ -2856,18 +2867,6 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         fromX += nx * GALAXY_RING_RADIUS;
         fromY += ny * GALAXY_RING_RADIUS;
         fromZ += nz * GALAXY_RING_RADIUS;
-      }
-
-      if (edge.childPersonId) {
-        const childStar = starLookup.get(String(edge.toHouseholdId) + ':' + String(edge.childPersonId));
-        if (childStar && childStar.position) {
-          const toPos = householdPositions.get(edge.toHouseholdId) || householdPositions.get(String(edge.toHouseholdId)) || householdPositions.get(Number(edge.toHouseholdId));
-          if (toPos) {
-            toX += (childStar.position[0] - toPos.x);
-            toY += (childStar.position[1] - toPos.y);
-            toZ += (childStar.position[2] - toPos.z);
-          }
-        }
       }
 
       const isHighlighted = hoveredHouseholdId && (String(hoverMask[i]?.from) === String(hoveredHouseholdId) || String(hoverMask[i]?.to) === String(hoveredHouseholdId));
