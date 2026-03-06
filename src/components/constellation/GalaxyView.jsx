@@ -2334,7 +2334,7 @@ const connectionLineShader = {
       float baseBrightness = mix(0.15, 0.7, vHighlight);
       float brightness = baseBrightness + pulseGlow * mix(0.2, 1.0, vHighlight);
       brightness *= (0.5 + coreBright * 0.5);
-      float alpha = mix(0.12, 0.9, vHighlight) * edgeFalloff;
+      float alpha = mix(0.18, 0.9, vHighlight) * edgeFalloff;
       if (alpha < 0.01) discard;
       vec3 col = vColor * brightness;
       col += vColor * coreBright * 0.3;
@@ -2433,6 +2433,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
     const t = new Float32Array(totalVerts);
     const col = new Float32Array(totalVerts * 3);
     const hl = new Float32Array(totalVerts);
+    hl.fill(0.35);
     const dp = new Float32Array(totalVerts * 3);
     const idx = new Uint32Array(totalIndices);
 
@@ -2522,7 +2523,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
       }
 
       const isHighlighted = hoveredHouseholdId && (hoverMask[i]?.from === hoveredHouseholdId || hoverMask[i]?.to === hoveredHouseholdId);
-      const hlVal = isHighlighted ? 1.0 : 0.25;
+      const hlVal = isHighlighted ? 1.0 : 0.35;
 
       const edgeColors = HOUSEHOLD_COLORS[edge.fromColorIndex % HOUSEHOLD_COLORS.length];
       const lineColor = new THREE.Color(edgeColors.glow);
