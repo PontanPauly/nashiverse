@@ -2645,7 +2645,7 @@ const connectionLineShader = {
 
 const _lineColor = new THREE.Color();
 
-const _LINE_VERSION = 3;
+const _LINE_VERSION = 4;
 function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold, householdGroupRefs, coupleHouseholds }) {
   const meshRef = useRef();
   const timeUniform = useRef({ value: 0 });
@@ -2659,6 +2659,15 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
 
     const mask = [];
     const data = [];
+
+    const getNebulaRadius = (hhId) => {
+      const stars = starsByHousehold ? (starsByHousehold.get(hhId) || starsByHousehold.get(String(hhId)) || starsByHousehold.get(Number(hhId))) : null;
+      const mc = stars ? stars.length : 1;
+      if (mc >= 8) return 7.0;
+      if (mc >= 5) return 6.0;
+      if (mc >= 3) return 5.0;
+      return 4.0;
+    };
 
     edges.forEach((edge, i) => {
       if (edge.isIntraHousehold || String(edge.from) === String(edge.to)) return;
@@ -2689,6 +2698,8 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         fromColorIndex,
         isIntraHousehold: edge.isIntraHousehold || false,
         fromRing: edge.fromRing || false,
+        fromNebulaRadius: getNebulaRadius(edgeFrom),
+        toNebulaRadius: getNebulaRadius(edgeTo),
       });
 
       mask.push({ from: edge.from, to: edge.to });
@@ -2828,12 +2839,14 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         const nx = dx / len;
         const ny = dy / len;
         const nz = dz / len;
-        fromX += nx * GALAXY_RING_RADIUS;
-        fromY += ny * GALAXY_RING_RADIUS;
-        fromZ += nz * GALAXY_RING_RADIUS;
-        toX -= nx * GALAXY_RING_RADIUS;
-        toY -= ny * GALAXY_RING_RADIUS;
-        toZ -= nz * GALAXY_RING_RADIUS;
+        const fromR = edge.fromNebulaRadius || 4.0;
+        const toR = edge.toNebulaRadius || 4.0;
+        fromX += nx * fromR;
+        fromY += ny * fromR;
+        fromZ += nz * fromR;
+        toX -= nx * toR;
+        toY -= ny * toR;
+        toZ -= nz * toR;
       }
 
       const isHighlighted = hoveredHouseholdId && (String(hoverMask[i]?.from) === String(hoveredHouseholdId) || String(hoverMask[i]?.to) === String(hoveredHouseholdId));
