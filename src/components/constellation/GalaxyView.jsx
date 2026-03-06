@@ -322,32 +322,35 @@ function useOrganicClusterLayout(households, people, viewMode = 'nebula', relati
       genGroups.get(gen).push(h);
     });
     
-    const genRadii = [0, 25, 45, 65];
-    const minSeparation = 15.0;
+    const genRadii = [0, 40, 75, 110];
+    const minSeparation = 25.0;
+    const GOLDEN_ANGLE = 2.399963229728653;
     
     const positions = new Map();
     const placedPositions = [];
     
     const sortedGens = [...genGroups.keys()].sort((a, b) => a - b);
     
+    let globalIndex = 0;
     sortedGens.forEach(gen => {
       const group = genGroups.get(gen);
       const baseRadius = genRadii[Math.min(gen, genRadii.length - 1)];
+      const genYBias = gen === 0 ? 6 : gen === 1 ? 0 : -6;
       
       group.forEach((household, idx) => {
         const seed = household.id;
-        const angleOffset = seededRandom(seed + '-angle') * Math.PI * 2;
-        const angle = (idx / group.length) * Math.PI * 2 + angleOffset * 0.3;
+        const angle = globalIndex * GOLDEN_ANGLE + seededRandom(seed + '-angle') * 0.4;
+        globalIndex++;
         
-        const radiusJitter = (seededRandom(seed + '-rjit') - 0.5) * (gen === 0 ? 5 : 10);
+        const radiusJitter = (seededRandom(seed + '-rjit') - 0.5) * (gen === 0 ? 8 : 15);
         const radius = baseRadius + radiusJitter;
         
         let x = Math.cos(angle) * radius;
         let z = Math.sin(angle) * radius;
-        let y = (seededRandom(seed + '-y') - 0.5) * 30;
+        let y = (seededRandom(seed + '-y') - 0.5) * 50 + genYBias;
         
         let attempts = 0;
-        while (attempts < 30) {
+        while (attempts < 50) {
           let tooClose = false;
           for (const placed of placedPositions) {
             const dx = x - placed.x;
@@ -360,9 +363,9 @@ function useOrganicClusterLayout(households, people, viewMode = 'nebula', relati
             }
           }
           if (!tooClose) break;
-          x += (seededRandom(seed + '-ax-' + attempts) - 0.5) * 8;
-          y += (seededRandom(seed + '-ay-' + attempts) - 0.5) * 10;
-          z += (seededRandom(seed + '-az-' + attempts) - 0.5) * 8;
+          x += (seededRandom(seed + '-ax-' + attempts) - 0.5) * 16;
+          y += (seededRandom(seed + '-ay-' + attempts) - 0.5) * 20;
+          z += (seededRandom(seed + '-az-' + attempts) - 0.5) * 16;
           attempts++;
         }
         
@@ -1227,7 +1230,7 @@ function CameraController({
     }
     
     if (level === 'galaxy') {
-      targetCamPos.current.set(25, 20, 50);
+      targetCamPos.current.set(45, 35, 90);
       targetLookAt.current.set(0, 0, 0);
       animationPhase.current = 'zoom-out';
     } else if (level === 'system' && targetPosition) {
@@ -3108,7 +3111,7 @@ function FogController() {
   const { scene } = useThree();
   
   useEffect(() => {
-    scene.fog = new THREE.FogExp2('#0a0812', 0.0025);
+    scene.fog = new THREE.FogExp2('#0a0812', 0.0018);
     return () => {
       scene.fog = null;
     };
@@ -3352,7 +3355,7 @@ function NebulaScene({
         enableDamping={true}
         dampingFactor={0.05}
         minDistance={level === 'system' ? 6 : 20}
-        maxDistance={level === 'system' ? 35 : 120}
+        maxDistance={level === 'system' ? 35 : 250}
         autoRotate={autoRotateEnabled && level === 'galaxy' && !hoveredHouseholdId}
         autoRotateSpeed={0.08}
         rotateSpeed={0.4}
@@ -4012,7 +4015,7 @@ export default function GalaxyView({ people = [], relationships = [], households
         </div>
       )}
       <Canvas
-        camera={{ position: [35, 28, 70], fov: 55 }}
+        camera={{ position: [50, 40, 100], fov: 55 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         style={{ background: '#060410' }}
         dpr={qualityTier.dpr}
