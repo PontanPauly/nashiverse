@@ -2687,6 +2687,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         toBase: { x: toPos.x, y: toPos.y, z: toPos.z },
         fromColorIndex,
         isIntraHousehold: edge.isIntraHousehold || false,
+        fromRing: edge.fromRing || false,
       });
 
       mask.push({ from: edge.from, to: edge.to });
@@ -2730,6 +2731,51 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
 
     return { startPos: sp, endPos: ep, sides: sd, tValues: t, colorValues: col, highlightValues: hl, indices: idx, dummyPositions: dp };
   }, [totalVerts, totalIndices, validEdgeCount]);
+
+  const ringEdgeCount = useMemo(() => edgeData.filter(e => e && e.fromRing).length, [edgeData]);
+  const nodeGlowRef = useRef();
+
+  const { nodePositions, nodeColors, nodeAlphas } = useMemo(() => {
+    const np = new Float32Array(ringEdgeCount * 3);
+    const nc = new Float32Array(ringEdgeCount * 3);
+    const na = new Float32Array(ringEdgeCount);
+    na.fill(0.2);
+    return { nodePositions: np, nodeColors: nc, nodeAlphas: na };
+  }, [ringEdgeCount]);
+
+  const nodeGlowMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: `
+        attribute vec3 nodeColor;
+        attribute float nodeAlpha;
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+          vColor = nodeColor;
+          vAlpha = nodeAlpha;
+          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = 8.0 * (150.0 / -mvPos.z);
+          gl_PointSize = clamp(gl_PointSize, 2.0, 16.0);
+          gl_Position = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        varying float vAlpha;
+        void main() {
+          vec2 c = gl_PointCoord - 0.5;
+          float d = length(c);
+          float alpha = 1.0 - smoothstep(0.0, 0.5, d);
+          alpha = pow(alpha, 2.0) * vAlpha;
+          if (alpha < 0.005) discard;
+          gl_FragColor = vec4(vColor, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+  }, []);
 
   useFrame((state) => {
     if (!meshRef.current || !meshRef.current.geometry) return;
@@ -2777,26 +2823,17 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
       const dy = toY - fromY;
       const dz = toZ - fromZ;
       const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (len > 0.01) {
+      if (len > 0.01 && edge.fromRing) {
         const nx = dx / len;
         const ny = dy / len;
         const nz = dz / len;
-        const fromHasRing = coupleHouseholds && (coupleHouseholds.has(edge.fromHouseholdId) || coupleHouseholds.has(String(edge.fromHouseholdId)) || coupleHouseholds.has(Number(edge.fromHouseholdId)));
-        const toHasRing = coupleHouseholds && (coupleHouseholds.has(edge.toHouseholdId) || coupleHouseholds.has(String(edge.toHouseholdId)) || coupleHouseholds.has(Number(edge.toHouseholdId)));
-        if (fromHasRing) {
-          fromX += nx * GALAXY_RING_RADIUS;
-          fromY += ny * GALAXY_RING_RADIUS;
-          fromZ += nz * GALAXY_RING_RADIUS;
-        }
-        if (toHasRing) {
-          toX -= nx * GALAXY_RING_RADIUS;
-          toY -= ny * GALAXY_RING_RADIUS;
-          toZ -= nz * GALAXY_RING_RADIUS;
-        }
+        fromX += nx * GALAXY_RING_RADIUS;
+        fromY += ny * GALAXY_RING_RADIUS;
+        fromZ += nz * GALAXY_RING_RADIUS;
       }
 
       const isHighlighted = hoveredHouseholdId && (String(hoverMask[i]?.from) === String(hoveredHouseholdId) || String(hoverMask[i]?.to) === String(hoveredHouseholdId));
-      const hlVal = isHighlighted ? 1.0 : 0.0;
+      const hlVal = isHighlighted ? 1.0 : 0.05;
 
       const edgeColors = HOUSEHOLD_COLORS[edge.fromColorIndex % HOUSEHOLD_COLORS.length];
       _lineColor.set(edgeColors.glow);
@@ -2825,36 +2862,80 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
     epAttr.needsUpdate = true;
     if (colAttr) colAttr.needsUpdate = true;
     if (hlAttr) hlAttr.needsUpdate = true;
+
+    if (nodeGlowRef.current && nodeGlowRef.current.geometry) {
+      const ngPosAttr = nodeGlowRef.current.geometry.getAttribute('position');
+      const ngColAttr = nodeGlowRef.current.geometry.getAttribute('nodeColor');
+      const ngAlphaAttr = nodeGlowRef.current.geometry.getAttribute('nodeAlpha');
+      if (ngPosAttr && ngColAttr && ngAlphaAttr) {
+        let nodeIdx = 0;
+        let validIdx = 0;
+        for (let i = 0; i < edgeData.length; i++) {
+          const edge = edgeData[i];
+          if (!edge) continue;
+          if (edge.fromRing && nodeIdx < ringEdgeCount) {
+            const base = validIdx * 4;
+            const vi = base * 3;
+            ngPosAttr.array[nodeIdx * 3] = spAttr.array[vi];
+            ngPosAttr.array[nodeIdx * 3 + 1] = spAttr.array[vi + 1];
+            ngPosAttr.array[nodeIdx * 3 + 2] = spAttr.array[vi + 2];
+            if (colAttr) {
+              ngColAttr.array[nodeIdx * 3] = colAttr.array[vi];
+              ngColAttr.array[nodeIdx * 3 + 1] = colAttr.array[vi + 1];
+              ngColAttr.array[nodeIdx * 3 + 2] = colAttr.array[vi + 2];
+            }
+            const isHl = hoveredHouseholdId && (String(hoverMask[i]?.from) === String(hoveredHouseholdId) || String(hoverMask[i]?.to) === String(hoveredHouseholdId));
+            ngAlphaAttr.array[nodeIdx] = isHl ? 0.6 : 0.2;
+            nodeIdx++;
+          }
+          validIdx++;
+        }
+        ngPosAttr.needsUpdate = true;
+        ngColAttr.needsUpdate = true;
+        ngAlphaAttr.needsUpdate = true;
+      }
+    }
   });
 
   if (totalVerts === 0) return null;
 
   return (
-    <mesh ref={meshRef} frustumCulled={false}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={totalVerts} array={dummyPositions} itemSize={3} />
-        <bufferAttribute attach="attributes-aStart" count={totalVerts} array={startPos} itemSize={3} />
-        <bufferAttribute attach="attributes-aEnd" count={totalVerts} array={endPos} itemSize={3} />
-        <bufferAttribute attach="attributes-aSide" count={totalVerts} array={sides} itemSize={1} />
-        <bufferAttribute attach="attributes-aT" count={totalVerts} array={tValues} itemSize={1} />
-        <bufferAttribute attach="attributes-aColor" count={totalVerts} array={colorValues} itemSize={3} />
-        <bufferAttribute attach="attributes-aHighlight" count={totalVerts} array={highlightValues} itemSize={1} />
-        <bufferAttribute attach="index" count={indices.length} array={indices} itemSize={1} />
-      </bufferGeometry>
-      <shaderMaterial
-        vertexShader={connectionLineShader.vertexShader}
-        fragmentShader={connectionLineShader.fragmentShader}
-        uniforms={{
-          uTime: timeUniform.current,
-          uResolution: resolutionUniform.current,
-          uLineWidth: lineWidthUniform.current,
-        }}
-        transparent
-        blending={THREE.AdditiveBlending}
-        depthWrite={false}
-        side={THREE.DoubleSide}
-      />
-    </mesh>
+    <group>
+      <mesh ref={meshRef} frustumCulled={false}>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" count={totalVerts} array={dummyPositions} itemSize={3} />
+          <bufferAttribute attach="attributes-aStart" count={totalVerts} array={startPos} itemSize={3} />
+          <bufferAttribute attach="attributes-aEnd" count={totalVerts} array={endPos} itemSize={3} />
+          <bufferAttribute attach="attributes-aSide" count={totalVerts} array={sides} itemSize={1} />
+          <bufferAttribute attach="attributes-aT" count={totalVerts} array={tValues} itemSize={1} />
+          <bufferAttribute attach="attributes-aColor" count={totalVerts} array={colorValues} itemSize={3} />
+          <bufferAttribute attach="attributes-aHighlight" count={totalVerts} array={highlightValues} itemSize={1} />
+          <bufferAttribute attach="index" count={indices.length} array={indices} itemSize={1} />
+        </bufferGeometry>
+        <shaderMaterial
+          vertexShader={connectionLineShader.vertexShader}
+          fragmentShader={connectionLineShader.fragmentShader}
+          uniforms={{
+            uTime: timeUniform.current,
+            uResolution: resolutionUniform.current,
+            uLineWidth: lineWidthUniform.current,
+          }}
+          transparent
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      {ringEdgeCount > 0 && (
+        <points ref={nodeGlowRef} frustumCulled={false} material={nodeGlowMaterial}>
+          <bufferGeometry>
+            <bufferAttribute attach="attributes-position" count={ringEdgeCount} array={nodePositions} itemSize={3} />
+            <bufferAttribute attach="attributes-nodeColor" count={ringEdgeCount} array={nodeColors} itemSize={3} />
+            <bufferAttribute attach="attributes-nodeAlpha" count={ringEdgeCount} array={nodeAlphas} itemSize={1} />
+          </bufferGeometry>
+        </points>
+      )}
+    </group>
   );
 }
 
