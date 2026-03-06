@@ -1275,7 +1275,7 @@ function CameraController({
     }
     
     if (level === 'galaxy') {
-      targetCamPos.current.set(75, 225, 160);
+      targetCamPos.current.set(75, 180, 130);
       targetLookAt.current.set(0, 0, 0);
       animationPhase.current = 'zoom-out';
     } else if (level === 'system' && targetPosition) {
@@ -4383,7 +4383,7 @@ export default function GalaxyView({ people = [], relationships = [], households
         </div>
       )}
       <Canvas
-        camera={{ position: [75, 225, 160], fov: 55 }}
+        camera={{ position: [75, 180, 130], fov: 55 }}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         style={{ background: '#060410' }}
         dpr={qualityTier.dpr}
