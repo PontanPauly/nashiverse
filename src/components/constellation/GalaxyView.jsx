@@ -2101,7 +2101,7 @@ function SystemNebulaCloud({ color, opacity = 0.15, starClass, memberCount = 2 }
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
-  }, [opacity]);
+  }, []);
 
   useFrame((state) => {
     material.uniforms.time.value = state.clock.elapsedTime;
@@ -2568,6 +2568,8 @@ const connectionLineShader = {
   `
 };
 
+const _lineColor = new THREE.Color();
+
 function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold, householdGroupRefs }) {
   const meshRef = useRef();
   const timeUniform = useRef({ value: 0 });
@@ -2583,6 +2585,8 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
     const data = [];
 
     edges.forEach((edge, i) => {
+      if (edge.isIntraHousehold || String(edge.from) === String(edge.to)) return;
+
       const edgeFrom = edge.from;
       const edgeTo = edge.to;
       const fromPos = householdPositions.get(edgeFrom) || householdPositions.get(String(edgeFrom)) || householdPositions.get(Number(edgeFrom));
@@ -2698,7 +2702,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
       const hlVal = isHighlighted ? 1.0 : 0.10;
 
       const edgeColors = HOUSEHOLD_COLORS[edge.fromColorIndex % HOUSEHOLD_COLORS.length];
-      const lineColor = new THREE.Color(edgeColors.glow);
+      _lineColor.set(edgeColors.glow);
 
       const base = edgeIdx * 4;
       for (let v = 0; v < 4; v++) {
@@ -2710,9 +2714,9 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         epAttr.array[vi + 1] = toY;
         epAttr.array[vi + 2] = toZ;
         if (colAttr) {
-          colAttr.array[vi] = lineColor.r;
-          colAttr.array[vi + 1] = lineColor.g;
-          colAttr.array[vi + 2] = lineColor.b;
+          colAttr.array[vi] = _lineColor.r;
+          colAttr.array[vi + 1] = _lineColor.g;
+          colAttr.array[vi + 2] = _lineColor.b;
         }
         if (hlAttr) hlAttr.array[base + v] = hlVal;
       }
