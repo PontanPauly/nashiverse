@@ -12,7 +12,7 @@ Nashiverse is a family management application with a cosmic/space theme. It help
 - **File Uploads**: Multer-based file upload to `/uploads` directory
 - **Security**: Column whitelisting per entity, CORS restrictions, security headers (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection), SameSite cookies
 - **Migrations**: Auto-run on startup via `server/db/migrate.js` (ALTER TABLE ADD COLUMN IF NOT EXISTS)
-- **Seed Data**: Auto-seeds Nash family data on first startup via `server/db/seed.js` (23 people, 8 households, 94 relationships). Skips if data exists. Can be force-reseeded via admin function `seedFamilyData`.
+- **Seed Data**: Auto-seeds Nash family data on first startup via `server/db/seed.js` (42 people, 17 households, 156 relationships). Skips if data exists. Can be force-reseeded via admin function `seedFamilyData`.
 
 ### Frontend (React + Vite)
 - **Framework**: React with Vite
@@ -36,7 +36,7 @@ Nashiverse is a family management application with a cosmic/space theme. It help
    - **Floating Labels**: drei Html-based household name labels appear on hover with household-colored styling
    - **Background Star Field**: 2000-5000 tiny twinkling background stars (quality-tier dependent) with per-star phase-offset sine wave opacity
    - **Ambient Particle Drift**: 300-800 slow-moving warm-colored particles with additive blending drifting across scene
-   - **Glass-morphism Hover Tooltip**: Shows generation label, member names, star class with backdrop blur and household-colored accents
+   - **Glass-morphism Hover Tooltip**: Shows household name, member count, and member first names with backdrop blur and household-colored accents
    - **Motion Trail Effect**: Subtle visual trails during camera movement
    - **Warm Amber HUD**: Top bar with coordinate readout, filter toggles, minimap — all using warm amber/gold accents instead of cyan; corner-bracket framed panels with subtle warm borders
    - **Warp Transitions**: Visual warp streaks when zooming into a household system
@@ -59,7 +59,7 @@ Nashiverse is a family management application with a cosmic/space theme. It help
 ## Database Schema
 Key tables:
 - `users` - Authentication and user accounts (with role column)
-- `people` - Family members (with star_profile JSONB, about, medical_notes)
+- `people` - Family members (with star_profile JSONB, about, medical_notes, household_status)
 - `households` - Family households (with description)
 - `relationships` - Relationships between people (parent/partner/sibling) with subtype (biological/step/adoptive)
 - `trips` - Trip planning (with visibility, status)

@@ -38,14 +38,15 @@ export async function seedFamilyData({ force = false } = {}) {
 
     async function createPerson(key, data) {
       const { rows } = await client.query(
-        `INSERT INTO people (name, nickname, birth_date, role_type, household_id, allergies, dietary_preferences, is_deceased, about, medical_notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+        `INSERT INTO people (name, nickname, birth_date, role_type, household_id, household_status, allergies, dietary_preferences, is_deceased, about, medical_notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
         [
           data.name,
           data.nickname || null,
           data.birth_date || null,
           data.role_type || 'adult',
           hIds[data.household] || null,
+          data.household_status || 'primary',
           data.allergies || null,
           data.dietary_preferences || null,
           data.is_deceased || false,
@@ -87,6 +88,7 @@ export async function seedFamilyData({ force = false } = {}) {
     await createHousehold('anne_roger', 'Anne & Roger Toon', 'The Toon household');
     await createHousehold('nathan_charity', 'Nathan & Charity Toon', 'Nathan and Charity\'s place');
     await createHousehold('philip_katy', 'Philip & Katy Toon', 'Philip and Katy\'s place');
+    await createHousehold('ava_austin', 'Ava & Austin', 'Ava and Austin\'s place');
 
     await createPerson('randy', {
       name: 'Randy Nash', nickname: 'Dad', birth_date: '1963-03-15',
@@ -277,14 +279,19 @@ export async function seedFamilyData({ force = false } = {}) {
 
     await createPerson('martin', {
       name: 'Martin Folker', birth_date: '2003-03-22',
-      role_type: 'adult', household: 'angela_brian',
-      about: 'Angela\'s oldest. No kids of his own yet.',
+      role_type: 'adult', household: 'matthew_megan',
+      about: 'Angela\'s oldest. Lives with Matthew and Megan.',
       allergies: ['peanuts'],
     });
     await createPerson('ava', {
       name: 'Ava Goldsberry', birth_date: '2004-08-15',
-      role_type: 'adult', household: 'angela_brian',
-      about: 'Angela\'s daughter.',
+      role_type: 'adult', household: 'ava_austin',
+      about: 'Angela\'s daughter. Lives with her boyfriend Austin.',
+    });
+    await createPerson('austin', {
+      name: 'Austin', birth_date: '2003-05-10',
+      role_type: 'adult', household: 'ava_austin',
+      about: 'Ava\'s boyfriend.',
     });
     await createPerson('nash_g', {
       name: 'Nash Goldsberry', birth_date: '2007-12-01',
@@ -445,6 +452,9 @@ export async function seedFamilyData({ force = false } = {}) {
 
     await createRelationship('matthew', 'megan', 'partner');
     await createRelationship('megan', 'matthew', 'partner');
+
+    await createRelationship('ava', 'austin', 'partner');
+    await createRelationship('austin', 'ava', 'partner');
 
     await createCalendarEvent('Randy\'s Birthday', '2026-03-15', 'birthday', ['randy'], '#f59e0b');
     await createCalendarEvent('Nancy\'s Birthday', '2026-07-22', 'birthday', ['nancy'], '#ec4899');

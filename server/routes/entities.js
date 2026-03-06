@@ -7,7 +7,7 @@ const router = express.Router();
 const entityConfig = {
   Person: {
     table: 'people',
-    columns: ['id', 'name', 'nickname', 'photo_url', 'birth_date', 'birth_year', 'death_date', 'role_type', 'household_id', 'linked_user_email', 'allergies', 'dietary_preferences', 'is_deceased', 'about', 'medical_notes', 'star_profile', 'guardian_ids', 'star_pattern', 'star_intensity', 'star_flare_count', 'created_at']
+    columns: ['id', 'name', 'nickname', 'photo_url', 'birth_date', 'birth_year', 'death_date', 'role_type', 'household_id', 'household_status', 'linked_user_email', 'allergies', 'dietary_preferences', 'is_deceased', 'about', 'medical_notes', 'star_profile', 'guardian_ids', 'star_pattern', 'star_intensity', 'star_flare_count', 'created_at']
   },
   Trip: {
     table: 'trips',

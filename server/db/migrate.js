@@ -16,6 +16,7 @@ export async function runMigrations() {
       ALTER TABLE people ADD COLUMN IF NOT EXISTS star_pattern TEXT;
       ALTER TABLE people ADD COLUMN IF NOT EXISTS star_intensity INTEGER;
       ALTER TABLE people ADD COLUMN IF NOT EXISTS star_flare_count INTEGER;
+      ALTER TABLE people ADD COLUMN IF NOT EXISTS household_status TEXT DEFAULT 'primary';
     `);
 
     // ── trips table: add missing columns ──
