@@ -1984,10 +1984,16 @@ function AnimatedHouseholdGroup({
           opacity={starRenderOpacity * 0.8}
         />
       )}
+      {!focusedHouseholdId && galaxyCoupleRing && (
+        <GalaxyOutlineRing
+          colorIndex={colorIndex}
+          radius={GALAXY_RING_RADIUS}
+        />
+      )}
       {!focusedHouseholdId && isHovered && galaxyCoupleRing && (
         <HoverSphere
           colorIndex={colorIndex}
-          radius={2.0}
+          radius={GALAXY_RING_RADIUS}
         />
       )}
       {!isOtherFocused && (
@@ -2120,6 +2126,74 @@ function SystemNebulaCloud({ color, opacity = 0.15, starClass, memberCount = 2 }
   );
 }
 
+const GALAXY_RING_RADIUS = 2.0;
+
+function GalaxyOutlineRing({ colorIndex, radius = GALAXY_RING_RADIUS }) {
+  const ringGroupRef = useRef();
+  const matRef = useRef();
+  const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
+  const ringColor = useMemo(() => new THREE.Color(baseColors.primary), [baseColors]);
+  const { camera } = useThree();
+
+  const _worldPos = useMemo(() => new THREE.Vector3(), []);
+  const _dir = useMemo(() => new THREE.Vector3(), []);
+  const _right = useMemo(() => new THREE.Vector3(), []);
+  const _up = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+  const _corrUp = useMemo(() => new THREE.Vector3(), []);
+  const _mat = useMemo(() => new THREE.Matrix4(), []);
+
+  const ringPoints = useMemo(() => {
+    const segments = 64;
+    const pts = new Float32Array((segments + 1) * 3);
+    for (let i = 0; i <= segments; i++) {
+      const angle = (i / segments) * Math.PI * 2;
+      pts[i * 3] = Math.cos(angle) * radius;
+      pts[i * 3 + 1] = Math.sin(angle) * radius;
+      pts[i * 3 + 2] = 0;
+    }
+    return pts;
+  }, [radius]);
+
+  useFrame((state) => {
+    if (ringGroupRef.current) {
+      ringGroupRef.current.getWorldPosition(_worldPos);
+      _dir.copy(camera.position).sub(_worldPos).normalize();
+      const upVec = Math.abs(_dir.y) > 0.95 ? _up.set(1, 0, 0) : _up.set(0, 1, 0);
+      _right.crossVectors(upVec, _dir).normalize();
+      _corrUp.crossVectors(_dir, _right).normalize();
+      _mat.makeBasis(_right, _corrUp, _dir);
+      ringGroupRef.current.quaternion.setFromRotationMatrix(_mat);
+    }
+    if (matRef.current) {
+      const t = state.clock.elapsedTime;
+      matRef.current.opacity = 0.15 + Math.sin(t * 1.2) * 0.05;
+    }
+  });
+
+  return (
+    <group ref={ringGroupRef}>
+      <line>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={ringPoints.length / 3}
+            array={ringPoints}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <lineBasicMaterial
+          ref={matRef}
+          color={ringColor}
+          transparent
+          opacity={0.15}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </line>
+    </group>
+  );
+}
+
 function HoverSphere({ colorIndex, radius = 2.0 }) {
   const meshRef = useRef();
   const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
@@ -2175,8 +2249,8 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
         const angle = (i / segments) * Math.PI * 2;
         pts.push(new THREE.Vector3(
           Math.cos(angle) * layer.r,
-          0,
-          Math.sin(angle) * layer.r
+          Math.sin(angle) * layer.r,
+          0
         ));
       }
       return { points: pts, opacity: layer.opacity };
@@ -2226,8 +2300,8 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
         const angle = s.phase + t * s.speed;
         children[i].position.set(
           Math.cos(angle) * radius,
-          0,
-          Math.sin(angle) * radius
+          Math.sin(angle) * radius,
+          0
         );
         const flicker = 0.3 + Math.sin(t * 3 + s.phase) * 0.4 + Math.sin(t * 7.3 + s.phase * 2) * 0.3;
         children[i].material.opacity = opacity * s.brightness * Math.max(0, flicker);
@@ -2248,7 +2322,8 @@ function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
     if (ringGroupRef.current) {
       ringGroupRef.current.getWorldPosition(_worldPos);
       _dir.copy(camera.position).sub(_worldPos).normalize();
-      _right.crossVectors(_up.set(0, 1, 0), _dir).normalize();
+      const upVec = Math.abs(_dir.y) > 0.95 ? _up.set(1, 0, 0) : _up.set(0, 1, 0);
+      _right.crossVectors(upVec, _dir).normalize();
       _corrUp.crossVectors(_dir, _right).normalize();
       _mat.makeBasis(_right, _corrUp, _dir);
       ringGroupRef.current.quaternion.setFromRotationMatrix(_mat);
@@ -2570,7 +2645,7 @@ const connectionLineShader = {
 
 const _lineColor = new THREE.Color();
 
-function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold, householdGroupRefs }) {
+function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold, householdGroupRefs, coupleHouseholds }) {
   const meshRef = useRef();
   const timeUniform = useRef({ value: 0 });
   const resolutionUniform = useRef({ value: new THREE.Vector2(1920, 1080) });
@@ -2698,8 +2773,30 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         }
       }
 
+      const dx = toX - fromX;
+      const dy = toY - fromY;
+      const dz = toZ - fromZ;
+      const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (len > 0.01) {
+        const nx = dx / len;
+        const ny = dy / len;
+        const nz = dz / len;
+        const fromHasRing = coupleHouseholds && (coupleHouseholds.has(edge.fromHouseholdId) || coupleHouseholds.has(String(edge.fromHouseholdId)) || coupleHouseholds.has(Number(edge.fromHouseholdId)));
+        const toHasRing = coupleHouseholds && (coupleHouseholds.has(edge.toHouseholdId) || coupleHouseholds.has(String(edge.toHouseholdId)) || coupleHouseholds.has(Number(edge.toHouseholdId)));
+        if (fromHasRing) {
+          fromX += nx * GALAXY_RING_RADIUS;
+          fromY += ny * GALAXY_RING_RADIUS;
+          fromZ += nz * GALAXY_RING_RADIUS;
+        }
+        if (toHasRing) {
+          toX -= nx * GALAXY_RING_RADIUS;
+          toY -= ny * GALAXY_RING_RADIUS;
+          toZ -= nz * GALAXY_RING_RADIUS;
+        }
+      }
+
       const isHighlighted = hoveredHouseholdId && (String(hoverMask[i]?.from) === String(hoveredHouseholdId) || String(hoverMask[i]?.to) === String(hoveredHouseholdId));
-      const hlVal = isHighlighted ? 1.0 : 0.10;
+      const hlVal = isHighlighted ? 1.0 : 0.0;
 
       const edgeColors = HOUSEHOLD_COLORS[edge.fromColorIndex % HOUSEHOLD_COLORS.length];
       _lineColor.set(edgeColors.glow);
@@ -2928,6 +3025,15 @@ function UnifiedGalaxyScene({
     return computeHouseholdEdges(relationships, people);
   }, [relationships, people]);
 
+  const coupleHouseholds = useMemo(() => {
+    const set = new Set();
+    starsByHousehold.forEach((stars, hhId) => {
+      const parentStars = stars.filter(s => s.isParent);
+      if (parentStars.length >= 2) set.add(hhId);
+    });
+    return set;
+  }, [starsByHousehold]);
+
   const hoveredPos = useMemo(() => {
     if (!hoveredHouseholdId) return null;
     return householdPositions.get(hoveredHouseholdId);
@@ -2953,6 +3059,7 @@ function UnifiedGalaxyScene({
           hoveredHouseholdId={hoveredHouseholdId}
           starsByHousehold={starsByHousehold}
           householdGroupRefs={householdGroupRefs}
+          coupleHouseholds={coupleHouseholds}
         />
       )}
       {households.map((household, index) => {
