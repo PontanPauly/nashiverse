@@ -2645,7 +2645,7 @@ const connectionLineShader = {
 
 const _lineColor = new THREE.Color();
 
-const _LINE_VERSION = 6;
+const _LINE_VERSION = 7;
 function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold, householdGroupRefs, coupleHouseholds }) {
   const meshRef = useRef();
   const timeUniform = useRef({ value: 0 });
@@ -2660,13 +2660,17 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
     const mask = [];
     const data = [];
 
-    const getNebulaRadius = (hhId) => {
-      const stars = starsByHousehold ? (starsByHousehold.get(hhId) || starsByHousehold.get(String(hhId)) || starsByHousehold.get(Number(hhId))) : null;
-      const mc = stars ? stars.length : 1;
-      if (mc >= 8) return 7.0;
-      if (mc >= 5) return 6.0;
-      if (mc >= 3) return 5.0;
-      return 4.0;
+    const findStarLocalPos = (hhId, personId, basePos) => {
+      if (!starsByHousehold || !personId) return null;
+      const stars = starsByHousehold.get(hhId) || starsByHousehold.get(String(hhId)) || starsByHousehold.get(Number(hhId));
+      if (!stars) return null;
+      const star = stars.find(s => String(s.id) === String(personId));
+      if (!star || !star.position) return null;
+      return {
+        x: star.position[0] - basePos.x,
+        y: star.position[1] - basePos.y,
+        z: star.position[2] - basePos.z,
+      };
     };
 
     edges.forEach((edge, i) => {
@@ -2690,6 +2694,8 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         }
       }
 
+      const childStarLocal = findStarLocalPos(edgeTo, edge.childPersonId, toPos);
+
       data.push({
         fromHouseholdId: edge.from,
         toHouseholdId: edge.to,
@@ -2698,8 +2704,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         fromColorIndex,
         isIntraHousehold: edge.isIntraHousehold || false,
         fromRing: edge.fromRing || false,
-        fromNebulaRadius: getNebulaRadius(edgeFrom),
-        toNebulaRadius: getNebulaRadius(edgeTo),
+        childStarLocal,
       });
 
       mask.push({ from: edge.from, to: edge.to });
@@ -2839,6 +2844,12 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         if (tGroup) toScale = tGroup.scale.x;
       }
 
+      if (edge.childStarLocal) {
+        toX = toX + edge.childStarLocal.x * toScale;
+        toY = toY + edge.childStarLocal.y * toScale;
+        toZ = toZ + edge.childStarLocal.z * toScale;
+      }
+
       const dx = toX - fromX;
       const dy = toY - fromY;
       const dz = toZ - fromZ;
@@ -2848,13 +2859,9 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         const ny = dy / len;
         const nz = dz / len;
         const fromR = GALAXY_RING_RADIUS * fromScale;
-        const toR = GALAXY_RING_RADIUS * toScale;
         fromX += nx * fromR;
         fromY += ny * fromR;
         fromZ += nz * fromR;
-        toX -= nx * toR;
-        toY -= ny * toR;
-        toZ -= nz * toR;
       }
 
       const isHighlighted = hoveredHouseholdId && (String(hoverMask[i]?.from) === String(hoveredHouseholdId) || String(hoverMask[i]?.to) === String(hoveredHouseholdId));
