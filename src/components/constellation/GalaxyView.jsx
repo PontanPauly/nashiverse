@@ -1963,140 +1963,158 @@ function AnimatedHouseholdGroup({
 }
 
 function CoupleRing({ center, radius, colorIndex, opacity = 0.6 }) {
-  const ringRef = useRef();
-  const glowRingRef = useRef();
-  const pulseRingRef = useRef();
-  const innerGlowRef = useRef();
   const mainMatRef = useRef();
-  const glowMatRef = useRef();
+  const outerGlowMatRef = useRef();
+  const innerFillMatRef = useRef();
+  const pulseRingRef = useRef();
   const pulseMatRef = useRef();
-  const innerGlowMatRef = useRef();
-
-  const tiltRotation = useMemo(() => {
-    const seed = colorIndex * 137.508 + 42.7;
-    const tiltX = (Math.sin(seed) * 0.5) * 0.5;
-    const tiltZ = (Math.cos(seed * 1.3) * 0.5) * 0.5;
-    return [tiltX, 0, tiltZ];
-  }, [colorIndex]);
-
-  const points = useMemo(() => {
-    const segments = 64;
-    const pts = [];
-    for (let i = 0; i <= segments; i++) {
-      const angle = (i / segments) * Math.PI * 2;
-      pts.push(new THREE.Vector3(
-        Math.cos(angle) * radius,
-        0,
-        Math.sin(angle) * radius
-      ));
-    }
-    return pts;
-  }, [radius]);
-
-  const glowPoints = useMemo(() => {
-    const segments = 64;
-    const pts = [];
-    for (let i = 0; i <= segments; i++) {
-      const angle = (i / segments) * Math.PI * 2;
-      pts.push(new THREE.Vector3(
-        Math.cos(angle) * radius * 1.08,
-        0,
-        Math.sin(angle) * radius * 1.08
-      ));
-    }
-    return pts;
-  }, [radius]);
+  const sparkleRef = useRef();
 
   const baseColors = HOUSEHOLD_COLORS[colorIndex % HOUSEHOLD_COLORS.length];
   const ringColor = new THREE.Color(baseColors.primary);
+  const glowColor = new THREE.Color(baseColors.glow);
+
+  const ringLines = useMemo(() => {
+    const segments = 96;
+    const layers = [
+      { r: radius * 0.96, opacity: 0.12 },
+      { r: radius, opacity: 1.0 },
+      { r: radius * 1.04, opacity: 0.3 },
+      { r: radius * 1.1, opacity: 0.08 },
+    ];
+    return layers.map(layer => {
+      const pts = [];
+      for (let i = 0; i <= segments; i++) {
+        const angle = (i / segments) * Math.PI * 2;
+        pts.push(new THREE.Vector3(
+          Math.cos(angle) * layer.r,
+          0,
+          Math.sin(angle) * layer.r
+        ));
+      }
+      return { points: pts, opacity: layer.opacity };
+    });
+  }, [radius]);
+
+  const sparkleCount = 8;
+  const sparkleData = useMemo(() => {
+    const data = [];
+    for (let i = 0; i < sparkleCount; i++) {
+      data.push({
+        phase: (i / sparkleCount) * Math.PI * 2,
+        speed: 0.3 + Math.random() * 0.2,
+        size: 0.06 + Math.random() * 0.04,
+        brightness: 0.5 + Math.random() * 0.5,
+      });
+    }
+    return data;
+  }, []);
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
-    const breathe = 0.7 + Math.sin(t * 1.2) * 0.3;
-    const pulseWave = Math.max(0, Math.sin(t * 0.8)) ;
-    const pulseScale = 1.1 + pulseWave * 0.15;
+    const breathe = 0.65 + Math.sin(t * 0.9) * 0.2 + Math.sin(t * 1.7) * 0.1;
+    const pulseWave = Math.max(0, Math.sin(t * 0.6));
+    const pulseScale = 1.05 + pulseWave * 0.12;
 
     if (mainMatRef.current) {
       mainMatRef.current.opacity = opacity * breathe;
     }
-    if (glowMatRef.current) {
-      glowMatRef.current.opacity = opacity * 0.25 * breathe;
+    if (outerGlowMatRef.current) {
+      outerGlowMatRef.current.opacity = opacity * 0.08 * breathe;
+    }
+    if (innerFillMatRef.current) {
+      innerFillMatRef.current.opacity = opacity * 0.04 * breathe;
     }
     if (pulseRingRef.current) {
       pulseRingRef.current.scale.set(pulseScale, pulseScale, pulseScale);
     }
     if (pulseMatRef.current) {
-      pulseMatRef.current.opacity = opacity * 0.15 * pulseWave;
+      pulseMatRef.current.opacity = opacity * 0.1 * pulseWave;
     }
-    if (innerGlowMatRef.current) {
-      innerGlowMatRef.current.opacity = opacity * 0.06 * breathe;
+
+    if (sparkleRef.current) {
+      const children = sparkleRef.current.children;
+      for (let i = 0; i < children.length && i < sparkleData.length; i++) {
+        const s = sparkleData[i];
+        const angle = s.phase + t * s.speed;
+        children[i].position.set(
+          Math.cos(angle) * radius,
+          0,
+          Math.sin(angle) * radius
+        );
+        const flicker = 0.3 + Math.sin(t * 3 + s.phase) * 0.4 + Math.sin(t * 7.3 + s.phase * 2) * 0.3;
+        children[i].material.opacity = opacity * s.brightness * Math.max(0, flicker);
+      }
     }
   });
 
   return (
-    <group position={[center[0], center[1], center[2]]} rotation={tiltRotation}>
-      <line ref={ringRef}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={points.length}
-            array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial
-          ref={mainMatRef}
-          color={ringColor}
-          transparent
-          opacity={opacity}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </line>
-      <line ref={glowRingRef}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={glowPoints.length}
-            array={new Float32Array(glowPoints.flatMap(p => [p.x, p.y, p.z]))}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial
-          ref={glowMatRef}
-          color={ringColor}
-          transparent
-          opacity={opacity * 0.25}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </line>
-      <group ref={pulseRingRef}>
+    <group position={[center[0], center[1], center[2]]}>
+      <group>
+        {ringLines.map((layer, li) => (
+          <line key={`ring-layer-${li}`}>
+            <bufferGeometry>
+              <bufferAttribute
+                attach="attributes-position"
+                count={layer.points.length}
+                array={new Float32Array(layer.points.flatMap(p => [p.x, p.y, p.z]))}
+                itemSize={3}
+              />
+            </bufferGeometry>
+            <lineBasicMaterial
+              ref={li === 1 ? mainMatRef : (li === 3 ? outerGlowMatRef : undefined)}
+              color={li === 0 ? glowColor : ringColor}
+              transparent
+              opacity={opacity * layer.opacity}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </line>
+        ))}
+
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[radius * 1.05, radius * 1.18, 64]} />
+          <circleGeometry args={[radius * 0.9, 64]} />
           <meshBasicMaterial
-            ref={pulseMatRef}
+            ref={innerFillMatRef}
             color={ringColor}
             transparent
-            opacity={0}
+            opacity={opacity * 0.04}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
             side={THREE.DoubleSide}
           />
         </mesh>
+
+        <group ref={pulseRingRef}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[radius * 1.02, radius * 1.14, 64]} />
+            <meshBasicMaterial
+              ref={pulseMatRef}
+              color={glowColor}
+              transparent
+              opacity={0}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        </group>
+
+        <group ref={sparkleRef}>
+          {sparkleData.map((s, i) => (
+            <sprite key={`sparkle-${i}`} scale={[s.size, s.size, 1]}>
+              <spriteMaterial
+                map={getGlowTexture()}
+                color={glowColor}
+                transparent
+                opacity={0}
+                blending={THREE.AdditiveBlending}
+                depthWrite={false}
+              />
+            </sprite>
+          ))}
+        </group>
       </group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[radius * 0.92, radius * 1.08, 64]} />
-        <meshBasicMaterial
-          ref={innerGlowMatRef}
-          color={ringColor}
-          transparent
-          opacity={opacity * 0.06}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
     </group>
   );
 }
@@ -2334,7 +2352,7 @@ const connectionLineShader = {
       float baseBrightness = mix(0.15, 0.7, vHighlight);
       float brightness = baseBrightness + pulseGlow * mix(0.2, 1.0, vHighlight);
       brightness *= (0.5 + coreBright * 0.5);
-      float alpha = mix(0.18, 0.9, vHighlight) * edgeFalloff;
+      float alpha = mix(0.06, 0.9, vHighlight) * edgeFalloff;
       if (alpha < 0.01) discard;
       vec3 col = vColor * brightness;
       col += vColor * coreBright * 0.3;
@@ -2437,7 +2455,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
     const t = new Float32Array(totalVerts);
     const col = new Float32Array(totalVerts * 3);
     const hl = new Float32Array(totalVerts);
-    hl.fill(0.35);
+    hl.fill(0.15);
     const dp = new Float32Array(totalVerts * 3);
     const idx = new Uint32Array(totalIndices);
 
@@ -2529,7 +2547,7 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
       }
 
       const isHighlighted = hoveredHouseholdId && (String(hoverMask[i]?.from) === String(hoveredHouseholdId) || String(hoverMask[i]?.to) === String(hoveredHouseholdId));
-      const hlVal = isHighlighted ? 1.0 : 0.35;
+      const hlVal = isHighlighted ? 1.0 : 0.15;
 
       const edgeColors = HOUSEHOLD_COLORS[edge.fromColorIndex % HOUSEHOLD_COLORS.length];
       const lineColor = new THREE.Color(edgeColors.glow);
