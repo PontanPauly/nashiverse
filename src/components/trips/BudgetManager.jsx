@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, DollarSign, Trash2, Upload, Edit } from "lucide-react";
+import { Plus, DollarSign, Trash2, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,38 +32,14 @@ export default function BudgetManager({ tripId, people }) {
     people.forEach(p => balance[p.id] = 0);
 
     expenses.forEach(expense => {
-      // Person who paid gets credited
       balance[expense.paid_by_person_id] = (balance[expense.paid_by_person_id] || 0) + expense.amount;
 
-      // Calculate splits
-      if (expense.custom_splits && Object.keys(expense.custom_splits).length > 0) {
-        // Custom splits exist
-        let customTotal = 0;
-        Object.entries(expense.custom_splits).forEach(([personId, amount]) => {
-          balance[personId] = (balance[personId] || 0) - amount;
-          customTotal += amount;
-        });
-
-        // Remaining amount split equally among non-custom people
-        const remaining = expense.amount - customTotal;
-        const nonCustomPeople = (expense.split_with_person_ids || []).filter(
-          id => !expense.custom_splits[id]
-        );
-        
-        if (nonCustomPeople.length > 0 && remaining > 0) {
-          const amountPerPerson = remaining / nonCustomPeople.length;
-          nonCustomPeople.forEach(personId => {
-            balance[personId] = (balance[personId] || 0) - amountPerPerson;
-          });
-        }
-      } else {
-        // Equal split
-        const splitCount = (expense.split_with_person_ids || []).length || 1;
-        const perPerson = expense.amount / splitCount;
-        (expense.split_with_person_ids || [expense.paid_by_person_id]).forEach(personId => {
-          balance[personId] = (balance[personId] || 0) - perPerson;
-        });
-      }
+      const splitIds = expense.split_among_ids || [expense.paid_by_person_id];
+      const splitCount = splitIds.length || 1;
+      const perPerson = expense.amount / splitCount;
+      splitIds.forEach(personId => {
+        balance[personId] = (balance[personId] || 0) - perPerson;
+      });
     });
 
     return balance;
@@ -82,7 +58,6 @@ export default function BudgetManager({ tripId, people }) {
         </Button>
       </div>
 
-      {/* Balances */}
       <div className="glass-card rounded-xl p-4">
         <h4 className="text-sm font-semibold text-slate-400 mb-3">Balances</h4>
         <div className="space-y-2">
@@ -100,7 +75,6 @@ export default function BudgetManager({ tripId, people }) {
         </div>
       </div>
 
-      {/* Expenses */}
       <div className="space-y-2">
         {expenses.map(expense => {
           const paidBy = people.find(p => p.id === expense.paid_by_person_id);
@@ -110,10 +84,19 @@ export default function BudgetManager({ tripId, people }) {
                 <h4 className="font-medium text-slate-200">{expense.description}</h4>
                 <div className="flex gap-2 mt-1 text-sm text-slate-500">
                   <span>{paidBy?.name || 'Unknown'}</span>
-                  <span>•</span>
-                  <span>{format(new Date(expense.date), 'MMM d')}</span>
-                  <Badge className="ml-2">{expense.category}</Badge>
+                  {expense.date && (
+                    <>
+                      <span>•</span>
+                      <span>{format(new Date(expense.date), 'MMM d')}</span>
+                    </>
+                  )}
+                  {expense.category && <Badge className="ml-2">{expense.category}</Badge>}
                 </div>
+                {expense.split_among_ids && expense.split_among_ids.length > 0 && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Split among {expense.split_among_ids.length} {expense.split_among_ids.length === 1 ? 'person' : 'people'}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-lg font-semibold text-amber-400">${expense.amount}</span>
@@ -163,26 +146,25 @@ export default function BudgetManager({ tripId, people }) {
 }
 
 function ExpenseForm({ tripId, people, expense, onClose, onSuccess }) {
-  const [formData, setFormData] = useState(expense || {
-    description: '',
-    amount: '',
-    paid_by_person_id: '',
-    split_with_person_ids: [],
-    split_equally: true,
-    custom_splits: {},
-    category: 'other',
-    date: new Date().toISOString().split('T')[0],
-    receipt_url: '',
+  const [formData, setFormData] = useState({
+    description: expense?.description || '',
+    amount: expense?.amount || '',
+    paid_by_person_id: expense?.paid_by_person_id || '',
+    split_among_ids: expense?.split_among_ids || people.map(p => p.id),
+    category: expense?.category || 'other',
+    date: expense?.date || new Date().toISOString().split('T')[0],
   });
-  const [uploading, setUploading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const dataToSave = {
-      ...formData,
       trip_id: tripId,
+      description: formData.description,
       amount: parseFloat(formData.amount),
-      split_with_person_ids: formData.split_equally ? people.map(p => p.id) : formData.split_with_person_ids,
+      paid_by_person_id: formData.paid_by_person_id,
+      split_among_ids: formData.split_among_ids,
+      category: formData.category,
+      date: formData.date || null,
     };
     
     if (expense?.id) {
@@ -193,43 +175,18 @@ function ExpenseForm({ tripId, people, expense, onClose, onSuccess }) {
     onSuccess();
   };
 
-  const handleReceipt = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setFormData({ ...formData, receipt_url: file_url });
-    setUploading(false);
-  };
-
   const toggleSplit = (personId) => {
-    const current = formData.split_with_person_ids;
+    const current = formData.split_among_ids;
     if (current.includes(personId)) {
-      const newSplits = { ...formData.custom_splits };
-      delete newSplits[personId];
-      setFormData({ 
-        ...formData, 
-        split_with_person_ids: current.filter(id => id !== personId),
-        custom_splits: newSplits 
-      });
+      setFormData({ ...formData, split_among_ids: current.filter(id => id !== personId) });
     } else {
-      setFormData({ ...formData, split_with_person_ids: [...current, personId] });
+      setFormData({ ...formData, split_among_ids: [...current, personId] });
     }
   };
 
-  const setCustomAmount = (personId, amount) => {
-    const newSplits = { ...formData.custom_splits };
-    if (amount && parseFloat(amount) > 0) {
-      newSplits[personId] = parseFloat(amount);
-    } else {
-      delete newSplits[personId];
-    }
-    setFormData({ ...formData, custom_splits: newSplits });
-  };
-
-  const customTotal = Object.values(formData.custom_splits || {}).reduce((sum, val) => sum + val, 0);
-  const remaining = parseFloat(formData.amount || 0) - customTotal;
-  const nonCustomCount = formData.split_with_person_ids.filter(id => !formData.custom_splits?.[id]).length;
+  const perPerson = formData.split_among_ids.length > 0 && formData.amount
+    ? (parseFloat(formData.amount) / formData.split_among_ids.length).toFixed(2)
+    : '0.00';
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -267,7 +224,6 @@ function ExpenseForm({ tripId, people, expense, onClose, onSuccess }) {
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 className="bg-slate-800 border-slate-700 text-slate-100"
-                required
               />
             </div>
           </div>
@@ -304,94 +260,27 @@ function ExpenseForm({ tripId, people, expense, onClose, onSuccess }) {
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label className="text-slate-300">Split</Label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, split_equally: true })}
-                  className={`px-3 py-1 rounded text-xs ${
-                    formData.split_equally
-                      ? 'bg-amber-500 text-slate-900'
-                      : 'bg-slate-700 text-slate-400'
+            <Label className="text-slate-300">Split Among</Label>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {people.map(person => (
+                <Badge
+                  key={person.id}
+                  onClick={() => toggleSplit(person.id)}
+                  className={`cursor-pointer ${
+                    formData.split_among_ids.includes(person.id)
+                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                      : 'bg-slate-700 text-slate-400 border-slate-600'
                   }`}
                 >
-                  Equally
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, split_equally: false })}
-                  className={`px-3 py-1 rounded text-xs ${
-                    !formData.split_equally
-                      ? 'bg-amber-500 text-slate-900'
-                      : 'bg-slate-700 text-slate-400'
-                  }`}
-                >
-                  Specific
-                </button>
-              </div>
+                  {person.name}
+                </Badge>
+              ))}
             </div>
-            {!formData.split_equally && (
-              <>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {people.map(person => (
-                    <Badge
-                      key={person.id}
-                      onClick={() => toggleSplit(person.id)}
-                      className={`cursor-pointer ${
-                        formData.split_with_person_ids.includes(person.id)
-                          ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                          : 'bg-slate-700 text-slate-400 border-slate-600'
-                      }`}
-                    >
-                      {person.name}
-                    </Badge>
-                  ))}
-                </div>
-
-                {formData.split_with_person_ids.length > 0 && formData.amount && (
-                  <div className="mt-4 space-y-2">
-                    <Label className="text-slate-300 text-xs">Custom Amounts (optional)</Label>
-                    {formData.split_with_person_ids.map(personId => {
-                      const person = people.find(p => p.id === personId);
-                      return (
-                        <div key={personId} className="flex items-center gap-2">
-                          <span className="text-sm text-slate-400 w-32">{person?.name}</span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="Auto"
-                            value={formData.custom_splits?.[personId] || ''}
-                            onChange={(e) => setCustomAmount(personId, e.target.value)}
-                            className="bg-slate-800 border-slate-700 text-slate-100 h-8 text-sm"
-                          />
-                        </div>
-                      );
-                    })}
-                    {nonCustomCount > 0 && (
-                      <p className="text-xs text-slate-500 mt-2">
-                        {nonCustomCount} {nonCustomCount === 1 ? 'person' : 'people'} splitting ${remaining.toFixed(2)} equally
-                        {nonCustomCount > 0 && ` ($${(remaining / nonCustomCount).toFixed(2)} each)`}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </>
+            {formData.split_among_ids.length > 0 && formData.amount && (
+              <p className="text-xs text-slate-500 mt-2">
+                ${perPerson} each ({formData.split_among_ids.length} {formData.split_among_ids.length === 1 ? 'person' : 'people'})
+              </p>
             )}
-            {formData.split_equally && (
-              <p className="text-xs text-slate-500 mt-2">Split equally among all attendees</p>
-            )}
-          </div>
-
-          <div>
-            <Label className="text-slate-300">Receipt (Optional)</Label>
-            <label className="cursor-pointer">
-              <input type="file" accept="image/*" onChange={handleReceipt} className="hidden" />
-              <Button type="button" variant="outline" className="w-full" disabled={uploading}>
-                <Upload className="w-4 h-4 mr-2" />
-                {uploading ? 'Uploading...' : formData.receipt_url ? 'Change Receipt' : 'Upload Receipt'}
-              </Button>
-            </label>
           </div>
 
           <div className="flex justify-end gap-3">

@@ -60,7 +60,7 @@ export default function FamilyStories() {
         <div className="space-y-6">
           {stories.map(story => {
             const author = people.find(p => p.id === story.author_person_id);
-            const subjects = (story.subject_person_ids || []).map(id => people.find(p => p.id === id)).filter(Boolean);
+            const subjects = (story.related_person_ids || []).map(id => people.find(p => p.id === id)).filter(Boolean);
 
             return (
               <div key={story.id} className="glass-card rounded-2xl p-6 hover:shadow-lg transition-shadow">
@@ -160,7 +160,7 @@ function StoryForm({ open, onClose, story, people }) {
     content: story?.content || "",
     story_date: story?.story_date || "",
     author_person_id: story?.author_person_id || "",
-    subject_person_ids: story?.subject_person_ids || [],
+    related_person_ids: story?.related_person_ids || [],
     tags: story?.tags || [],
   });
   const [newTag, setNewTag] = useState("");
@@ -251,8 +251,8 @@ function StoryForm({ open, onClose, story, people }) {
             <Select
               value=""
               onValueChange={(value) => {
-                if (!formData.subject_person_ids.includes(value)) {
-                  setFormData({ ...formData, subject_person_ids: [...formData.subject_person_ids, value] });
+                if (!formData.related_person_ids.includes(value)) {
+                  setFormData({ ...formData, related_person_ids: [...formData.related_person_ids, value] });
                 }
               }}
             >
@@ -260,13 +260,13 @@ function StoryForm({ open, onClose, story, people }) {
                 <SelectValue placeholder="Add person" />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
-                {people.filter(p => !formData.subject_person_ids.includes(p.id)).map(p => (
+                {people.filter(p => !formData.related_person_ids.includes(p.id)).map(p => (
                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <div className="flex flex-wrap gap-2">
-              {formData.subject_person_ids.map(id => {
+              {formData.related_person_ids.map(id => {
                 const person = people.find(p => p.id === id);
                 return (
                   <Badge key={id} className="bg-slate-700 text-slate-200">
@@ -275,7 +275,7 @@ function StoryForm({ open, onClose, story, people }) {
                       type="button"
                       onClick={() => setFormData({
                         ...formData,
-                        subject_person_ids: formData.subject_person_ids.filter(pid => pid !== id)
+                        related_person_ids: formData.related_person_ids.filter(pid => pid !== id)
                       })}
                       className="ml-1"
                     >

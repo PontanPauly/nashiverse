@@ -72,6 +72,9 @@ const functionHandlers = {
       throw new Error('Destructive operations are not allowed in production');
     }
     await requireAdminRole(req);
+    if (req.body?.confirm !== 'CLEANUP') {
+      throw new Error('Confirmation required: send { confirm: "CLEANUP" }');
+    }
     const tablesToClean = [
       'messages', 'conversations', 'calendar_events', 'love_notes', 'moments',
       'family_stories', 'rituals', 'packing_items', 'shared_trip_items',
@@ -93,6 +96,14 @@ const functionHandlers = {
 
   async seedFamilyData(req) {
     await requireAdminRole(req);
+    if (req.body?.confirm !== 'SEED') {
+      throw new Error('Confirmation required: send { confirm: "SEED" }');
+    }
+    const isProduction = process.env.NODE_ENV === 'production';
+    const allowDestructive = process.env.ALLOW_DESTRUCTIVE_ADMIN === 'true';
+    if (isProduction && !allowDestructive) {
+      throw new Error('Destructive operations are not allowed in production');
+    }
     const result = await seedFamilyData({ force: true });
     return { data: result };
   }

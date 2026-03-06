@@ -1,11 +1,20 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
+import rateLimit from 'express-rate-limit';
 import { pool } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.post('/register', async (req, res) => {
+const authLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts. Please try again in 10 minutes.' }
+});
+
+router.post('/register', authLimiter, async (req, res) => {
   try {
     const { email, password, full_name } = req.body;
 
@@ -41,7 +50,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 

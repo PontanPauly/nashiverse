@@ -2638,7 +2638,14 @@ const connectionLineShader = {
 
 const _lineColor = new THREE.Color();
 
-const _LINE_VERSION = 7;
+const _LINE_VERSION = 8;
+const _ringDir = new THREE.Vector3();
+const _ringRight = new THREE.Vector3();
+const _ringUp = new THREE.Vector3();
+const _ringCorrUp = new THREE.Vector3();
+const _ringTarget = new THREE.Vector3();
+const _ringFrom = new THREE.Vector3();
+
 function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdId, starsByHousehold, householdGroupRefs, coupleHouseholds }) {
   const meshRef = useRef();
   const timeUniform = useRef({ value: 0 });
@@ -2843,18 +2850,26 @@ function HouseholdConnectionLines({ edges, householdPositions, hoveredHouseholdI
         toZ = toZ + edge.childStarLocal.z * toScale;
       }
 
-      const dx = toX - fromX;
-      const dy = toY - fromY;
-      const dz = toZ - fromZ;
-      const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (len > 0.01) {
-        const nx = dx / len;
-        const ny = dy / len;
-        const nz = dz / len;
-        const fromR = GALAXY_RING_RADIUS * fromScale;
-        fromX += nx * fromR;
-        fromY += ny * fromR;
-        fromZ += nz * fromR;
+      const fromR = GALAXY_RING_RADIUS * fromScale;
+      _ringFrom.set(fromX, fromY, fromZ);
+      _ringTarget.set(toX, toY, toZ);
+      _ringDir.copy(state.camera.position).sub(_ringFrom).normalize();
+      const upY = Math.abs(_ringDir.y) > 0.95 ? 1 : 0;
+      _ringUp.set(upY, 1 - upY, 0);
+      _ringRight.crossVectors(_ringUp, _ringDir).normalize();
+      _ringCorrUp.crossVectors(_ringDir, _ringRight).normalize();
+      const localX = _ringTarget.x - fromX;
+      const localY = _ringTarget.y - fromY;
+      const localZ = _ringTarget.z - fromZ;
+      const projR = localX * _ringRight.x + localY * _ringRight.y + localZ * _ringRight.z;
+      const projU = localX * _ringCorrUp.x + localY * _ringCorrUp.y + localZ * _ringCorrUp.z;
+      const projLen = Math.sqrt(projR * projR + projU * projU);
+      if (projLen > 0.001) {
+        const nR = projR / projLen;
+        const nU = projU / projLen;
+        fromX += (_ringRight.x * nR + _ringCorrUp.x * nU) * fromR;
+        fromY += (_ringRight.y * nR + _ringCorrUp.y * nU) * fromR;
+        fromZ += (_ringRight.z * nR + _ringCorrUp.z * nU) * fromR;
       }
 
       const isHighlighted = hoveredHouseholdId && (String(hoverMask[i]?.from) === String(hoveredHouseholdId) || String(hoverMask[i]?.to) === String(hoveredHouseholdId));

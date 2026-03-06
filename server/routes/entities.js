@@ -4,6 +4,18 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
+const ADMIN_PROTECTED_DELETE = ['people', 'households', 'relationships', 'trips'];
+const ADMIN_PROTECTED_WRITE = ['family_settings'];
+
+async function isAdmin(userId) {
+  const { rows: userRows } = await pool.query('SELECT role, email FROM users WHERE id = $1', [userId]);
+  if (!userRows.length) return false;
+  if (userRows[0].role === 'admin') return true;
+  const { rows: settingsRows } = await pool.query('SELECT admin_emails FROM family_settings LIMIT 1');
+  const adminEmails = settingsRows[0]?.admin_emails || [];
+  return adminEmails.includes(userRows[0].email);
+}
+
 const entityConfig = {
   Person: {
     table: 'people',
@@ -75,11 +87,11 @@ const entityConfig = {
   },
   Ritual: {
     table: 'rituals',
-    columns: ['id', 'name', 'description', 'frequency', 'assigned_person_ids', 'household_id', 'next_occurrence', 'category', 'created_at']
+    columns: ['id', 'name', 'description', 'frequency', 'assigned_person_ids', 'household_id', 'next_occurrence', 'category', 'typical_month', 'host_rotation', 'current_host_index', 'custom_frequency', 'cover_image_url', 'typical_participant_household_ids', 'created_at']
   },
   Conversation: {
     table: 'conversations',
-    columns: ['id', 'participant_ids', 'created_date']
+    columns: ['id', 'participant_ids', 'type', 'name', 'created_date']
   },
   Message: {
     table: 'messages',
@@ -211,6 +223,13 @@ router.post('/:type', requireAuth, async (req, res) => {
       return res.status(403).json({ error: `Entity type '${type}' is not allowed` });
     }
 
+    if (ADMIN_PROTECTED_WRITE.includes(config.table)) {
+      const admin = await isAdmin(req.session.userId);
+      if (!admin) {
+        return res.status(403).json({ error: 'Admin privileges required' });
+      }
+    }
+
     const data = filterColumns(req.body, config.columns);
     if (Object.keys(data).length === 0) {
       return res.status(400).json({ error: 'No valid columns provided' });
@@ -236,6 +255,13 @@ router.patch('/:type/:id', requireAuth, async (req, res) => {
     const config = getConfig(type);
     if (!config) {
       return res.status(403).json({ error: `Entity type '${type}' is not allowed` });
+    }
+
+    if (ADMIN_PROTECTED_WRITE.includes(config.table)) {
+      const admin = await isAdmin(req.session.userId);
+      if (!admin) {
+        return res.status(403).json({ error: 'Admin privileges required' });
+      }
     }
 
     const data = filterColumns(req.body, config.columns);
@@ -268,6 +294,13 @@ router.delete('/:type/:id', requireAuth, async (req, res) => {
     const config = getConfig(type);
     if (!config) {
       return res.status(403).json({ error: `Entity type '${type}' is not allowed` });
+    }
+
+    if (ADMIN_PROTECTED_DELETE.includes(config.table) || ADMIN_PROTECTED_WRITE.includes(config.table)) {
+      const admin = await isAdmin(req.session.userId);
+      if (!admin) {
+        return res.status(403).json({ error: 'Admin privileges required to delete this entity' });
+      }
     }
 
     const result = await pool.query(`DELETE FROM ${config.table} WHERE id = $1 RETURNING *`, [id]);

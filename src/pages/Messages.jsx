@@ -89,12 +89,11 @@ export default function Messages() {
     scrollToBottom();
   }, [messages, selectedConversation]);
 
-  // Mark messages as read when viewing conversation
   useEffect(() => {
     if (selectedConversation && userProfile) {
       const unreadMessages = messages.filter(m => 
-        m.to_person_id === userProfile.id && 
-        m.from_person_id === selectedConversation.id &&
+        m.conversation_id === selectedConversation.id &&
+        m.from_person_id !== userProfile.id &&
         !m.is_read
       );
       unreadMessages.forEach(msg => {

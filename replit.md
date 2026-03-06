@@ -10,8 +10,8 @@ Nashiverse is a family management application with a cosmic/space theme. It help
 - **Database**: PostgreSQL with 21 tables (including calendar_events and session)
 - **Authentication**: Session-based using express-session + connect-pg-simple (PostgreSQL session store) + bcrypt
 - **File Uploads**: Multer-based file upload to `/uploads` directory
-- **Security**: Column whitelisting per entity, CORS restrictions, security headers (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection), SameSite cookies
-- **Migrations**: Auto-run on startup via `server/db/migrate.js` (ALTER TABLE ADD COLUMN IF NOT EXISTS)
+- **Security**: Column whitelisting per entity, CORS restrictions, security headers (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection), SameSite cookies, CSRF Origin check (production), rate limiting on auth endpoints (10 req/10min), uploads gated behind auth, SESSION_SECRET fail-fast in production, admin-only DELETE on people/households/relationships/trips, admin-only family_settings writes, destructive functions require confirm string
+- **Migrations**: Auto-run on startup via `server/db/migrate.js` (CREATE TABLE IF NOT EXISTS for all 22 tables + ALTER TABLE ADD COLUMN IF NOT EXISTS for incremental additions)
 - **Seed Data**: Auto-seeds Nash family data on first startup via `server/db/seed.js` (42 people, 17 households, 156 relationships). Skips if data exists. Can be force-reseeded via admin function `seedFamilyData`.
 
 ### Frontend (React + Vite)
@@ -90,6 +90,13 @@ Key tables:
 - cleanupTestData gated behind NODE_ENV !== 'production'
 - Security headers: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection
 - SameSite cookies (strict in production, lax in development)
+- CSRF Origin check on mutating requests (production only)
+- Rate limiting: 10 requests per 10 minutes on /api/auth/login and /api/auth/register
+- Uploads require authentication (gated behind requireAuth middleware)
+- SESSION_SECRET fail-fast: production refuses to start without it
+- Admin-only DELETE on people, households, relationships, trips
+- Admin-only POST/PATCH on family_settings
+- Destructive functions (cleanupTestData, seedFamilyData) require confirm string and admin role
 
 ## Development Setup
 1. Frontend runs on port 5000 (proxies API requests to backend)

@@ -101,7 +101,7 @@ export default function MyPackingList({ tripId, myPerson, allPeople }) {
                 </button>
                 <div className="flex-1">
                   <p className={cn("text-slate-200", item.is_packed && "line-through")}>
-                    {item.item_name} {item.quantity > 1 && `(${item.quantity})`}
+                    {item.item}
                   </p>
                   <Badge className="mt-1 text-xs">{item.category}</Badge>
                 </div>
@@ -141,18 +141,17 @@ export default function MyPackingList({ tripId, myPerson, allPeople }) {
 
 function PackingItemForm({ tripId, personId, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
-    item_name: '',
+    item: '',
     category: 'other',
-    quantity: 1,
   });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     await base44.entities.PackingItem.create({
-      ...formData,
+      item: formData.item,
+      category: formData.category,
       trip_id: tripId,
       person_id: personId,
-      quantity: parseInt(formData.quantity),
     });
     onSuccess();
   };
@@ -167,43 +166,30 @@ function PackingItemForm({ tripId, personId, onClose, onSuccess }) {
           <div>
             <Label className="text-slate-300">Item Name</Label>
             <Input
-              value={formData.item_name}
-              onChange={(e) => setFormData({ ...formData, item_name: e.target.value })}
+              value={formData.item}
+              onChange={(e) => setFormData({ ...formData, item: e.target.value })}
               className="bg-slate-800 border-slate-700 text-slate-100"
               placeholder="e.g., Sunscreen, Jacket, Phone charger"
               required
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-slate-300">Category</Label>
-              <Select value={formData.category} onValueChange={(val) => setFormData({ ...formData, category: val })}>
-                <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-100">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-700">
-                  <SelectItem value="clothing">Clothing</SelectItem>
-                  <SelectItem value="toiletries">Toiletries</SelectItem>
-                  <SelectItem value="electronics">Electronics</SelectItem>
-                  <SelectItem value="documents">Documents</SelectItem>
-                  <SelectItem value="activities">Activities</SelectItem>
-                  <SelectItem value="food">Food</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-slate-300">Quantity</Label>
-              <Input
-                type="number"
-                min="1"
-                value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-slate-100"
-              />
-            </div>
+          <div>
+            <Label className="text-slate-300">Category</Label>
+            <Select value={formData.category} onValueChange={(val) => setFormData({ ...formData, category: val })}>
+              <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-100">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-700">
+                <SelectItem value="clothing">Clothing</SelectItem>
+                <SelectItem value="toiletries">Toiletries</SelectItem>
+                <SelectItem value="electronics">Electronics</SelectItem>
+                <SelectItem value="documents">Documents</SelectItem>
+                <SelectItem value="activities">Activities</SelectItem>
+                <SelectItem value="food">Food</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex justify-end gap-3">

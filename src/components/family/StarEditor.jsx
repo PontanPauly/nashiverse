@@ -4,24 +4,34 @@ import { OrbitControls } from "@react-three/drei";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Sparkles, Shuffle, Check } from "lucide-react";
 import Star from "@/components/constellation/Star";
 import {
-  CORE_SHAPES,
   COLOR_PALETTES,
-  GLOW_STYLES,
-  ANIMATION_PATTERNS,
-  SIZE_MODIFIERS,
   DEFAULT_STAR_PROFILE,
   generateRandomStarProfile,
 } from "@/lib/starConfig";
+
+const STAR_TYPES = [
+  { id: 'classic', name: 'Classic', desc: 'Radiant point star' },
+  { id: 'nova', name: 'Nova', desc: 'Explosive burst' },
+  { id: 'crystal', name: 'Crystal', desc: 'Faceted gem' },
+  { id: 'nebula', name: 'Nebula', desc: 'Cloudy gas' },
+];
+
+const TWINKLE_PRESETS = [
+  { id: 'steady', name: 'Steady', glowStyle: 'soft-halo', animation: 'steady', size: 'standard' },
+  { id: 'gentle', name: 'Gentle', glowStyle: 'soft-halo', animation: 'gentle-pulse', size: 'standard' },
+  { id: 'twinkle', name: 'Twinkle', glowStyle: 'sparkle', animation: 'twinkle', size: 'standard' },
+  { id: 'vivid', name: 'Vivid', glowStyle: 'flame', animation: 'dancing', size: 'grand' },
+];
+
+function getTwinklePresetId(profile) {
+  for (const preset of TWINKLE_PRESETS) {
+    if (profile.animation === preset.animation) return preset.id;
+  }
+  return 'gentle';
+}
 
 function StarPreview({ starProfile }) {
   return (
@@ -111,11 +121,8 @@ export default function StarEditor({ value, onChange }) {
     onChange?.(randomProfile);
   };
 
-  const shapeOptions = useMemo(() => Object.values(CORE_SHAPES), []);
   const colorOptions = useMemo(() => Object.values(COLOR_PALETTES), []);
-  const glowOptions = useMemo(() => Object.values(GLOW_STYLES), []);
-  const animationOptions = useMemo(() => Object.values(ANIMATION_PATTERNS), []);
-  const sizeOptions = useMemo(() => Object.values(SIZE_MODIFIERS), []);
+  const currentTwinkle = getTwinklePresetId(starProfile);
 
   return (
     <div className="space-y-6">
@@ -126,7 +133,6 @@ export default function StarEditor({ value, onChange }) {
             Design Your Star
           </span>
         </div>
-        <p className="text-sm text-slate-400">Create a unique star that represents you in the constellation</p>
       </div>
 
       <div className="relative h-48 rounded-xl overflow-hidden border border-slate-700/50">
@@ -153,7 +159,7 @@ export default function StarEditor({ value, onChange }) {
         <StarPreview starProfile={starProfile} />
         <div className="absolute bottom-2 left-0 right-0 text-center">
           <span className="text-xs text-slate-500 bg-slate-900/50 px-2 py-1 rounded-full">
-            Live Preview • Drag to rotate
+            Live Preview
           </span>
         </div>
       </div>
@@ -175,16 +181,16 @@ export default function StarEditor({ value, onChange }) {
           <div className="space-y-3">
             <Label className="text-slate-300 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-amber-400" />
-              Core Shape
+              Star Type
             </Label>
             <div className="grid grid-cols-4 gap-2">
-              {shapeOptions.map((shape) => (
+              {STAR_TYPES.map((type) => (
                 <OptionButton
-                  key={shape.id}
-                  isSelected={starProfile.shape === shape.id}
-                  onClick={() => updateProfile({ shape: shape.id })}
+                  key={type.id}
+                  isSelected={starProfile.shape === type.id}
+                  onClick={() => updateProfile({ shape: type.id })}
                 >
-                  {shape.name}
+                  {type.name}
                 </OptionButton>
               ))}
             </div>
@@ -193,7 +199,7 @@ export default function StarEditor({ value, onChange }) {
           <div className="space-y-3">
             <Label className="text-slate-300 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-rose-400" />
-              Color Palette
+              Color
             </Label>
             <div className="flex flex-wrap gap-2 justify-center p-3 rounded-lg bg-slate-900/50">
               {colorOptions.map((color) => (
@@ -202,7 +208,7 @@ export default function StarEditor({ value, onChange }) {
                   color={color}
                   name={color.name}
                   isSelected={starProfile.colorPalette === color.id}
-                  onClick={() => updateProfile({ colorPalette: color.id })}
+                  onClick={() => updateProfile({ colorPalette: color.id, customColor: null })}
                 />
               ))}
             </div>
@@ -214,65 +220,46 @@ export default function StarEditor({ value, onChange }) {
           <div className="space-y-3">
             <Label className="text-slate-300 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-cyan-400" />
-              Glow Style
+              Brightness
             </Label>
-            <div className="grid grid-cols-3 gap-2">
-              {glowOptions.map((glow) => (
-                <OptionButton
-                  key={glow.id}
-                  isSelected={starProfile.glowStyle === glow.id}
-                  onClick={() => updateProfile({ glowStyle: glow.id })}
-                >
-                  {glow.name}
-                </OptionButton>
-              ))}
+            <div className="flex items-center gap-3 px-1">
+              <span className="text-xs text-slate-500 w-8">Dim</span>
+              <input
+                type="range"
+                min="0.3"
+                max="1.0"
+                step="0.05"
+                value={starProfile.brightness}
+                onChange={(e) => updateProfile({ brightness: parseFloat(e.target.value) })}
+                className="flex-1 accent-amber-400 h-2"
+              />
+              <span className="text-xs text-slate-500 w-10 text-right">Bright</span>
             </div>
           </div>
 
           <div className="space-y-3">
             <Label className="text-slate-300 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-green-400" />
-              Animation
+              Twinkle
             </Label>
-            <div className="grid grid-cols-5 gap-2">
-              {animationOptions.map((anim) => (
+            <div className="grid grid-cols-4 gap-2">
+              {TWINKLE_PRESETS.map((preset) => (
                 <OptionButton
-                  key={anim.id}
-                  isSelected={starProfile.animation === anim.id}
-                  onClick={() => updateProfile({ animation: anim.id })}
-                  className="text-xs px-2"
+                  key={preset.id}
+                  isSelected={currentTwinkle === preset.id}
+                  onClick={() => updateProfile({
+                    glowStyle: preset.glowStyle,
+                    animation: preset.animation,
+                    size: preset.size,
+                  })}
                 >
-                  {anim.name}
-                </OptionButton>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <Label className="text-slate-300 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-violet-400" />
-              Size
-            </Label>
-            <div className="grid grid-cols-3 gap-2">
-              {sizeOptions.map((size) => (
-                <OptionButton
-                  key={size.id}
-                  isSelected={starProfile.size === size.id}
-                  onClick={() => updateProfile({ size: size.id })}
-                >
-                  {size.name}
+                  {preset.name}
                 </OptionButton>
               ))}
             </div>
           </div>
         </CardContent>
       </Card>
-
-      <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/5 to-violet-500/5 border border-slate-700/50">
-        <p className="text-xs text-slate-400 text-center">
-          ✨ Your star will shine uniquely in the family constellation
-        </p>
-      </div>
     </div>
   );
 }

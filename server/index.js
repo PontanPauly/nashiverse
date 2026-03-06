@@ -9,6 +9,7 @@ import fs from 'fs';
 import { pool } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { seedFamilyData } from './db/seed.js';
+import { requireAuth } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import entityRoutes from './routes/entities.js';
 import uploadRoutes from './routes/upload.js';
@@ -20,6 +21,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const isProduction = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || (isProduction ? 5000 : 3001);
+
+if (isProduction && !process.env.SESSION_SECRET) {
+  console.error('FATAL: SESSION_SECRET environment variable is required in production.');
+  process.exit(1);
+}
 
 const allowedOrigins = isProduction
   ? [process.env.FRONTEND_URL, `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`].filter(Boolean)
@@ -45,8 +51,6 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
-
 const PgSession = connectPgSimple(session);
 
 app.use(session({
@@ -65,6 +69,25 @@ app.use(session({
     maxAge: 24 * 60 * 60 * 1000
   }
 }));
+
+if (isProduction) {
+  app.use('/api', (req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+      return next();
+    }
+    const origin = req.get('Origin') || req.get('Referer');
+    if (!origin) {
+      return res.status(403).json({ error: 'Missing Origin header' });
+    }
+    const allowed = allowedOrigins.some(o => o && origin.startsWith(o));
+    if (!allowed) {
+      return res.status(403).json({ error: 'Invalid Origin' });
+    }
+    next();
+  });
+}
+
+app.use('/uploads', requireAuth, express.static(path.join(__dirname, '..', 'uploads')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/entities', entityRoutes);

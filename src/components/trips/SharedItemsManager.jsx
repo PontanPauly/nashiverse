@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export default function SharedItemsManager({ tripId, people }) {
@@ -50,7 +49,7 @@ export default function SharedItemsManager({ tripId, people }) {
         <div className="glass-card rounded-xl p-4">
           <div className="space-y-2">
             {items.map(item => {
-              const broughtBy = people.find(p => p.id === item.brought_by_person_id);
+              const assignedTo = people.find(p => p.id === item.assigned_to_person_id);
               return (
                 <div
                   key={item.id}
@@ -72,16 +71,15 @@ export default function SharedItemsManager({ tripId, people }) {
                   </button>
                   <div className="flex-1">
                     <p className={cn("text-slate-200", item.is_confirmed && "line-through")}>
-                      {item.item_name} {item.quantity > 1 && `(${item.quantity})`}
+                      {item.item}
                     </p>
-                    <div className="flex gap-2 mt-1">
-                      <Badge className="text-xs">{item.category}</Badge>
-                      {broughtBy && (
+                    {assignedTo && (
+                      <div className="flex gap-2 mt-1">
                         <span className="text-xs text-slate-500">
-                          {broughtBy.name}
+                          {assignedTo.name}
                         </span>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                   <Button
                     variant="ghost"
@@ -121,18 +119,16 @@ export default function SharedItemsManager({ tripId, people }) {
 
 function SharedItemForm({ tripId, people, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
-    item_name: '',
-    category: 'kitchen',
-    quantity: 1,
-    brought_by_person_id: '',
+    item: '',
+    assigned_to_person_id: '',
   });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     await base44.entities.SharedTripItem.create({
-      ...formData,
+      item: formData.item,
+      assigned_to_person_id: formData.assigned_to_person_id || null,
       trip_id: tripId,
-      quantity: parseInt(formData.quantity),
     });
     onSuccess();
   };
@@ -147,51 +143,22 @@ function SharedItemForm({ tripId, people, onClose, onSuccess }) {
           <div>
             <Label className="text-slate-300">Item Name</Label>
             <Input
-              value={formData.item_name}
-              onChange={(e) => setFormData({ ...formData, item_name: e.target.value })}
+              value={formData.item}
+              onChange={(e) => setFormData({ ...formData, item: e.target.value })}
               className="bg-slate-800 border-slate-700 text-slate-100"
               placeholder="e.g., Blender, Plates, Cooler"
               required
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-slate-300">Category</Label>
-              <Select value={formData.category} onValueChange={(val) => setFormData({ ...formData, category: val })}>
-                <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-100">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-700">
-                  <SelectItem value="kitchen">Kitchen</SelectItem>
-                  <SelectItem value="entertainment">Entertainment</SelectItem>
-                  <SelectItem value="outdoor">Outdoor</SelectItem>
-                  <SelectItem value="cleaning">Cleaning</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-slate-300">Quantity</Label>
-              <Input
-                type="number"
-                min="1"
-                value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-slate-100"
-              />
-            </div>
-          </div>
-
           <div>
             <Label className="text-slate-300">Who Will Bring It</Label>
-            <Select value={formData.brought_by_person_id} onValueChange={(val) => setFormData({ ...formData, brought_by_person_id: val })}>
+            <Select value={formData.assigned_to_person_id || "none"} onValueChange={(val) => setFormData({ ...formData, assigned_to_person_id: val === "none" ? "" : val })}>
               <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-100">
                 <SelectValue placeholder="Select person (optional)" />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
-                <SelectItem value={null}>No one assigned</SelectItem>
+                <SelectItem value="none">No one assigned</SelectItem>
                 {people.map(p => (
                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}

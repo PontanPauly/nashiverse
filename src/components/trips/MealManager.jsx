@@ -9,7 +9,6 @@ import {
   User,
   Edit,
   Trash2,
-  Hand
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 export default function MealManager({ tripId, trip, meals, people, participants }) {
@@ -81,8 +79,7 @@ export default function MealManager({ tripId, trip, meals, people, participants 
     const myPerson = people.find(p => p.linked_user_email === user.email);
     if (myPerson) {
       await base44.entities.Meal.update(mealId, { 
-        responsible_person_id: myPerson.id,
-        is_open_for_volunteer: false 
+        chef_ids: [myPerson.id]
       });
       queryClient.invalidateQueries(['trip-meals', tripId]);
     }
@@ -105,7 +102,6 @@ export default function MealManager({ tripId, trip, meals, people, participants 
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
           <UtensilsCrossed className="w-5 h-5 text-amber-400" />
@@ -121,7 +117,6 @@ export default function MealManager({ tripId, trip, meals, people, participants 
         </Button>
       </div>
 
-      {/* Dietary Alerts */}
       {dietaryAlerts.length > 0 && (
         <div className="glass-card rounded-xl p-4 border-l-4 border-red-500">
           <h3 className="font-medium text-slate-200 mb-3 flex items-center gap-2">
@@ -146,7 +141,6 @@ export default function MealManager({ tripId, trip, meals, people, participants 
         </div>
       )}
 
-      {/* Meals by Day */}
       <div className="space-y-4">
         {tripDays.map((day) => {
           const dayMeals = getMealsForDay(day);
@@ -170,28 +164,18 @@ export default function MealManager({ tripId, trip, meals, people, participants 
                         <div className="flex items-start gap-3">
                           <span className="text-2xl">{mealTypeIcons[meal.meal_type]}</span>
                           <div>
-                            <h4 className="font-medium text-slate-200">{meal.name}</h4>
+                            <h4 className="font-medium text-slate-200">{meal.title}</h4>
                             <p className="text-sm text-slate-500 capitalize">{meal.meal_type}</p>
                             
-                            {meal.responsible_person_id ? (
+                            {meal.chef_ids?.[0] ? (
                               <p className="text-sm text-slate-400 mt-1 flex items-center gap-1">
                                 <User className="w-3 h-3" />
-                                {getPersonName(meal.responsible_person_id)}
+                                {getPersonName(meal.chef_ids?.[0])}
                               </p>
-                            ) : meal.is_open_for_volunteer ? (
-                              <Button 
-                                variant="link" 
-                                size="sm" 
-                                className="text-amber-400 p-0 h-auto mt-1"
-                                onClick={() => volunteerForMeal(meal.id)}
-                              >
-                                <Hand className="w-3 h-3 mr-1" />
-                                Volunteer
-                              </Button>
                             ) : null}
                             
-                            {meal.menu_description && (
-                              <p className="text-sm text-slate-400 mt-2">{meal.menu_description}</p>
+                            {meal.description && (
+                              <p className="text-sm text-slate-400 mt-2">{meal.description}</p>
                             )}
                           </div>
                         </div>
@@ -236,7 +220,6 @@ export default function MealManager({ tripId, trip, meals, people, participants 
         </div>
       )}
 
-      {/* Meal Form Dialog */}
       <Dialog open={showMealForm} onOpenChange={(open) => {
         setShowMealForm(open);
         if (!open) setEditingMeal(null);
@@ -271,14 +254,13 @@ export default function MealManager({ tripId, trip, meals, people, participants 
 function MealForm({ meal, tripId, tripDays, people, onSuccess, onCancel }) {
   const [formData, setFormData] = useState({
     trip_id: tripId,
-    name: meal?.name || "",
+    title: meal?.title || "",
     date: meal?.date || (tripDays[0] ? format(tripDays[0], 'yyyy-MM-dd') : ""),
-    time: meal?.time || "",
     meal_type: meal?.meal_type || "dinner",
-    is_needed: meal?.is_needed ?? true,
-    responsible_person_id: meal?.responsible_person_id || "",
-    is_open_for_volunteer: meal?.is_open_for_volunteer ?? true,
-    menu_description: meal?.menu_description || "",
+    chef_id: meal?.chef_ids?.[0] || "",
+    description: meal?.description || "",
+    location: meal?.location || "",
+    notes: meal?.notes || "",
   });
   const [loading, setLoading] = useState(false);
 
@@ -287,8 +269,14 @@ function MealForm({ meal, tripId, tripDays, people, onSuccess, onCancel }) {
     setLoading(true);
 
     const dataToSave = {
-      ...formData,
-      responsible_person_id: formData.responsible_person_id || null,
+      trip_id: formData.trip_id,
+      date: formData.date,
+      meal_type: formData.meal_type,
+      title: formData.title,
+      description: formData.description || null,
+      chef_ids: formData.chef_id ? [formData.chef_id] : null,
+      location: formData.location || null,
+      notes: formData.notes || null,
     };
 
     if (meal?.id) {
@@ -308,8 +296,8 @@ function MealForm({ meal, tripId, tripDays, people, onSuccess, onCancel }) {
       <div className="space-y-2">
         <Label className="text-slate-300">Meal Name *</Label>
         <Input
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
           className="bg-slate-800 border-slate-700 text-slate-100"
           placeholder="e.g., Welcome dinner"
           required
@@ -350,13 +338,12 @@ function MealForm({ meal, tripId, tripDays, people, onSuccess, onCancel }) {
       </div>
 
       <div className="space-y-2">
-        <Label className="text-slate-300">Responsible Person</Label>
+        <Label className="text-slate-300">Chef</Label>
         <Select 
-          value={formData.responsible_person_id || "none"} 
+          value={formData.chef_id || "none"} 
           onValueChange={(value) => setFormData({ 
             ...formData, 
-            responsible_person_id: value === "none" ? "" : value,
-            is_open_for_volunteer: value === "none" ? formData.is_open_for_volunteer : false
+            chef_id: value === "none" ? "" : value,
           })}
         >
           <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-100">
@@ -371,21 +358,11 @@ function MealForm({ meal, tripId, tripDays, people, onSuccess, onCancel }) {
         </Select>
       </div>
 
-      {!formData.responsible_person_id && (
-        <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50">
-          <Label className="text-slate-300">Open for volunteers</Label>
-          <Switch
-            checked={formData.is_open_for_volunteer}
-            onCheckedChange={(checked) => setFormData({ ...formData, is_open_for_volunteer: checked })}
-          />
-        </div>
-      )}
-
       <div className="space-y-2">
         <Label className="text-slate-300">Menu / Description</Label>
         <Textarea
-          value={formData.menu_description}
-          onChange={(e) => setFormData({ ...formData, menu_description: e.target.value })}
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           className="bg-slate-800 border-slate-700 text-slate-100"
           placeholder="What's being served?"
           rows={2}

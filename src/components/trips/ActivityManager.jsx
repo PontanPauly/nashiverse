@@ -118,10 +118,10 @@ export default function ActivityManager({ tripId, trip, activities, people }) {
                                 </p>
                               )}
                               
-                              {activity.organizer_person_id && (
+                              {activity.organizer_ids?.[0] && (
                                 <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
                                   <User className="w-3 h-3" />
-                                  Organized by {getPersonName(activity.organizer_person_id)}
+                                  Organized by {getPersonName(activity.organizer_ids?.[0])}
                                 </p>
                               )}
                               
@@ -212,8 +212,7 @@ function ActivityForm({ activity, tripId, tripDays, people, onSuccess, onCancel 
     time: activity?.time || "",
     location: activity?.location || "",
     description: activity?.description || "",
-    organizer_person_id: activity?.organizer_person_id || "",
-    is_open_to_all: activity?.is_open_to_all ?? true,
+    organizer_id: activity?.organizer_ids?.[0] || "",
   });
   const [loading, setLoading] = useState(false);
 
@@ -222,8 +221,13 @@ function ActivityForm({ activity, tripId, tripDays, people, onSuccess, onCancel 
     setLoading(true);
 
     const dataToSave = {
-      ...formData,
-      organizer_person_id: formData.organizer_person_id || null,
+      trip_id: formData.trip_id,
+      name: formData.name,
+      date: formData.date,
+      time: formData.time || null,
+      location: formData.location || null,
+      description: formData.description || null,
+      organizer_ids: formData.organizer_id ? [formData.organizer_id] : null,
     };
 
     if (activity?.id) {
@@ -291,8 +295,8 @@ function ActivityForm({ activity, tripId, tripDays, people, onSuccess, onCancel 
       <div className="space-y-2">
         <Label className="text-slate-300">Organizer</Label>
         <Select 
-          value={formData.organizer_person_id || "none"} 
-          onValueChange={(value) => setFormData({ ...formData, organizer_person_id: value === "none" ? "" : value })}
+          value={formData.organizer_id || "none"} 
+          onValueChange={(value) => setFormData({ ...formData, organizer_id: value === "none" ? "" : value })}
         >
           <SelectTrigger className="bg-slate-800 border-slate-700 text-slate-100">
             <SelectValue placeholder="Who's organizing?" />
