@@ -322,43 +322,80 @@ function useOrganicClusterLayout(households, people, viewMode = 'nebula', relati
       genGroups.get(gen).push(h);
     });
     
-    const genRadii = [10, 50, 85, 115];
-    const minSeparation = 25.0;
+    const minSeparation = 28.0;
     const GOLDEN_ANGLE = 2.399963229728653;
+    const BRANCH_DISTANCE = 45;
     
     const positions = new Map();
     const placedPositions = [];
     
     const sortedGens = [...genGroups.keys()].sort((a, b) => a - b);
     
-    let globalIndex = 0;
+    function findParentPositions(hhId) {
+      const parents = childOf.get(hhId);
+      if (!parents || parents.size === 0) return null;
+      const parentPositions = [];
+      parents.forEach(pid => {
+        const pos = positions.get(pid);
+        if (pos) parentPositions.push(pos);
+      });
+      if (parentPositions.length === 0) return null;
+      const avg = { x: 0, y: 0, z: 0 };
+      parentPositions.forEach(p => { avg.x += p.x; avg.y += p.y; avg.z += p.z; });
+      avg.x /= parentPositions.length;
+      avg.y /= parentPositions.length;
+      avg.z /= parentPositions.length;
+      return avg;
+    }
+    
     sortedGens.forEach(gen => {
       const group = genGroups.get(gen);
-      const baseRadius = genRadii[Math.min(gen, genRadii.length - 1)];
+      const n = group.length;
       
       group.forEach((household, idx) => {
         const seed = household.id;
-        const i = globalIndex;
-        const n = households.length;
-        globalIndex++;
+        let x, y, z;
         
-        const phi = Math.acos(1 - 2 * (i + 0.5) / n);
-        const theta = GOLDEN_ANGLE * i + seededRandom(seed + '-angle') * 0.5;
-        
-        const radiusJitter = (seededRandom(seed + '-rjit') - 0.5) * (gen === 0 ? 6 : 18);
-        const radius = baseRadius + radiusJitter;
-        
-        const phiJitter = (seededRandom(seed + '-phij') - 0.5) * 0.4;
-        const thetaJitter = (seededRandom(seed + '-thj') - 0.5) * 0.4;
-        const adjPhi = phi + phiJitter;
-        const adjTheta = theta + thetaJitter;
-        
-        let x = radius * Math.sin(adjPhi) * Math.cos(adjTheta);
-        let y = radius * Math.cos(adjPhi);
-        let z = radius * Math.sin(adjPhi) * Math.sin(adjTheta);
+        if (gen === 0) {
+          const phi = Math.acos(1 - 2 * (idx + 0.5) / Math.max(n, 3));
+          const theta = GOLDEN_ANGLE * idx + seededRandom(seed + '-angle') * 0.6;
+          const radius = 8 + seededRandom(seed + '-r0') * 10;
+          x = radius * Math.sin(phi) * Math.cos(theta);
+          y = radius * Math.cos(phi);
+          z = radius * Math.sin(phi) * Math.sin(theta);
+        } else {
+          const parentPos = findParentPositions(household.id);
+          
+          if (parentPos) {
+            const dist = Math.sqrt(parentPos.x * parentPos.x + parentPos.y * parentPos.y + parentPos.z * parentPos.z);
+            const baseDist = BRANCH_DISTANCE + seededRandom(seed + '-bd') * 15;
+            
+            const randPhi = Math.acos(1 - 2 * seededRandom(seed + '-phi'));
+            const randTheta = seededRandom(seed + '-theta') * Math.PI * 2;
+            const offX = Math.sin(randPhi) * Math.cos(randTheta);
+            const offY = Math.cos(randPhi);
+            const offZ = Math.sin(randPhi) * Math.sin(randTheta);
+            
+            const radialX = dist > 1 ? parentPos.x / dist : 0;
+            const radialY = dist > 1 ? parentPos.y / dist : 0;
+            const radialZ = dist > 1 ? parentPos.z / dist : 0;
+            
+            const outwardBias = 0.4;
+            x = parentPos.x + (offX * (1 - outwardBias) + radialX * outwardBias) * baseDist;
+            y = parentPos.y + (offY * (1 - outwardBias) + radialY * outwardBias) * baseDist;
+            z = parentPos.z + (offZ * (1 - outwardBias) + radialZ * outwardBias) * baseDist;
+          } else {
+            const phi = Math.acos(1 - 2 * (idx + 0.5) / Math.max(n, 3));
+            const theta = GOLDEN_ANGLE * idx + seededRandom(seed + '-angle') * 0.6;
+            const shellRadius = 35 + gen * 30 + seededRandom(seed + '-rs') * 15;
+            x = shellRadius * Math.sin(phi) * Math.cos(theta);
+            y = shellRadius * Math.cos(phi);
+            z = shellRadius * Math.sin(phi) * Math.sin(theta);
+          }
+        }
         
         let attempts = 0;
-        while (attempts < 50) {
+        while (attempts < 60) {
           let tooClose = false;
           for (const placed of placedPositions) {
             const dx = x - placed.x;
@@ -371,9 +408,9 @@ function useOrganicClusterLayout(households, people, viewMode = 'nebula', relati
             }
           }
           if (!tooClose) break;
-          x += (seededRandom(seed + '-ax-' + attempts) - 0.5) * 16;
-          y += (seededRandom(seed + '-ay-' + attempts) - 0.5) * 16;
-          z += (seededRandom(seed + '-az-' + attempts) - 0.5) * 16;
+          x += (seededRandom(seed + '-ax-' + attempts) - 0.5) * 20;
+          y += (seededRandom(seed + '-ay-' + attempts) - 0.5) * 20;
+          z += (seededRandom(seed + '-az-' + attempts) - 0.5) * 20;
           attempts++;
         }
         
