@@ -3620,6 +3620,39 @@ function BackgroundStarField({ qualityTier }) {
   );
 }
 
+function PolarStabilizer({ controlsRef, active }) {
+  const savedPolar = useRef(null);
+
+  useFrame(() => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+
+    if (active) {
+      if (savedPolar.current === null) {
+        savedPolar.current = controls.getPolarAngle();
+      }
+      const current = controls.getPolarAngle();
+      const diff = current - savedPolar.current;
+      if (Math.abs(diff) > 0.001) {
+        const az = controls.getAzimuthalAngle();
+        const dist = controls.getDistance();
+        const target = controls.target;
+        const phi = savedPolar.current;
+        const sinPhi = Math.sin(phi);
+        controls.object.position.set(
+          target.x + dist * sinPhi * Math.sin(az),
+          target.y + dist * Math.cos(phi),
+          target.z + dist * sinPhi * Math.cos(az)
+        );
+      }
+    } else {
+      savedPolar.current = null;
+    }
+  });
+
+  return null;
+}
+
 function NebulaScene({
   level,
   households,
@@ -3774,6 +3807,7 @@ function NebulaScene({
         minPolarAngle={Math.PI * 0.05}
         maxPolarAngle={Math.PI * 0.95}
       />
+      <PolarStabilizer controlsRef={controlsRef} active={autoRotateEnabled && level === 'galaxy' && !hoveredHouseholdId} />
     </>
   );
 }
