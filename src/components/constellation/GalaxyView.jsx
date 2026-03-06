@@ -2331,10 +2331,10 @@ const connectionLineShader = {
       float coreBright = smoothstep(0.6, 0.0, edge);
       float pulse = fract(uTime * 0.3 - vT);
       float pulseGlow = smoothstep(0.0, 0.08, pulse) * smoothstep(0.2, 0.08, pulse);
-      float baseBrightness = mix(0.0, 0.7, vHighlight);
-      float brightness = baseBrightness + pulseGlow * mix(0.0, 1.0, vHighlight);
+      float baseBrightness = mix(0.15, 0.7, vHighlight);
+      float brightness = baseBrightness + pulseGlow * mix(0.2, 1.0, vHighlight);
       brightness *= (0.5 + coreBright * 0.5);
-      float alpha = mix(0.0, 0.9, vHighlight) * edgeFalloff;
+      float alpha = mix(0.12, 0.9, vHighlight) * edgeFalloff;
       if (alpha < 0.01) discard;
       vec3 col = vColor * brightness;
       col += vColor * coreBright * 0.3;
